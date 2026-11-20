@@ -1,5 +1,6 @@
 import WorkOrdersPageView from "@/components/pages/workOrders";
+import { getJobCardsOverview } from "@/lib/overviews";
 
-export default function WorkOrdersPage() {
-	return <WorkOrdersPageView />;
+export default async function WorkOrdersPage() {
+	return <WorkOrdersPageView overview={await getJobCardsOverview()} />;
 }
