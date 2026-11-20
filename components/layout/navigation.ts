@@ -165,3 +165,8 @@ export function getNavForRole(role: string) {
 export function isActive(pathname: string, href: string) {
 	return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** MD / GM level: the only roles that can change company-wide settings. */
+export function isOwnerRole(role: string) {
+	return ROLE_ACCESS[0].match.test(role);
+}
