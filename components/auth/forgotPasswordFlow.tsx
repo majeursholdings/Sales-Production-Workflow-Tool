@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Check, Mail, Minus } from "lucide-react";
 import { LinkButton } from "@/components/common/buttons";
 import MainForm from "@/components/forms";
@@ -74,7 +75,8 @@ function Requirement({ met, children }: { met: boolean; children: string }) {
 	);
 }
 
-export default function ForgotPasswordFlow({ token }: { token?: string }) {
+export default function ForgotPasswordFlow() {
+	const token = useSearchParams().get("token") ?? undefined;
 	const [sentTo, setSentTo] = useState<string | null>(null);
 	const [resent, setResent] = useState(false);
 	const [updated, setUpdated] = useState(false);

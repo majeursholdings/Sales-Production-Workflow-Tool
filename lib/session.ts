@@ -11,5 +11,5 @@ export type SessionUser = {
  * through here, so swapping in real auth is a one-file change.
  */
 export async function getCurrentUser(): Promise<SessionUser> {
-	return { name: "Staff Name", role: "Staff Role", unreadNotificationsCount: 0 };
+	return { name: "Staff Name", role: "Director", unreadNotificationsCount: 0 };
 }
