@@ -45,9 +45,7 @@ export function exportToCSV<TRow extends object>(
 	};
 
 	const header = keys.map((k) => toTitle(String(k))).join(",");
-	const body = rows
-		.map((row) => keys.map((k) => escape(row[k])).join(","))
-		.join("\n");
+	const body = rows.map((row) => keys.map((k) => escape(row[k])).join(",")).join("\n");
 
 	const blob = new Blob([`${header}\n${body}`], {
 		type: "text/csv;charset=utf-8;",

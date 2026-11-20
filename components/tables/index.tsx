@@ -11,16 +11,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type {
-    ColumnDef,
-    PaginationMeta,
-    SelectFilterItem,
-    FilterDef,
-    SortOptionDef,
-    ViewAction,
-    EditAction,
-    DeleteAction,
-    LinkAction,
-    RowAction,
+	ColumnDef,
+	PaginationMeta,
+	SelectFilterItem,
+	FilterDef,
+	SortOptionDef,
+	ViewAction,
+	EditAction,
+	DeleteAction,
+	LinkAction,
+	RowAction,
 } from "./types";
 
 export type { UseTableRowsOptions } from "./useTableRows";

@@ -70,11 +70,11 @@ export type ViewAction<TRow> =
 	| { type: "link"; href: (row: TRow) => string }
 	| { type: "popup"; onClick: (row: TRow) => void }
 	| {
-		  type: "sheet";
-		  /** Sheet header title. Defaults to "Details" if omitted. */
-		  title?: (row: TRow) => ReactNode;
-		  /** Sheet body content. */
-		  content: (row: TRow) => ReactNode;
+			type: "sheet";
+			/** Sheet header title. Defaults to "Details" if omitted. */
+			title?: (row: TRow) => ReactNode;
+			/** Sheet body content. */
+			content: (row: TRow) => ReactNode;
 	  };
 
 /**
@@ -85,16 +85,16 @@ export type ViewAction<TRow> =
  */
 export type EditAction<TRow> =
 	| {
-		  type?: "dialog";
-		  /** Body rendered inside the dialog. ReactNode so the parent decides layout. */
-		  dialogContent: (row: TRow) => ReactNode;
-		  onConfirm: (row: TRow) => void;
-		  /** Confirm button label. Defaults to "Save changes". */
-		  confirmLabel?: string;
+			type?: "dialog";
+			/** Body rendered inside the dialog. ReactNode so the parent decides layout. */
+			dialogContent: (row: TRow) => ReactNode;
+			onConfirm: (row: TRow) => void;
+			/** Confirm button label. Defaults to "Save changes". */
+			confirmLabel?: string;
 	  }
 	| {
-		  type: "link";
-		  href: (row: TRow) => string;
+			type: "link";
+			href: (row: TRow) => string;
 	  };
 
 /**

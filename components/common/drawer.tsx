@@ -42,15 +42,28 @@ export function Drawer({
 				<div className="flex items-start gap-3 border-b border-line px-6 py-5">
 					<div className="flex min-w-0 flex-1 flex-col gap-1">
 						<h2 id={titleId}>{title}</h2>
-						{description && <p className="text-body text-fg-secondary">{description}</p>}
+						{description && (
+							<p className="text-body text-fg-secondary">{description}</p>
+						)}
 					</div>
-					<Button variant="ghost" size="sm" icon aria-label="Close" title="Close" onClick={onClose}>
+					<Button
+						variant="ghost"
+						size="sm"
+						icon
+						aria-label="Close"
+						title="Close"
+						onClick={onClose}
+					>
 						<X />
 					</Button>
 				</div>
-				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">{children}</div>
+				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
+					{children}
+				</div>
 				{footer && (
-					<div className="flex flex-wrap items-center gap-3 border-t border-line px-6 py-4">{footer}</div>
+					<div className="flex flex-wrap items-center gap-3 border-t border-line px-6 py-4">
+						{footer}
+					</div>
 				)}
 			</section>
 		</>

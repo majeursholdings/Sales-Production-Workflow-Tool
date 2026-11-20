@@ -8,7 +8,9 @@ export function TableSkeletonRows({ cols, rows = 5 }: { cols: number; rows?: num
 				<tr key={r} aria-hidden="true">
 					{Array.from({ length: cols }, (_, c) => (
 						<td key={c}>
-							<div className={`h-4 animate-pulse rounded-sm bg-subtle ${WIDTHS[(r + c) % WIDTHS.length]}`} />
+							<div
+								className={`h-4 animate-pulse rounded-sm bg-subtle ${WIDTHS[(r + c) % WIDTHS.length]}`}
+							/>
 						</td>
 					))}
 				</tr>

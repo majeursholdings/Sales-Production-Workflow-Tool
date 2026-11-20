@@ -74,10 +74,23 @@ export function useTableRows<TRow extends { id: string }>({
 	// object that only changes when what's in them does, for the memo below
 	const optionsKey = [
 		searchFields.map(String).join(","),
-		filters.map(({ paramKey, field, matchMode }) => `${paramKey}:${String(field)}:${matchMode ?? ""}`).join(","),
-		(sortOptions ?? []).map(({ value, field, type, direction }) => `${value}:${String(field)}:${type ?? ""}:${direction ?? ""}`).join(","),
+		filters
+			.map(
+				({ paramKey, field, matchMode }) =>
+					`${paramKey}:${String(field)}:${matchMode ?? ""}`,
+			)
+			.join(","),
+		(sortOptions ?? [])
+			.map(
+				({ value, field, type, direction }) =>
+					`${value}:${String(field)}:${type ?? ""}:${direction ?? ""}`,
+			)
+			.join(","),
 	].join("|");
-	const [stableOptions, setStableOptions] = useState({ key: optionsKey, options: { searchFields, filters, sortOptions } });
+	const [stableOptions, setStableOptions] = useState({
+		key: optionsKey,
+		options: { searchFields, filters, sortOptions },
+	});
 	if (stableOptions.key !== optionsKey) {
 		setStableOptions({ key: optionsKey, options: { searchFields, filters, sortOptions } });
 	}

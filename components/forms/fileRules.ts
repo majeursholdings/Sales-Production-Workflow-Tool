@@ -11,9 +11,9 @@ export const DEFAULT_MAX_FILE_SIZE_MB = 5;
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp)$/i;
 const DOCUMENT_EXTENSIONS = /\.(pdf|docx?)$/i;
 const DOCUMENT_TYPES = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/pdf",
+	"application/msword",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 /** The picker filter for image fields. */
@@ -32,15 +32,20 @@ export const API_DOCUMENT_ACCEPT = ".pdf, application/pdf";
 /** The picker filter for a CSV file (a "file" field with `acceptCsv`). */
 export const CSV_ACCEPT = ".csv, text/csv";
 
-export const isCsvFile = (file: File) => /\.csv$/i.test(file.name) && ["", "text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"].includes(file.type);
+export const isCsvFile = (file: File) =>
+	/\.csv$/i.test(file.name) &&
+	["", "text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"].includes(
+		file.type,
+	);
 
-export const isImageFile = (file: File) => file.type.startsWith("image/") || IMAGE_EXTENSIONS.test(file.name);
+export const isImageFile = (file: File) =>
+	file.type.startsWith("image/") || IMAGE_EXTENSIONS.test(file.name);
 
 export const isDocumentFile = (file: File) =>
-    DOCUMENT_TYPES.includes(file.type) || DOCUMENT_EXTENSIONS.test(file.name);
+	DOCUMENT_TYPES.includes(file.type) || DOCUMENT_EXTENSIONS.test(file.name);
 
 /** Why `file` can't go in a field of `type` — null when it can. */
 export function getFileKindError(file: File, type: "file" | "image"): string | null {
-    if (type === "image") return isImageFile(file) ? null : "Only images can be added";
-    return isDocumentFile(file) ? null : "Only PDF or Word documents can be added";
+	if (type === "image") return isImageFile(file) ? null : "Only images can be added";
+	return isDocumentFile(file) ? null : "Only PDF or Word documents can be added";
 }

@@ -78,7 +78,7 @@ function PaginationBar({
 			{loading ? (
 				<div aria-hidden="true" className="h-4 w-32 animate-pulse rounded-sm bg-subtle" />
 			) : (
-				<span className="tabular text-small text-fg-secondary">{label}</span>
+				<span className="text-small text-fg-secondary tabular">{label}</span>
 			)}
 			<div className="flex items-center gap-1">
 				<Button
@@ -92,7 +92,11 @@ function PaginationBar({
 				</Button>
 				{getPageNumbers(page, totalPages).map((p, i) =>
 					p === "…" ? (
-						<span key={`ellipsis-${i}`} aria-hidden="true" className="px-2 text-body text-fg-tertiary select-none">
+						<span
+							key={`ellipsis-${i}`}
+							aria-hidden="true"
+							className="px-2 text-body text-fg-tertiary select-none"
+						>
 							…
 						</span>
 					) : (
@@ -103,7 +107,7 @@ function PaginationBar({
 							aria-current={p === page ? "page" : undefined}
 							aria-label={`Page ${p}`}
 							className={cn(
-								"tabular h-8 min-w-8 cursor-pointer rounded-md border px-2 text-body transition-colors",
+								"h-8 min-w-8 cursor-pointer rounded-md border px-2 text-body tabular transition-colors",
 								p === page
 									? "border-line bg-subtle font-bold text-fg"
 									: "border-transparent text-fg-secondary hover:bg-subtle hover:text-fg",
@@ -176,9 +180,7 @@ export interface DataTableProps<TRow extends { id: string }> {
 	compact?: boolean;
 }
 
-export function DataTable<TRow extends { id: string }>(
-	props: DataTableProps<TRow>,
-) {
+export function DataTable<TRow extends { id: string }>(props: DataTableProps<TRow>) {
 	// Only a paginated table that doesn't control its own page reads the
 	// URL (useSearchParams), so the others work on static pages as-is
 	return props.pagination && !props.onPageChange ? (
@@ -188,9 +190,7 @@ export function DataTable<TRow extends { id: string }>(
 	);
 }
 
-function UrlPagedDataTable<TRow extends { id: string }>(
-	props: DataTableProps<TRow>,
-) {
+function UrlPagedDataTable<TRow extends { id: string }>(props: DataTableProps<TRow>) {
 	const { getParam, setParam } = useTableParam(props.tableId);
 	return (
 		<DataTableContent
@@ -236,13 +236,10 @@ function DataTableContent<TRow extends { id: string }>({
 	const [activeRow, setActiveRow] = useState<TRow | null>(null);
 	const [panelKind, setPanelKind] = useState<PanelKind>(null);
 
-	const openPanel = useCallback(
-		(kind: Exclude<PanelKind, null>, row: TRow) => {
-			setActiveRow(row);
-			setPanelKind(kind);
-		},
-		[],
-	);
+	const openPanel = useCallback((kind: Exclude<PanelKind, null>, row: TRow) => {
+		setActiveRow(row);
+		setPanelKind(kind);
+	}, []);
 	const closePanel = useCallback(() => {
 		setPanelKind(null);
 		setActiveRow(null);
@@ -262,9 +259,7 @@ function DataTableContent<TRow extends { id: string }>({
 	};
 
 	// ── Selection state ─────────────────────────────────────────────────────
-	const [internalSelected, setInternalSelected] = useState<Set<string>>(
-		new Set(),
-	);
+	const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
 	const selected = selectedIds ? new Set(selectedIds) : internalSelected;
 
 	const updateSelection = (next: Set<string>) => {
@@ -279,10 +274,8 @@ function DataTableContent<TRow extends { id: string }>({
 		updateSelection(next);
 	};
 
-	const allSelectedOnPage =
-		rows.length > 0 && rows.every((r) => selected.has(r.id));
-	const someSelectedOnPage =
-		!allSelectedOnPage && rows.some((r) => selected.has(r.id));
+	const allSelectedOnPage = rows.length > 0 && rows.every((r) => selected.has(r.id));
+	const someSelectedOnPage = !allSelectedOnPage && rows.some((r) => selected.has(r.id));
 
 	const toggleAllOnPage = () => {
 		const next = new Set(selected);
@@ -296,10 +289,7 @@ function DataTableContent<TRow extends { id: string }>({
 	);
 
 	const colCount =
-		columns.length +
-		(hasActions ? 1 : 0) +
-		(showIndex ? 1 : 0) +
-		(selectable ? 1 : 0);
+		columns.length + (hasActions ? 1 : 0) + (showIndex ? 1 : 0) + (selectable ? 1 : 0);
 
 	return (
 		<TableIdContext.Provider value={tableId}>
@@ -346,7 +336,11 @@ function DataTableContent<TRow extends { id: string }>({
 							<TableSkeletonRows cols={colCount} />
 						) : error ? (
 							<tr>
-								<td colSpan={colCount} role="alert" className="px-5! py-8! text-center text-danger-fg!">
+								<td
+									colSpan={colCount}
+									role="alert"
+									className="px-5! py-8! text-center text-danger-fg!"
+								>
 									{error}
 								</td>
 							</tr>
@@ -374,17 +368,25 @@ function DataTableContent<TRow extends { id: string }>({
 											/>
 										</td>
 									)}
-									{showIndex && <td className="tabular w-10">{offset + i + 1}</td>}
+									{showIndex && (
+										<td className="w-10 tabular">{offset + i + 1}</td>
+									)}
 									{columns.map((col) => (
 										<td key={col.key} className={col.className}>
 											{col.cell
 												? col.cell(row)
-												: String((row as Record<string, unknown>)[col.key] ?? "")}
+												: String(
+														(row as Record<string, unknown>)[col.key] ??
+															"",
+													)}
 										</td>
 									))}
 									{/* ── Actions cell ─────────────────────────────────────── */}
 									{hasActions && (
-										<td className="text-end whitespace-nowrap" onClick={stopRowClick}>
+										<td
+											className="text-end whitespace-nowrap"
+											onClick={stopRowClick}
+										>
 											<RowActionsMenu
 												row={row}
 												viewAction={viewAction}

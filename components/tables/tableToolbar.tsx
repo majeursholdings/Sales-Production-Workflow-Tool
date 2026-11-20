@@ -29,7 +29,13 @@ export interface TableToolbarProps {
 	actions?: ReactNode;
 }
 
-export function TableToolbar({ search, filters = [], dateSort = false, sortBy, actions }: TableToolbarProps) {
+export function TableToolbar({
+	search,
+	filters = [],
+	dateSort = false,
+	sortBy,
+	actions,
+}: TableToolbarProps) {
 	return (
 		<div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
 			{search && <SearchInput {...search} />}

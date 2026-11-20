@@ -14,7 +14,9 @@ export function RatingStars({ value, max = 5 }: { value: number; max?: number })
 					aria-hidden="true"
 					className={cn(
 						"size-3.5",
-						i < Math.round(value) ? "fill-brand-gold text-brand-gold" : "fill-subtle text-line-strong",
+						i < Math.round(value)
+							? "fill-brand-gold text-brand-gold"
+							: "fill-subtle text-line-strong",
 					)}
 				/>
 			))}

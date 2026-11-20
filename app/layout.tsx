@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { helveticaNowDisplay, helveticaNowText, nordiquePro } from "./fonts";
+import { Toaster } from "sonner";
 import { ThemeProvider, themeInitScript } from "@/providers/theme-provider";
 import "./globals.css";
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 			<body className="flex min-h-full flex-col bg-page font-sans text-fg">
 				<ThemeProvider>
 					<main>{children}</main>
+					<Toaster position="bottom-right" />
 				</ThemeProvider>
 			</body>
 		</html>

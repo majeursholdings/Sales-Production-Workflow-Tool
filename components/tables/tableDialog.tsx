@@ -32,7 +32,12 @@ export function TableDialog({
 
 	if (variant === "delete") {
 		return (
-			<ConfirmDialog title={title} confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onClose}>
+			<ConfirmDialog
+				title={title}
+				confirmLabel={confirmLabel}
+				onConfirm={onConfirm}
+				onCancel={onClose}
+			>
 				{children}
 			</ConfirmDialog>
 		);

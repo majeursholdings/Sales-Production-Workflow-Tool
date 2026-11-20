@@ -100,7 +100,8 @@ export function Menu({
 						onMouseDown={(e) => e.preventDefault()}
 						// focus the first item as it opens
 						ref={(el) => {
-							if (el && !el.contains(document.activeElement)) el.querySelector<HTMLElement>(ITEMS)?.focus();
+							if (el && !el.contains(document.activeElement))
+								el.querySelector<HTMLElement>(ITEMS)?.focus();
 						}}
 						className="fixed z-40 flex min-w-44 flex-col rounded-lg border border-line bg-surface p-1 shadow-[0_8px_24px_rgb(33_29_26/0.12)]"
 					>

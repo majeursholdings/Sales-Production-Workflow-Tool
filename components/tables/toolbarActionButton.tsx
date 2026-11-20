@@ -16,7 +16,13 @@ export interface ToolbarActionButtonProps {
 	disabled?: boolean;
 }
 
-export function ToolbarActionButton({ label, onClick, href, icon, disabled = false }: ToolbarActionButtonProps) {
+export function ToolbarActionButton({
+	label,
+	onClick,
+	href,
+	icon,
+	disabled = false,
+}: ToolbarActionButtonProps) {
 	const content = (
 		<>
 			{icon ?? <Plus />}

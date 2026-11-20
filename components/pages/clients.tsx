@@ -1,13 +1,17 @@
-import PageTitle from "@/components/layout/pageTitle";
+import ClientsPageContent from "@/components/clients/clientsPageContent";
 import PageWrapper from "@/components/layout/pageWrapper";
+import type { Client } from "@/lib/clients";
 
-export default function ClientsPage() {
+export default function ClientsPage({
+	clients,
+	canDelete,
+}: {
+	clients: Client[];
+	canDelete: boolean;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Clients"
-				pageDescription="Everyone you quote and invoice, with their contact details and history."
-			/>
+			<ClientsPageContent initialClients={clients} canDelete={canDelete} />
 		</PageWrapper>
 	);
 }

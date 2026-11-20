@@ -78,7 +78,14 @@ export function RowActionsMenu<TRow extends { id: string }>({
 }) {
 	// A row whose actions are all hidden gets nothing, rather than an empty cell
 	const visibleRowActions = rowActions.filter((action) => !action.hidden?.(row));
-	if (!viewAction && !editAction && !deleteAction && !linkAction && visibleRowActions.length === 0) return null;
+	if (
+		!viewAction &&
+		!editAction &&
+		!deleteAction &&
+		!linkAction &&
+		visibleRowActions.length === 0
+	)
+		return null;
 
 	return (
 		<div className="inline-flex items-center justify-end gap-0.5">
@@ -93,7 +100,9 @@ export function RowActionsMenu<TRow extends { id: string }>({
 					<IconButton
 						aria-label="View"
 						title="View"
-						onClick={() => (viewAction.type === "sheet" ? onOpenSheet() : viewAction.onClick(row))}
+						onClick={() =>
+							viewAction.type === "sheet" ? onOpenSheet() : viewAction.onClick(row)
+						}
 					>
 						<Eye aria-hidden="true" />
 					</IconButton>
@@ -137,7 +146,9 @@ export function RowActionsMenu<TRow extends { id: string }>({
 								{disabledReason ? (
 									<span className="flex flex-col">
 										{action.label}
-										<span className="text-small text-fg-tertiary">{disabledReason}</span>
+										<span className="text-small text-fg-tertiary">
+											{disabledReason}
+										</span>
 									</span>
 								) : (
 									action.label

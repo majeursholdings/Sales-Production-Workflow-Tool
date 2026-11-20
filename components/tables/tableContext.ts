@@ -34,10 +34,7 @@ export function useTableParam(tableId: string) {
 		[router, pathname, searchParams, ns],
 	);
 
-	const getParam = useCallback(
-		(key: string) => searchParams.get(ns(key)),
-		[searchParams, ns],
-	);
+	const getParam = useCallback((key: string) => searchParams.get(ns(key)), [searchParams, ns]);
 
 	return { getParam, setParam };
 }

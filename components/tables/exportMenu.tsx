@@ -22,7 +22,12 @@ export interface ExportMenuProps {
 	formats?: ExportFormat[];
 }
 
-export function ExportMenu({ onExport, label = "Export", disabled = false, formats }: ExportMenuProps) {
+export function ExportMenu({
+	onExport,
+	label = "Export",
+	disabled = false,
+	formats,
+}: ExportMenuProps) {
 	const [busy, setBusy] = useState(false);
 	const options = EXPORT_FORMATS.filter((option) => !formats || formats.includes(option.value));
 
@@ -31,7 +36,11 @@ export function ExportMenu({ onExport, label = "Export", disabled = false, forma
 		try {
 			await onExport(format);
 		} catch (err) {
-			toast.error(err instanceof Error && err.message ? err.message : "Couldn't export the table. Please try again.");
+			toast.error(
+				err instanceof Error && err.message
+					? err.message
+					: "Couldn't export the table. Please try again.",
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -44,7 +53,11 @@ export function ExportMenu({ onExport, label = "Export", disabled = false, forma
 			triggerClassName={buttonClasses({ variant: "secondary" })}
 			trigger={
 				<>
-					{busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+					{busy ? (
+						<Loader2 className="animate-spin" aria-hidden="true" />
+					) : (
+						<Download aria-hidden="true" />
+					)}
 					{busy ? "Exporting…" : label}
 					<ChevronDown className="size-4!" aria-hidden="true" />
 				</>

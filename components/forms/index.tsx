@@ -16,7 +16,15 @@ import {
 	UseFormSetValue,
 } from "react-hook-form";
 import dayjs from "dayjs";
-import { ChevronDown, EyeIcon, EyeOffIcon, TriangleAlert, Loader2, XIcon, Check } from "lucide-react";
+import {
+	ChevronDown,
+	EyeIcon,
+	EyeOffIcon,
+	TriangleAlert,
+	Loader2,
+	XIcon,
+	Check,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/common/buttons";
 import { controlClass } from "./input";
@@ -79,7 +87,9 @@ export default function MainForm<T extends FieldValues = FieldValues>({
 
 	const canSubmit =
 		!requireValidToSubmit ||
-		fields.filter(isFieldRequired).every((field) => hasValue(field, watchedValues?.[field.name]));
+		fields
+			.filter(isFieldRequired)
+			.every((field) => hasValue(field, watchedValues?.[field.name]));
 
 	const renderedPairs = new Set<string>();
 
@@ -112,7 +122,9 @@ export default function MainForm<T extends FieldValues = FieldValues>({
 				{(title || description) && (
 					<div className="flex flex-col gap-1">
 						{title && <h3 className="text-h3">{title}</h3>}
-						{description && <p className="text-body text-fg-secondary">{description}</p>}
+						{description && (
+							<p className="text-body text-fg-secondary">{description}</p>
+						)}
 					</div>
 				)}
 
@@ -358,14 +370,21 @@ export const TextInput = <T extends FieldValues = FieldValues>({
 					field.readOnly && "cursor-default bg-subtle focus:ring-0",
 				)}
 				{...field.inputProps}
-				{...register(field.name as Path<T>, field.validation as RegisterOptions<T, Path<T>>)}
+				{...register(
+					field.name as Path<T>,
+					field.validation as RegisterOptions<T, Path<T>>,
+				)}
 			/>
 		</div>
 	);
 };
 
 // Password — eye toggle trailing
-const PasswordInput = <T extends FieldValues = FieldValues>({ field, register, error }: InputProps<T>) => {
+const PasswordInput = <T extends FieldValues = FieldValues>({
+	field,
+	register,
+	error,
+}: InputProps<T>) => {
 	const [show, setShow] = useState(false);
 
 	return (
@@ -379,7 +398,10 @@ const PasswordInput = <T extends FieldValues = FieldValues>({ field, register, e
 				aria-invalid={!!error || undefined}
 				aria-describedby={describedBy(field, error)}
 				className={cn(inputClass(error), "pr-10")}
-				{...register(field.name as Path<T>, field.validation as RegisterOptions<T, Path<T>>)}
+				{...register(
+					field.name as Path<T>,
+					field.validation as RegisterOptions<T, Path<T>>,
+				)}
 			/>
 			<button
 				type="button"
@@ -435,7 +457,10 @@ export const TextareaInput = <T extends FieldValues = FieldValues>({
 				aria-describedby={describedBy(field, error)}
 				style={field.height ? { height: `${field.height}px` } : undefined}
 				className={cn(controlClass, "resize-y py-2", error && "border-danger-fg")}
-				{...register(field.name as Path<T>, field.validation as RegisterOptions<T, Path<T>>)}
+				{...register(
+					field.name as Path<T>,
+					field.validation as RegisterOptions<T, Path<T>>,
+				)}
 			/>
 			{showCounter && (
 				<div className="flex items-center justify-between gap-3 text-small text-fg-tertiary">
@@ -464,7 +489,15 @@ type NativeSelectProps = {
 	error?: string;
 };
 
-const NativeSelect = ({ field, options, value, onChange, onBlur, selectRef, error }: NativeSelectProps) => {
+const NativeSelect = ({
+	field,
+	options,
+	value,
+	onChange,
+	onBlur,
+	selectRef,
+	error,
+}: NativeSelectProps) => {
 	const canClear = !!field.clearable && !!value && !field.disabled;
 
 	return (
@@ -478,7 +511,12 @@ const NativeSelect = ({ field, options, value, onChange, onBlur, selectRef, erro
 				aria-describedby={describedBy(field, error)}
 				onChange={(e) => onChange(e.target.value)}
 				onBlur={onBlur}
-				className={cn(inputClass(error), "cursor-pointer", !value && "text-fg-tertiary", canClear && "pr-14")}
+				className={cn(
+					inputClass(error),
+					"cursor-pointer",
+					!value && "text-fg-tertiary",
+					canClear && "pr-14",
+				)}
 			>
 				<option value="">{field.placeholder ?? "Select an option"}</option>
 				{options.map((opt) => (
@@ -534,7 +572,9 @@ const SelectControl = <T extends FieldValues = FieldValues>({
 	/>
 );
 
-export const AsyncSelectInput = <T extends FieldValues = FieldValues>(props: ControllerProps<T>) => {
+export const AsyncSelectInput = <T extends FieldValues = FieldValues>(
+	props: ControllerProps<T>,
+) => {
 	// useMemo keeps the promise stable across re-renders as long as
 	// field.loadOptions keeps the same reference
 	const { loadOptions } = props.field;
@@ -567,7 +607,15 @@ type ComboboxBoxProps = {
 	error?: string;
 };
 
-const ComboboxBox = ({ field, options, value, onChange, onBlur, inputRef, error }: ComboboxBoxProps) => {
+const ComboboxBox = ({
+	field,
+	options,
+	value,
+	onChange,
+	onBlur,
+	inputRef,
+	error,
+}: ComboboxBoxProps) => {
 	const listId = useId();
 	const [query, setQuery] = useState<string | null>(null); // null → show the chosen label
 	const [open, setOpen] = useState(false);
@@ -662,7 +710,9 @@ const ComboboxBox = ({ field, options, value, onChange, onBlur, inputRef, error 
 							)}
 						>
 							<span className="min-w-0 flex-1 truncate">{opt.label}</span>
-							{opt.value === value && <Check className="size-4 shrink-0 text-accent-fg" />}
+							{opt.value === value && (
+								<Check className="size-4 shrink-0 text-accent-fg" />
+							)}
 						</li>
 					))}
 				</ul>
@@ -696,13 +746,17 @@ const ComboboxControl = <T extends FieldValues = FieldValues>({
 	/>
 );
 
-const AsyncComboboxSelectInput = <T extends FieldValues = FieldValues>(props: ControllerProps<T>) => {
+const AsyncComboboxSelectInput = <T extends FieldValues = FieldValues>(
+	props: ControllerProps<T>,
+) => {
 	const { loadOptions } = props.field;
 	const optionsPromise = useMemo(() => loadOptions!(), [loadOptions]);
 	return <ComboboxControl {...props} options={use(optionsPromise)} />;
 };
 
-export const ComboboxSelectInput = <T extends FieldValues = FieldValues>(props: ControllerProps<T>) => {
+export const ComboboxSelectInput = <T extends FieldValues = FieldValues>(
+	props: ControllerProps<T>,
+) => {
 	if (props.field.loadOptions) {
 		return (
 			<Suspense fallback={<OptionsSkeleton />}>
@@ -739,7 +793,9 @@ const MultiSelectBox = ({
 
 	const toggle = (opt: SelectOption) =>
 		onChange(
-			selected.includes(opt.value) ? selected.filter((v) => v !== opt.value) : [...selected, opt.value],
+			selected.includes(opt.value)
+				? selected.filter((v) => v !== opt.value)
+				: [...selected, opt.value],
 		);
 
 	return (
@@ -767,12 +823,19 @@ const MultiSelectBox = ({
 				)}
 			>
 				<span className={cn("truncate", labels.length === 0 && "text-fg-tertiary")}>
-					{labels.length > 0 ? labels.join(", ") : (field.placeholder ?? "Select options")}
+					{labels.length > 0
+						? labels.join(", ")
+						: (field.placeholder ?? "Select options")}
 				</span>
 				<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-fg-tertiary" />
 			</button>
 			{open && (
-				<div id={listId} role="group" aria-label={`${field.label ?? field.name} options`} className={panelClass}>
+				<div
+					id={listId}
+					role="group"
+					aria-label={`${field.label ?? field.name} options`}
+					className={panelClass}
+				>
 					{options.map((opt) => {
 						const isSelected = selected.includes(opt.value);
 						const disabled = atMax && !isSelected;
@@ -782,7 +845,8 @@ const MultiSelectBox = ({
 								className={cn(
 									optionClass,
 									"hover:bg-subtle",
-									disabled && "cursor-not-allowed text-fg-tertiary hover:bg-transparent",
+									disabled &&
+										"cursor-not-allowed text-fg-tertiary hover:bg-transparent",
 								)}
 							>
 								<input
@@ -828,7 +892,11 @@ export const MultiSelectInput = <T extends FieldValues = FieldValues>({
 // ─── Radio / checkbox ─────────────────────────────────────────────────────────
 
 // A small set of mutually exclusive options rendered inline.
-export const RadioInput = <T extends FieldValues = FieldValues>({ field, control, error }: ControllerProps<T>) => (
+export const RadioInput = <T extends FieldValues = FieldValues>({
+	field,
+	control,
+	error,
+}: ControllerProps<T>) => (
 	<Controller
 		name={field.name as Path<T>}
 		control={control}
@@ -847,7 +915,9 @@ export const RadioInput = <T extends FieldValues = FieldValues>({ field, control
 						key={opt.value}
 						className={cn(
 							"flex items-center gap-2 text-body select-none",
-							field.disabled ? "cursor-not-allowed text-fg-tertiary" : "cursor-pointer",
+							field.disabled
+								? "cursor-not-allowed text-fg-tertiary"
+								: "cursor-pointer",
 						)}
 					>
 						<input
@@ -898,7 +968,9 @@ export const CheckboxInput = <T extends FieldValues = FieldValues>({
 					aria-invalid={!!error || undefined}
 					aria-describedby={error ? `${field.id ?? field.name}-msg` : undefined}
 					onChange={(e) =>
-						onCheckedChange ? onCheckedChange(e.target.checked) : ctrl.onChange(e.target.checked)
+						onCheckedChange
+							? onCheckedChange(e.target.checked)
+							: ctrl.onChange(e.target.checked)
 					}
 					onBlur={ctrl.onBlur}
 					className={cn(
@@ -911,7 +983,9 @@ export const CheckboxInput = <T extends FieldValues = FieldValues>({
 						htmlFor={field.id ?? field.name}
 						className={cn(
 							"text-body select-none",
-							field.disabled ? "cursor-not-allowed text-fg-tertiary" : "cursor-pointer",
+							field.disabled
+								? "cursor-not-allowed text-fg-tertiary"
+								: "cursor-pointer",
 						)}
 					>
 						{field.label}
@@ -968,9 +1042,15 @@ const NativeDate = <T extends FieldValues = FieldValues>({
 					aria-invalid={!!error || undefined}
 					aria-describedby={describedBy(field, error)}
 					value={ctrl.value ? dayjs(ctrl.value).format(format) : ""}
-					onChange={(e) => ctrl.onChange(e.target.value ? dayjs(e.target.value).toISOString() : "")}
+					onChange={(e) =>
+						ctrl.onChange(e.target.value ? dayjs(e.target.value).toISOString() : "")
+					}
 					onBlur={ctrl.onBlur}
-					className={cn(inputClass(error), "cursor-pointer", !ctrl.value && "text-fg-tertiary")}
+					className={cn(
+						inputClass(error),
+						"cursor-pointer",
+						!ctrl.value && "text-fg-tertiary",
+					)}
 				/>
 			)}
 		/>
@@ -991,7 +1071,11 @@ export { FileInput, type FileInputProps } from "./fileInput";
 // ─── Money ────────────────────────────────────────────────────────────────────
 
 // Number input with a leading currency symbol
-export const DollarInput = <T extends FieldValues = FieldValues>({ field, register, error }: InputProps<T>) => {
+export const DollarInput = <T extends FieldValues = FieldValues>({
+	field,
+	register,
+	error,
+}: InputProps<T>) => {
 	const symbol = field.currencySymbol ?? DEFAULT_CURRENCY_SYMBOL;
 	return (
 		<div className="relative flex items-center">
@@ -1008,8 +1092,11 @@ export const DollarInput = <T extends FieldValues = FieldValues>({ field, regist
 				step={field.step}
 				aria-invalid={!!error || undefined}
 				aria-describedby={describedBy(field, error)}
-				className={cn(inputClass(error), "tabular pl-8")}
-				{...register(field.name as Path<T>, field.validation as RegisterOptions<T, Path<T>>)}
+				className={cn(inputClass(error), "pl-8 tabular")}
+				{...register(
+					field.name as Path<T>,
+					field.validation as RegisterOptions<T, Path<T>>,
+				)}
 			/>
 		</div>
 	);
@@ -1020,7 +1107,11 @@ export const DollarInput = <T extends FieldValues = FieldValues>({ field, regist
 // string ("300000"), or "" when empty.
 const MAX_AMOUNT_DIGITS = 12;
 
-export const AmountInput = <T extends FieldValues = FieldValues>({ field, control, error }: ControllerProps<T>) => {
+export const AmountInput = <T extends FieldValues = FieldValues>({
+	field,
+	control,
+	error,
+}: ControllerProps<T>) => {
 	const symbol = field.currencySymbol ?? DEFAULT_CURRENCY_SYMBOL;
 
 	return (
@@ -1061,6 +1152,8 @@ export const AmountInput = <T extends FieldValues = FieldValues>({ field, contro
 	);
 };
 
-export const ErrorIcon = () => <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2} />;
+export const ErrorIcon = () => (
+	<TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2} />
+);
 
 export const LoadingSpinner = () => <Loader2 aria-hidden="true" className="size-4 animate-spin" />;
