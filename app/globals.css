@@ -1,26 +1,340 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Majeurs design system — tokens from the design artboard.
+   Light is the default; dark applies via <html data-theme="dark">
+   (set by ThemeProvider / the no-flash script) or, without JS, the OS setting.
+   ========================================================================== */
+
+/* Dark variant: `dark:` utilities follow the data-theme attribute. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+	color-scheme: light;
+
+	/* Backgrounds */
+	--bg-page: #faf9f8;
+	--bg-surface: #fefdfd;
+	--bg-subtle: #f4f2f1;
+	--bg-hover: #e8e6e3;
+	--bg-inverse: #211d1a;
+
+	/* Borders */
+	--border-default: #e8e6e3;
+	--border-strong: #d8d4d0;
+	--border-control: #857f79;
+	--border-focus: #a97150;
+
+	/* Text */
+	--text-primary: #211d1a;
+	--text-secondary: #514c47;
+	--text-tertiary: #69645d;
+	--text-inverse: #fefdfd;
+	--text-on-accent: #fefdfd;
+
+	/* Accent (primary action) */
+	--accent-solid: #6e4022;
+	--accent-solid-hover: #502a10;
+	--accent-subtle: #ffefe6;
+	--accent-text: #6e4022;
+
+	/* Status */
+	--success-subtle: #e4f9e8;
+	--success-text: #005e28;
+	--success-border: #b1e4ba;
+	--warning-subtle: #fff1db;
+	--warning-text: #674600;
+	--warning-border: #f4cf96;
+	--danger-subtle: #ffeeed;
+	--danger-text: #8f141b;
+	--danger-border: #ffc4be;
+	--danger-solid: #8f141b;
+	--danger-solid-hover: #6a000c;
+	--info-subtle: #eaf4ff;
+	--info-text: #004f8a;
+	--info-border: #b5d9ff;
+
+	/* Brand (decorative only) */
+	--brand-charcoal: #373435;
+	--brand-gold: #b5933e;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root[data-theme="dark"] {
+	color-scheme: dark;
+
+	--bg-page: #14110e;
+	--bg-surface: #211d1a;
+	--bg-subtle: #393530;
+	--bg-hover: #514c47;
+	--bg-inverse: #faf9f8;
+
+	--border-default: #393530;
+	--border-strong: #514c47;
+	--border-control: #857f79;
+	--border-focus: #d19c7d;
+
+	--text-primary: #faf9f8;
+	--text-secondary: #d8d4d0;
+	--text-tertiary: #aea8a2;
+	--text-inverse: #14110e;
+	--text-on-accent: #14110e;
+
+	--accent-solid: #d19c7d;
+	--accent-solid-hover: #f1ccb7;
+	--accent-subtle: #321503;
+	--accent-text: #f1ccb7;
+
+	--success-subtle: #001705;
+	--success-text: #b1e4ba;
+	--success-border: #00421a;
+	--warning-subtle: #1b0f00;
+	--warning-text: #f4cf96;
+	--warning-border: #483000;
+	--danger-subtle: #2a0002;
+	--danger-text: #ffc4be;
+	--danger-border: #6a000c;
+	--danger-solid: #fb7f77;
+	--danger-solid-hover: #ffc4be;
+	--info-subtle: #001227;
+	--info-text: #b5d9ff;
+	--info-border: #003763;
 }
 
+/* No-JS fallback: follow the OS unless a theme was set explicitly. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+	:root:not([data-theme]) {
+		color-scheme: dark;
+
+		--bg-page: #14110e;
+		--bg-surface: #211d1a;
+		--bg-subtle: #393530;
+		--bg-hover: #514c47;
+		--bg-inverse: #faf9f8;
+		--border-default: #393530;
+		--border-strong: #514c47;
+		--border-focus: #d19c7d;
+		--text-primary: #faf9f8;
+		--text-secondary: #d8d4d0;
+		--text-tertiary: #aea8a2;
+		--text-inverse: #14110e;
+		--text-on-accent: #14110e;
+		--accent-solid: #d19c7d;
+		--accent-solid-hover: #f1ccb7;
+		--accent-subtle: #321503;
+		--accent-text: #f1ccb7;
+		--success-subtle: #001705;
+		--success-text: #b1e4ba;
+		--success-border: #00421a;
+		--warning-subtle: #1b0f00;
+		--warning-text: #f4cf96;
+		--warning-border: #483000;
+		--danger-subtle: #2a0002;
+		--danger-text: #ffc4be;
+		--danger-border: #6a000c;
+		--danger-solid: #fb7f77;
+		--danger-solid-hover: #ffc4be;
+		--info-subtle: #001227;
+		--info-text: #b5d9ff;
+		--info-border: #003763;
+	}
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ==========================================================================
+   Tailwind theme — exposes the tokens as utilities.
+   e.g. bg-surface, border-line, text-fg-secondary, bg-accent, text-h1, rounded-lg
+   ========================================================================== */
+@theme inline {
+	/* Fonts */
+	--font-sans: var(--font-helvetica-text), Helvetica, Arial, sans-serif;
+	--font-display:
+		var(--font-helvetica-display), var(--font-helvetica-text), Helvetica, Arial, sans-serif;
+
+	--font-wordmark: var(--font-nordique), var(--font-helvetica-display), sans-serif;
+
+	/* Colors */
+	--color-page: var(--bg-page);
+	--color-surface: var(--bg-surface);
+	--color-subtle: var(--bg-subtle);
+	--color-hover: var(--bg-hover);
+	--color-inverse: var(--bg-inverse);
+
+	--color-line: var(--border-default);
+	--color-line-strong: var(--border-strong);
+	--color-line-control: var(--border-control);
+	--color-focus: var(--border-focus);
+
+	--color-fg: var(--text-primary);
+	--color-fg-secondary: var(--text-secondary);
+	--color-fg-tertiary: var(--text-tertiary);
+	--color-fg-inverse: var(--text-inverse);
+	--color-on-accent: var(--text-on-accent);
+
+	--color-accent: var(--accent-solid);
+	--color-accent-hover: var(--accent-solid-hover);
+	--color-accent-subtle: var(--accent-subtle);
+	--color-accent-fg: var(--accent-text);
+
+	--color-success-subtle: var(--success-subtle);
+	--color-success-fg: var(--success-text);
+	--color-success-line: var(--success-border);
+	--color-warning-subtle: var(--warning-subtle);
+	--color-warning-fg: var(--warning-text);
+	--color-warning-line: var(--warning-border);
+	--color-danger-subtle: var(--danger-subtle);
+	--color-danger-fg: var(--danger-text);
+	--color-danger-line: var(--danger-border);
+	--color-danger: var(--danger-solid);
+	--color-danger-hover: var(--danger-solid-hover);
+	--color-info-subtle: var(--info-subtle);
+	--color-info-fg: var(--info-text);
+	--color-info-line: var(--info-border);
+
+	--color-brand-charcoal: var(--brand-charcoal);
+	--color-brand-gold: var(--brand-gold);
+
+	/* Radius */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 10px;
+	--radius-full: 9999px;
+
+	/* Typography scale: text-h1, text-h2, text-total, text-h3, text-body-lg,
+	   text-body, text-small, text-overline */
+	--text-h1: 28px;
+	--text-h1--line-height: 1.15;
+	--text-h1--letter-spacing: -0.01em;
+	--text-h1--font-weight: 700;
+
+	--text-h2: 20px;
+	--text-h2--line-height: 1.25;
+	--text-h2--letter-spacing: -0.005em;
+	--text-h2--font-weight: 700;
+
+	--text-total: 24px;
+	--text-total--line-height: 1.2;
+	--text-total--letter-spacing: -0.005em;
+	--text-total--font-weight: 700;
+
+	--text-h3: 16px;
+	--text-h3--line-height: 1.3;
+	--text-h3--font-weight: 700;
+
+	--text-body-lg: 16px;
+	--text-body-lg--line-height: 1.5;
+
+	--text-body: 14px;
+	--text-body--line-height: 1.5;
+
+	--text-small: 13px;
+	--text-small--line-height: 1.45;
+
+	--text-overline: 11px;
+	--text-overline--line-height: 1.3;
+	--text-overline--letter-spacing: 0.06em;
+	--text-overline--font-weight: 700;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+@layer base {
+	html {
+		-webkit-text-size-adjust: 100%;
+	}
+
+	body {
+		background: var(--bg-page);
+		color: var(--text-primary);
+		font-family: var(--font-sans);
+		font-size: 14px;
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	h1,
+	h2 {
+		font-family: var(--font-display);
+	}
+
+	h1 {
+		font-size: var(--text-h1);
+		line-height: 1.15;
+		letter-spacing: -0.01em;
+		font-weight: 700;
+	}
+	h2 {
+		font-size: var(--text-h2);
+		line-height: 1.25;
+		letter-spacing: -0.005em;
+		font-weight: 700;
+	}
+	h3 {
+		font-size: var(--text-h3);
+		line-height: 1.3;
+		font-weight: 700;
+	}
+
+	a {
+		color: var(--accent-text);
+	}
+	a:hover {
+		color: var(--accent-solid-hover);
+	}
+
+	/* Mobile inputs are 16px to stop iOS zoom */
+	input,
+	select,
+	textarea {
+		font-size: 16px;
+	}
+	@media (min-width: 768px) {
+		input,
+		select,
+		textarea {
+			font-size: 14px;
+		}
+	}
+
+	::placeholder {
+		color: var(--text-tertiary);
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+	}
+
+	::selection {
+		background: var(--accent-subtle);
+		color: var(--accent-text);
+	}
+}
+
+/* Money / figures */
+@utility tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Slim 2px scrollbar for the sidebar nav (open and collapsed). */
+@layer components {
+	.slim-scroll::-webkit-scrollbar {
+		width: 2px;
+	}
+	.slim-scroll::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.slim-scroll::-webkit-scrollbar-thumb {
+		background: var(--border-strong);
+		border-radius: 9999px;
+	}
+	.slim-scroll::-webkit-scrollbar-thumb:hover {
+		background: var(--border-control);
+	}
+	/* Firefox: no width control beyond thin. */
+	@supports not selector(::-webkit-scrollbar) {
+		.slim-scroll {
+			scrollbar-width: thin;
+			scrollbar-color: var(--border-strong) transparent;
+		}
+	}
 }
