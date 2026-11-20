@@ -1,3 +1,5 @@
+import SuppliersPageView from "@/components/pages/suppliers";
+
 export default function SuppliersPage() {
-	return <h1>Suppliers</h1>;
+	return <SuppliersPageView />;
 }

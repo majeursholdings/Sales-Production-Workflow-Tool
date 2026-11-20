@@ -1,3 +1,5 @@
+import CostRequestsPageView from "@/components/pages/costRequests";
+
 export default function CostRequestsPage() {
-	return <h1>Cost requests</h1>;
+	return <CostRequestsPageView />;
 }

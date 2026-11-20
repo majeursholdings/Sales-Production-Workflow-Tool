@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsDocumentsPage from "@/components/pages/settings/documents";
 
 export default function DocumentsPage() {
-	return (
-		<Card>
-			<h2>Bank & terms</h2>
-		</Card>
-	);
+	return <SettingsDocumentsPage />;
 }

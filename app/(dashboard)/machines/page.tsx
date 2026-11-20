@@ -1,3 +1,5 @@
+import MachinesPageView from "@/components/pages/machines";
+
 export default function MachinesPage() {
-	return <h1>Machines</h1>;
+	return <MachinesPageView />;
 }

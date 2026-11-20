@@ -1,3 +1,5 @@
+import PricingPageView from "@/components/pages/pricing";
+
 export default function PricingPage() {
-	return <h1>Pricing & margins</h1>;
+	return <PricingPageView />;
 }

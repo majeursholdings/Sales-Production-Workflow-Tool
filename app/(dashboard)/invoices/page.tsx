@@ -1,3 +1,5 @@
+import InvoicesPageView from "@/components/pages/invoices";
+
 export default function InvoicesPage() {
-	return <h1>Invoices</h1>;
+	return <InvoicesPageView />;
 }

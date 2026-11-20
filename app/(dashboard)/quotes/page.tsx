@@ -1,3 +1,5 @@
+import QuotesPageView from "@/components/pages/quotes";
+
 export default function QuotesPage() {
-	return <h1>Quotes</h1>;
+	return <QuotesPageView />;
 }

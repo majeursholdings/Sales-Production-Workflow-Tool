@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsProfilePage from "@/components/pages/settings/profile";
 
 export default function SettingsPage() {
-	return (
-		<Card>
-			<h2>Profile</h2>
-		</Card>
-	);
+	return <SettingsProfilePage />;
 }

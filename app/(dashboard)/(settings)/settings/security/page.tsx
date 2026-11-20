@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsSecurityPage from "@/components/pages/settings/security";
 
 export default function SecurityPage() {
-	return (
-		<Card>
-			<h2>Security & sign-in</h2>
-		</Card>
-	);
+	return <SettingsSecurityPage />;
 }

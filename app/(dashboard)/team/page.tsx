@@ -1,3 +1,5 @@
+import TeamPageView from "@/components/pages/team";
+
 export default function TeamPage() {
-	return <h1>Team & access</h1>;
+	return <TeamPageView />;
 }

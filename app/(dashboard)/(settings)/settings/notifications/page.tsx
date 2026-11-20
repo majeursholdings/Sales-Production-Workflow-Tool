@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsNotificationsPage from "@/components/pages/settings/notifications";
 
 export default function NotificationsPage() {
-	return (
-		<Card>
-			<h2>Notifications</h2>
-		</Card>
-	);
+	return <SettingsNotificationsPage />;
 }

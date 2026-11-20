@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsTaxPage from "@/components/pages/settings/tax";
 
 export default function TaxPage() {
-	return (
-		<Card>
-			<h2>Tax & currency</h2>
-		</Card>
-	);
+	return <SettingsTaxPage />;
 }

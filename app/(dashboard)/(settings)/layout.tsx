@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import PageTitle from "@/components/layout/pageTitle";
 import { isOwnerRole } from "@/components/layout/navigation";
 import { SETTINGS_GROUPS } from "@/components/settings/settingsSections";
 import SettingsNav from "@/components/settings/settingsNav";
@@ -12,14 +13,14 @@ export default async function SettingsLayout({ children }: { children: ReactNode
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div>
-				<h1>Settings</h1>
-				<p className="text-small text-fg-tertiary">
-					{owner
+			<PageTitle
+				pageTitle="Settings"
+				pageDescription={
+					owner
 						? "Your account and how the company runs."
-						: "Your profile, notifications and sign-in."}
-				</p>
-			</div>
+						: "Your profile, notifications and sign-in."
+				}
+			/>
 			<div className="flex flex-col gap-6 md:flex-row md:items-start">
 				<SettingsNav groups={groups} />
 				<div className="flex min-w-0 flex-1 flex-col gap-6">{children}</div>

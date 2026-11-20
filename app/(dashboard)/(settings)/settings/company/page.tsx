@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsCompanyPage from "@/components/pages/settings/company";
 
 export default function CompanyPage() {
-	return (
-		<Card>
-			<h2>Company details</h2>
-		</Card>
-	);
+	return <SettingsCompanyPage />;
 }

@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsAgentPage from "@/components/pages/settings/agent";
 
 export default function AgentPage() {
-	return (
-		<Card>
-			<h2>Custom design agent</h2>
-		</Card>
-	);
+	return <SettingsAgentPage />;
 }

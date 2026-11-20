@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsTradePage from "@/components/pages/settings/trade";
 
 export default function TradePage() {
-	return (
-		<Card>
-			<h2>Trade program</h2>
-		</Card>
-	);
+	return <SettingsTradePage />;
 }

@@ -1,3 +1,5 @@
+import InventoryPageView from "@/components/pages/inventory";
+
 export default function InventoryPage() {
-	return <h1>Inventory & parts</h1>;
+	return <InventoryPageView />;
 }

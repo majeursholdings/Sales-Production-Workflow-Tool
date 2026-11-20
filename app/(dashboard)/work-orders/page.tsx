@@ -1,3 +1,5 @@
+import WorkOrdersPageView from "@/components/pages/workOrders";
+
 export default function WorkOrdersPage() {
-	return <h1>Job cards</h1>;
+	return <WorkOrdersPageView />;
 }

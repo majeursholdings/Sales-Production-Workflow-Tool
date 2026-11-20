@@ -1,9 +1,5 @@
-import { Card } from "@/components/common/card";
+import SettingsNumberingPage from "@/components/pages/settings/numbering";
 
 export default function NumberingPage() {
-	return (
-		<Card>
-			<h2>Document numbering</h2>
-		</Card>
-	);
+	return <SettingsNumberingPage />;
 }

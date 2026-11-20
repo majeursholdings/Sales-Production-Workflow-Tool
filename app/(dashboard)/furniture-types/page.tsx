@@ -1,3 +1,5 @@
+import FurnitureTypesPageView from "@/components/pages/furnitureTypes";
+
 export default function FurnitureTypesPage() {
-	return <h1>Furniture types</h1>;
+	return <FurnitureTypesPageView />;
 }
