@@ -1,23 +1,17 @@
+import CostRatesTabs from "@/components/costRates/costRatesTabs";
+import { costRatesTitle } from "@/components/costRates/costRatesTitle";
+import OverheadEditor from "@/components/costRates/overheadEditor";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
-import { Plus } from "lucide-react";
+import type { OverheadInputs } from "@/lib/costRates";
 
-export default function CostRatesPage() {
+/** Cost rates, "Workshop overhead" tab. */
+export default function CostRatesPage({ overhead }: { overhead: OverheadInputs }) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Cost rates"
-				pageDescription="The labour, machine and overhead rates used to cost every quote."
-				actions={
-					<>
-						<Button variant="primary">
-							<Plus />
-							Add team member
-						</Button>
-					</>
-				}
-			/>
+			<PageTitle {...costRatesTitle} />
+			<CostRatesTabs active="overhead" />
+			<OverheadEditor initial={overhead} />
 		</PageWrapper>
 	);
 }
