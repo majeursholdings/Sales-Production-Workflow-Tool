@@ -61,3 +61,6 @@ export type { DataTableProps } from "./dataTable";
 export { DataTable } from "./dataTable";
 
 export { Table, IconButton, IconLink } from "./table";
+
+export type { TableStateKind } from "./tableState";
+export { TableState, TableErrorState, classifyTableError, useIsOnline } from "./tableState";

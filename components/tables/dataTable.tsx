@@ -11,6 +11,7 @@ import { TableIdContext, useTableParam } from "./tableContext";
 import { TableDialog } from "./tableDialog";
 import { RowActionsMenu } from "./rowActionsMenu";
 import { TableSkeletonRows } from "./tableSkeletonRows";
+import { TableState } from "./tableState";
 import type {
 	ColumnDef,
 	PaginationMeta,
@@ -147,9 +148,18 @@ export interface DataTableProps<TRow extends { id: string }> {
 	pagination?: PaginationMeta;
 	toolbar?: ReactNode;
 	loading?: boolean;
-	/** The rows couldn't load: shown in place of the rows, under the real headers. */
+	/**
+	 * The rows couldn't load: shown in place of the rows, under the real headers.
+	 * Pass `<TableErrorState error={err} />` for the standard offline / network / database message.
+	 */
 	error?: ReactNode;
+	/** Why there are no rows, when filters or a search left none. Ignored if `emptyState` is given. */
 	emptyMessage?: string;
+	/**
+	 * Replaces the default "no results" row, e.g. for a table that has no records at all yet:
+	 * `<TableState kind="empty" title="No clients yet" action={…} />`.
+	 */
+	emptyState?: ReactNode;
 	/** Eye icon — "link" navigates, "popup" fires onClick */
 	viewAction?: ViewAction<TRow>;
 	/** Pencil icon — opens Edit dialog with parent-supplied body */
@@ -222,7 +232,8 @@ function DataTableContent<TRow extends { id: string }>({
 	compact = false,
 	loading = false,
 	error,
-	emptyMessage = "No results match your filters.",
+	emptyMessage,
+	emptyState,
 }: DataTableProps<TRow>) {
 	const page = Math.max(1, rawPage);
 	// Index of the first row on this page, for the "#" column
@@ -336,18 +347,21 @@ function DataTableContent<TRow extends { id: string }>({
 							<TableSkeletonRows cols={colCount} />
 						) : error ? (
 							<tr>
-								<td
-									colSpan={colCount}
-									role="alert"
-									className="px-5! py-8! text-center text-danger-fg!"
-								>
+								<td colSpan={colCount} className="px-5! py-6!">
 									{error}
 								</td>
 							</tr>
 						) : rows.length === 0 ? (
 							<tr>
-								<td colSpan={colCount} className="px-5! py-8! text-center">
-									{emptyMessage}
+								<td colSpan={colCount} className="px-5! py-6!">
+									{emptyState ?? (
+										<TableState
+											kind="filtered"
+											description={
+												emptyMessage ?? "No results match your filters."
+											}
+										/>
+									)}
 								</td>
 							</tr>
 						) : (

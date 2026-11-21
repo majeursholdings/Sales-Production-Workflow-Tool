@@ -7,6 +7,7 @@ import {
 	DataTable,
 	ExportMenu,
 	IconButton,
+	TableState,
 	TableToolbar,
 	exportRows,
 	useTableRows,
@@ -214,6 +215,15 @@ export default function TeamTable({
 			rows={rows}
 			pagination={pagination}
 			emptyMessage="No one matches your search. Try a different name or email."
+			emptyState={
+				members.length === 0 ? (
+					<TableState
+						kind="empty"
+						title="No team accounts yet"
+						description="People you add will appear here with their role and access."
+					/>
+				) : undefined
+			}
 			toolbar={
 				<>
 					<TableHead count={members.length} />
