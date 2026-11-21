@@ -6,8 +6,8 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/common/buttons";
 import OtpInput from "@/components/forms/otpInput";
 import { Input } from "@/components/forms/input";
-import { sendVerificationCode, verifyCode, type VerifyMethod } from "@/lib/auth";
-import { AuthAlert, AuthHeading, AuthNote, BackLink, TextButton } from "./authParts";
+import { sendVerificationCode, signOut, verifyCode, type VerifyMethod } from "@/lib/auth";
+import { AuthAlert, AuthHeading, AuthNote, TextButton } from "./authParts";
 
 const OTP_LENGTH = 6;
 
@@ -73,11 +73,20 @@ export default function VerifyForm() {
 			return;
 		}
 		router.push("/");
+		router.refresh();
+	};
+
+	const switchAccount = async () => {
+		await signOut();
+		router.push("/login");
+		router.refresh();
 	};
 
 	return (
 		<>
-			<BackLink href="/login">Use a different account</BackLink>
+			<TextButton onClick={switchAccount} className="self-start text-small text-fg-secondary">
+				← Use a different account
+			</TextButton>
 			<AuthHeading title={copy.title}>{copy.text}</AuthHeading>
 			{error && <AuthAlert>{error}</AuthAlert>}
 			<form onSubmit={submit} noValidate className="flex flex-col gap-5">

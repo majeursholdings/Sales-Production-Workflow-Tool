@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
@@ -10,6 +10,13 @@ import { signIn } from "@/lib/auth";
 import { AuthAlert, AuthHeading, AuthNote } from "./authParts";
 
 type LoginValues = { email: string; password: string; remember: boolean };
+
+const QUERY_ERRORS: Record<string, string> = {
+	deactivated: "Your account has been deactivated. Ask your MD or GM to restore your access.",
+	no_role:
+		"Your account does not have a role assigned yet. Ask your MD or GM to finish setting up your access in Team & access.",
+	invalid_link: "That sign-in or reset link has expired or already been used. Request a new one.",
+};
 
 const fields: FormFieldConfig[] = [
 	{
@@ -37,9 +44,20 @@ const fields: FormFieldConfig[] = [
 	},
 ];
 
+function safeNextPath(next: string | null): string {
+	if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+	return next;
+}
+
 export default function LoginForm() {
 	const router = useRouter();
-	const [error, setError] = useState<string | null>(null);
+	const searchParams = useSearchParams();
+	const queryError = searchParams.get("error");
+	const nextPath = safeNextPath(searchParams.get("next"));
+
+	const [error, setError] = useState<string | null>(
+		queryError ? (QUERY_ERRORS[queryError] ?? null) : null,
+	);
 	const [pending, setPending] = useState(false);
 
 	const onSubmit = async (values: LoginValues) => {
@@ -52,7 +70,8 @@ export default function LoginForm() {
 			return;
 		}
 		// Staying in "pending" through the redirect stops a second submit.
-		router.push("/verify");
+		router.push(result.requiresMfa ? "/verify" : nextPath);
+		router.refresh();
 	};
 
 	return (

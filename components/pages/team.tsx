@@ -1,22 +1,22 @@
-import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
-import { Plus } from "lucide-react";
+import TeamPageContent from "@/components/team/teamPageContent";
+import type { TeamMember } from "@/lib/team";
 
-export default function TeamPage() {
+export default function TeamPageView({
+	members,
+	currentUserId,
+	canCreateUsers,
+}: {
+	members: TeamMember[];
+	currentUserId: string;
+	canCreateUsers: boolean;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Team & access"
-				pageDescription="Who can sign in, what role they have, and what they can see."
-				actions={
-					<>
-						<Button variant="primary">
-							<Plus />
-							Add person
-						</Button>
-					</>
-				}
+			<TeamPageContent
+				initialMembers={members}
+				currentUserId={currentUserId}
+				canCreateUsers={canCreateUsers}
 			/>
 		</PageWrapper>
 	);

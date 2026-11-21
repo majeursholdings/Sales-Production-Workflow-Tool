@@ -1,5 +1,7 @@
 import CostRequestsPageView from "@/components/pages/costRequests";
+import { requireRouteAccess } from "@/lib/session";
 
-export default function CostRequestsPage() {
+export default async function CostRequestsPage() {
+	await requireRouteAccess("/cost-requests");
 	return <CostRequestsPageView />;
 }

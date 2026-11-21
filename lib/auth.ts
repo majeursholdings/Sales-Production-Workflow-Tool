@@ -1,42 +1,185 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- placeholder stubs; the arguments are used once the real backend is wired in */
+import { isAppRole } from "@/lib/roles";
+import { createClient } from "@/utils/supabase/client";
+
 export type AuthResult = { ok: true } | { ok: false; message: string };
+export type SignInResult = { ok: true; requiresMfa: boolean } | { ok: false; message: string };
 
 export type VerifyMethod = "app" | "email" | "backup";
 
-/**
- * TODO: replace these placeholders with the real auth backend.
- * The auth pages only talk to auth through here, so wiring it up is a
- * one-file change. Return `{ ok: false, message }` to show an error on the page.
- */
-const ok: AuthResult = { ok: true };
-
-export async function signIn(_input: {
+export async function signIn(input: {
 	email: string;
 	password: string;
 	remember: boolean;
-}): Promise<AuthResult> {
-	return ok;
+}): Promise<SignInResult> {
+	const supabase = createClient();
+
+	const { data, error } = await supabase.auth.signInWithPassword({
+		email: input.email.trim(),
+		password: input.password,
+	});
+
+	if (error || !data.user) {
+		return {
+			ok: false,
+			message:
+				error?.message === "Invalid login credentials"
+					? "Incorrect email or password. Try again or reset your password."
+					: (error?.message ?? "Unable to sign in right now. Please try again."),
+		};
+	}
+
+	const [{ data: profile }, { data: roleRow }, { data: aal }] = await Promise.all([
+		supabase.from("profiles").select("is_active").eq("id", data.user.id).maybeSingle(),
+		supabase.from("user_roles").select("role").eq("user_id", data.user.id).maybeSingle(),
+		supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+	]);
+
+	if (profile && !profile.is_active) {
+		await supabase.auth.signOut();
+		return {
+			ok: false,
+			message: "Your account has been deactivated. Ask your MD or GM to restore your access.",
+		};
+	}
+
+	const roleValue = roleRow?.role ?? data.user.app_metadata?.role;
+	if (!isAppRole(roleValue)) {
+		await supabase.auth.signOut();
+		return {
+			ok: false,
+			message:
+				"Your account does not have a role assigned yet. Ask your MD or GM to set up your access in Team & access.",
+		};
+	}
+
+	const requiresMfa = aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+	return { ok: true, requiresMfa };
 }
 
-export async function verifyCode(_input: {
+export async function verifyCode(input: {
 	method: VerifyMethod;
 	code: string;
 	trustDevice: boolean;
 }): Promise<AuthResult> {
-	return ok;
+	const supabase = createClient();
+	const trimmedCode = input.code.trim();
+
+	if (input.method === "app") {
+		const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+		if (listError) {
+			return { ok: false, message: listError.message };
+		}
+
+		const totpFactor = factors?.totp.find((factor) => factor.status === "verified");
+		if (!totpFactor) {
+			return {
+				ok: false,
+				message: "No authenticator app is set up for this account.",
+			};
+		}
+
+		const { error } = await supabase.auth.mfa.challengeAndVerify({
+			factorId: totpFactor.id,
+			code: trimmedCode,
+		});
+
+		if (error) {
+			return { ok: false, message: "That code didn't work. Check your app and try again." };
+		}
+
+		return { ok: true };
+	}
+
+	if (input.method === "email") {
+		const {
+			data: { user },
+		} = await supabase.auth.getUser();
+		if (!user?.email) {
+			return { ok: false, message: "Your session expired. Sign in again." };
+		}
+
+		const { error } = await supabase.auth.verifyOtp({
+			email: user.email,
+			token: trimmedCode,
+			type: "email",
+		});
+
+		if (error) {
+			return { ok: false, message: "That code is invalid or expired. Send a new one." };
+		}
+
+		return { ok: true };
+	}
+
+	return {
+		ok: false,
+		message:
+			"Backup codes are not configured for this workspace. Use your authenticator app or ask your MD or GM to reset two-step verification.",
+	};
 }
 
 export async function sendVerificationCode(_method: "email"): Promise<AuthResult> {
-	return ok;
+	void _method;
+	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+
+	if (!user?.email) {
+		return { ok: false, message: "Your session expired. Sign in again." };
+	}
+
+	const { error } = await supabase.auth.signInWithOtp({
+		email: user.email,
+		options: { shouldCreateUser: false },
+	});
+
+	if (error) {
+		return { ok: false, message: error.message };
+	}
+
+	return { ok: true };
 }
 
-export async function requestPasswordReset(_email: string): Promise<AuthResult> {
-	return ok;
+export async function requestPasswordReset(email: string): Promise<AuthResult> {
+	const supabase = createClient();
+	const origin = typeof window !== "undefined" ? window.location.origin : "";
+	const redirectTo = origin
+		? `${origin}/auth/confirm?next=${encodeURIComponent("/forgot-password?mode=reset")}`
+		: undefined;
+
+	const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+	if (error) {
+		return { ok: false, message: error.message };
+	}
+
+	return { ok: true };
 }
 
-export async function resetPassword(_input: {
-	token: string;
+export async function resetPassword(input: {
+	token?: string;
 	password: string;
 }): Promise<AuthResult> {
-	return ok;
+	const supabase = createClient();
+
+	const { error } = await supabase.auth.updateUser({
+		password: input.password,
+	});
+
+	if (error) {
+		return { ok: false, message: error.message };
+	}
+
+	// Sign out other active devices after a password change.
+	await supabase.auth.signOut({ scope: "others" });
+	return { ok: true };
+}
+
+export async function signOut(): Promise<AuthResult> {
+	const supabase = createClient();
+	const { error } = await supabase.auth.signOut();
+	if (error) {
+		return { ok: false, message: error.message };
+	}
+	return { ok: true };
 }

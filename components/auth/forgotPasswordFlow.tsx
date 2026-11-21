@@ -7,7 +7,7 @@ import { LinkButton } from "@/components/common/buttons";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { requestPasswordReset, resetPassword } from "@/lib/auth";
+import { requestPasswordReset, resetPassword, signOut } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { AuthAlert, AuthBadge, AuthHeading, AuthNote, BackLink, TextButton } from "./authParts";
 
@@ -76,7 +76,9 @@ function Requirement({ met, children }: { met: boolean; children: string }) {
 }
 
 export default function ForgotPasswordFlow() {
-	const token = useSearchParams().get("token") ?? undefined;
+	const searchParams = useSearchParams();
+	const token = searchParams.get("token") ?? undefined;
+	const isResetMode = searchParams.get("mode") === "reset" || Boolean(token);
 	const [sentTo, setSentTo] = useState<string | null>(null);
 	const [resent, setResent] = useState(false);
 	const [updated, setUpdated] = useState(false);
@@ -100,12 +102,16 @@ export default function ForgotPasswordFlow() {
 	};
 
 	const saveNewPassword = async ({ password }: ResetValues) => {
-		if (!token) return;
+		if (!isResetMode) return;
 		setError(null);
 		setPending(true);
 		const result = await resetPassword({ token, password });
+		if (!result.ok) {
+			setPending(false);
+			return setError(result.message);
+		}
+		await signOut();
 		setPending(false);
-		if (!result.ok) return setError(result.message);
 		setUpdated(true);
 	};
 
@@ -127,7 +133,7 @@ export default function ForgotPasswordFlow() {
 	}
 
 	// 3. Set a new password (arrived from the emailed link)
-	if (token) {
+	if (isResetMode) {
 		return (
 			<>
 				<AuthHeading title="Set a new password">

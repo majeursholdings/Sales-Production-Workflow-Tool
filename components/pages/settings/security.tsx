@@ -1,9 +1,7 @@
-import { Card } from "@/components/common/card";
+import SecurityPanel from "@/components/settings/securityPanel";
+import { getCurrentUser } from "@/lib/session";
 
-export default function SettingsSecurityPage() {
-	return (
-		<Card>
-			<h2>Security & sign-in</h2>
-		</Card>
-	);
+export default async function SettingsSecurityPage() {
+	await getCurrentUser();
+	return <SecurityPanel />;
 }

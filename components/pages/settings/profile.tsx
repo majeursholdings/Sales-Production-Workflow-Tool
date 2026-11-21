@@ -1,9 +1,15 @@
-import { Card } from "@/components/common/card";
+import ProfileForm from "@/components/settings/profileForm";
+import { getCurrentUser } from "@/lib/session";
 
-export default function SettingsProfilePage() {
+export default async function SettingsProfilePage() {
+	const user = await getCurrentUser();
 	return (
-		<Card>
-			<h2>Profile</h2>
-		</Card>
+		<ProfileForm
+			userId={user.id}
+			initialName={user.name}
+			email={user.email}
+			initialPhone={user.phone}
+			roleLabel={user.role}
+		/>
 	);
 }

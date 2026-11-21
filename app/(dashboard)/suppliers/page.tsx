@@ -1,5 +1,7 @@
 import SuppliersPageView from "@/components/pages/suppliers";
+import { requireRouteAccess } from "@/lib/session";
 
-export default function SuppliersPage() {
+export default async function SuppliersPage() {
+	await requireRouteAccess("/suppliers");
 	return <SuppliersPageView />;
 }

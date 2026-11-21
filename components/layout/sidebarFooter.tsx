@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogOut, Moon, Settings, Sun } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { toast } from "sonner";
+import { signOut } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { useTheme } from "@/providers/theme-provider";
 import { Avatar } from "@/components/common/card";
@@ -12,7 +15,6 @@ type SidebarFooterProps = {
 	userRole: string;
 	collapsed?: boolean;
 	settingsHref?: string;
-	signOutHref?: string;
 };
 
 /** Visually hide text but keep it for screen readers (used when the sidebar is collapsed). */
@@ -26,10 +28,12 @@ export default function SidebarFooter({
 	userRole,
 	collapsed = false,
 	settingsHref = "/settings",
-	signOutHref = "/sign-in",
 }: SidebarFooterProps) {
 	const pathname = usePathname();
+	const router = useRouter();
 	const { resolvedTheme, setTheme } = useTheme();
+	const [signingOut, setSigningOut] = useState(false);
+
 	const isDark = resolvedTheme === "dark";
 	const ThemeIcon = isDark ? Moon : Sun;
 	const initials = userName
@@ -38,6 +42,19 @@ export default function SidebarFooter({
 		.join("")
 		.slice(0, 2)
 		.toUpperCase();
+
+	const handleSignOut = async () => {
+		if (signingOut) return;
+		setSigningOut(true);
+		const result = await signOut();
+		if (!result.ok) {
+			toast.error(result.message);
+			setSigningOut(false);
+			return;
+		}
+		router.push("/login");
+		router.refresh();
+	};
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-line pt-3">
@@ -79,14 +96,20 @@ export default function SidebarFooter({
 					<span className="text-body font-bold [overflow-wrap:anywhere]">{userName}</span>
 					<span className="text-small text-fg-tertiary">{userRole}</span>
 				</div>
-				<Link
-					href={signOutHref}
+				<button
+					type="button"
+					onClick={handleSignOut}
+					disabled={signingOut}
 					aria-label="Sign out"
 					title="Sign out"
-					className="grid size-9 shrink-0 place-items-center rounded-md text-fg-secondary hover:bg-subtle hover:text-fg focus-visible:-outline-offset-2"
+					className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-md text-fg-secondary hover:bg-subtle hover:text-fg focus-visible:-outline-offset-2 disabled:opacity-50"
 				>
-					<LogOut className="size-5" aria-hidden="true" />
-				</Link>
+					{signingOut ? (
+						<Loader2 className="size-5 animate-spin" aria-hidden="true" />
+					) : (
+						<LogOut className="size-5" aria-hidden="true" />
+					)}
+				</button>
 			</div>
 		</div>
 	);
