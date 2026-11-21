@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 
 export async function createClient() {
+	// `@supabase/ssr` / `@supabase/auth-js` reads `Date.now()` while validating
+	// sessions. With Next.js Cache Components enabled, `cookies()` resolves during
+	// runtime prerendering, so defer via `io()` first to enter the dynamic stage.
+	await io();
 	const cookieStore = await cookies();
 
 	return createServerClient(

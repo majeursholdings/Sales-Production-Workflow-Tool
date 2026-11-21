@@ -1,4 +1,5 @@
 import type { OverviewItem } from "@/components/common/overViewCard";
+import { buildInvoicesOverview, getInvoices } from "@/lib/invoices";
 
 /**
  * TODO: replace with real figures once the data exists.
@@ -27,11 +28,7 @@ export async function getQuotesOverview(): Promise<OverviewItem[]> {
 }
 
 export async function getInvoicesOverview(): Promise<OverviewItem[]> {
-	return [
-		{ label: "Balances outstanding", value: "₦3,407,625.00", note: "2 invoices part paid" },
-		{ label: "Collected, last 30 days", value: "₦9,965,250.00", note: "Deposits and balances" },
-		{ label: "Paid in full", value: "2", note: "Ready for delivery" },
-	];
+	return buildInvoicesOverview(await getInvoices());
 }
 
 export async function getFinanceOverview(): Promise<OverviewItem[]> {
