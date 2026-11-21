@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import FinancePageView from "@/components/pages/finance";
-import { getFinanceOverview } from "@/lib/overviews";
+import { getFinanceData } from "@/lib/data/finance";
 import { requireRouteAccess } from "@/lib/session";
 
+export const metadata: Metadata = { title: "Revenue & expenses" };
+
 export default async function FinancePage() {
-	await requireRouteAccess("/finance");
-	return <FinancePageView overview={await getFinanceOverview()} />;
+	const user = await requireRouteAccess("/finance");
+	return <FinancePageView data={await getFinanceData()} recordedBy={user.name} />;
 }
