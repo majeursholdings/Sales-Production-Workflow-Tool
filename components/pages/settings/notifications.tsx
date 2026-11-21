@@ -1,9 +1,8 @@
-import { Card } from "@/components/common/card";
+import NotificationsPanel from "@/components/settings/notificationsPanel";
+import { getProfileSettings } from "@/lib/profileSettings";
+import { getCurrentUser } from "@/lib/session";
 
-export default function SettingsNotificationsPage() {
-	return (
-		<Card>
-			<h2>Notifications</h2>
-		</Card>
-	);
+export default async function SettingsNotificationsPage() {
+	const [user, settings] = await Promise.all([getCurrentUser(), getProfileSettings()]);
+	return <NotificationsPanel userId={user.id} initialPrefs={settings.notifications} />;
 }
