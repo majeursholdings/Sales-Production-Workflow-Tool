@@ -27,6 +27,11 @@ import { Menu, MenuItem } from "@/components/tables/menu";
 import { Table } from "@/components/tables";
 import { formatNaira } from "@/lib/currency";
 import { QUOTE_STATUS, VAT_RATE, subtotal, type QuoteDetail } from "@/lib/quotes";
+import {
+	cancelQuoteAction,
+	logQuoteFollowUpAction,
+	recordQuoteDepositAction,
+} from "@/app/(dashboard)/quotes/actions";
 
 export default function QuoteDetailView({
 	detail,
@@ -38,10 +43,12 @@ export default function QuoteDetailView({
 	const { quote, contact, versions, depositRate } = detail;
 	const current = versions[0];
 	const [viewing, setViewing] = useState(current.n);
-	// TODO: record the deposit and cancel through the backend once it exists; for now they only change this page.
 	const [recorded, setRecorded] = useState(quote.status === "paid");
 	const [cancelled, setCancelled] = useState(quote.status === "cancelled");
 	const [cancelling, setCancelling] = useState(false);
+	const [cancelReason, setCancelReason] = useState("");
+	const [transferRef, setTransferRef] = useState("");
+	const [submitting, setSubmitting] = useState(false);
 	const [extraActivity, setExtraActivity] = useState<QuoteDetail["activity"]>([]);
 
 	const version = versions.find((v) => v.n === viewing) ?? current;
@@ -88,7 +95,12 @@ export default function QuoteDetailView({
 								subject={`Your Majeurs quote ${quote.id}`}
 								message={`Hi ${quote.client.split(" ")[0]}, following up on your Majeurs quote ${quote.id}.`}
 								size="md"
-								onFollowed={() => {
+								onFollowed={async () => {
+									const result = await logQuoteFollowUpAction(quote.id);
+									if (!result.ok) {
+										toast.error(result.message);
+										return;
+									}
 									setExtraActivity((a) => [
 										...a,
 										{
@@ -348,11 +360,26 @@ export default function QuoteDetailView({
 									label="Transfer reference"
 									placeholder="From the bank alert"
 									hint="Payment is by bank transfer only for now."
+									value={transferRef}
+									onChange={(e) => setTransferRef(e.target.value)}
 								/>
 								<Button
 									variant="primary"
 									className="w-full"
-									onClick={() => {
+									disabled={submitting}
+									onClick={async () => {
+										setSubmitting(true);
+										const result = await recordQuoteDepositAction({
+											quoteNumber: quote.id,
+											versionNumber: current.n,
+											amount: deposit,
+											reference: transferRef,
+										});
+										setSubmitting(false);
+										if (!result.ok) {
+											toast.error(result.message);
+											return;
+										}
 										setRecorded(true);
 										setExtraActivity((a) => [
 											...a,
@@ -365,7 +392,7 @@ export default function QuoteDetailView({
 										toast.success("Deposit recorded.");
 									}}
 								>
-									Record deposit
+									{submitting ? "Recording…" : "Record deposit"}
 								</Button>
 							</Card>
 						) : (
@@ -456,12 +483,26 @@ export default function QuoteDetailView({
 					confirmLabel="Cancel quote"
 					cancelLabel="Keep quote"
 					onCancel={() => setCancelling(false)}
-					onConfirm={() => {
+					onConfirm={async () => {
+						setSubmitting(true);
+						const result = await cancelQuoteAction({
+							quoteNumber: quote.id,
+							reason: cancelReason,
+						});
+						setSubmitting(false);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						setCancelling(false);
 						setCancelled(true);
 						setExtraActivity((a) => [
 							...a,
-							{ when: "Just now", what: "Quote cancelled", detail: "from this page" },
+							{
+								when: "Just now",
+								what: "Quote cancelled",
+								detail: cancelReason || "from this page",
+							},
 						]);
 						toast.success("Quote cancelled.");
 					}}
@@ -475,6 +516,8 @@ export default function QuoteDetailView({
 						<Textarea
 							label="Reason"
 							placeholder="e.g. Client chose another supplier, budget changed…"
+							value={cancelReason}
+							onChange={(e) => setCancelReason(e.target.value)}
 						/>
 					</div>
 				</ConfirmDialog>

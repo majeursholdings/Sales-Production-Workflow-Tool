@@ -84,7 +84,7 @@ export default function SidebarFooter({
 							aria-hidden="true"
 							className="relative ms-auto h-4.5 w-8 shrink-0 rounded-full bg-line-control group-aria-checked:bg-accent"
 						>
-							<span className="absolute start-0.5 top-0.5 size-3.5 rounded-full bg-surface transition-[inset-inline-start] duration-150 group-aria-checked:start-4" />
+							<span className="absolute inset-s-0.5 top-0.5 size-3.5 rounded-full bg-surface transition-[inset-inline-start] duration-150 group-aria-checked:inset-s-4" />
 						</span>
 					)}
 				</button>
@@ -93,7 +93,7 @@ export default function SidebarFooter({
 			<div className={cn("flex items-center gap-3", collapsed ? "flex-col gap-2" : "ps-3")}>
 				<Avatar initials={initials} className="shrink-0" />
 				<div className={cn("flex min-w-0 flex-1 flex-col", collapsed && hidden)}>
-					<span className="text-body font-bold [overflow-wrap:anywhere]">{userName}</span>
+					<span className="text-body font-bold wrap-anywhere">{userName}</span>
 					<span className="text-small text-fg-tertiary">{userRole}</span>
 				</div>
 				<button

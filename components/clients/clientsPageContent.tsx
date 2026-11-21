@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import PageTitle from "@/components/layout/pageTitle";
 import type { Client } from "@/lib/clients";
+import { createClientAction, deleteClientAction } from "@/app/(dashboard)/clients/actions";
 import AddClientDrawer from "./addClientDrawer";
 import ClientsTable from "./clientsTable";
 import ClientsTableSkeleton from "./clientsTableSkeleton";
@@ -27,7 +28,6 @@ export default function ClientsPageContent({
 	initialClients: Client[];
 	canDelete: boolean;
 }) {
-	// TODO: add and delete through the backend once it exists; for now they only change this page's list.
 	const [clients, setClients] = useState(initialClients);
 	const [adding, setAdding] = useState(false);
 
@@ -47,7 +47,12 @@ export default function ClientsPageContent({
 				<ClientsTable
 					clients={clients}
 					canDelete={canDelete}
-					onDelete={(client) => {
+					onDelete={async (client) => {
+						const result = await deleteClientAction(client.id);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						setClients((list) => list.filter((c) => c.id !== client.id));
 						toast.success(`${client.name} deleted.`);
 					}}
@@ -57,10 +62,24 @@ export default function ClientsPageContent({
 				<AddClientDrawer
 					clients={clients}
 					onClose={() => setAdding(false)}
-					onAdd={(client) => {
-						setClients((list) => [client, ...list]);
+					onAdd={async (draft) => {
+						const phone = draft.contact.split(" · ")[0] ?? "";
+						const result = await createClientAction({
+							name: draft.name,
+							phone: phone === draft.email ? "" : phone,
+							email: draft.email,
+							type: draft.type,
+							company: draft.company,
+							location: draft.location,
+							source: draft.source,
+						});
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
+						setClients((list) => [result.data, ...list]);
 						setAdding(false);
-						toast.success(`${client.name} added to clients.`);
+						toast.success(`${result.data.name} added to clients.`);
 					}}
 				/>
 			)}

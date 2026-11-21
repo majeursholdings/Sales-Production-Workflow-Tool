@@ -9,6 +9,7 @@ import { controlClass } from "@/components/forms/input";
 import { cn } from "@/lib/cn";
 import { SOFA_HOURS, type OverheadInputs } from "@/lib/costRates";
 import { wholeNaira } from "@/lib/quoteBuilder";
+import { saveOverheadsAction } from "@/app/(dashboard)/cost-rates/actions";
 
 const toNumber = (v: string) => Number(v.replace(/[^0-9.]/g, "")) || 0;
 const show = (n: number) => n.toLocaleString("en-NG");
@@ -45,11 +46,11 @@ function Field({
 
 /** Workshop overhead: the monthly costs and workshop hours, and the hourly rate they work out to. */
 export default function OverheadEditor({ initial }: { initial: OverheadInputs }) {
-	// TODO: save through the backend once it exists; for now the figures only change this page.
 	const [rent, setRent] = useState(show(initial.rent));
 	const [power, setPower] = useState(show(initial.power));
 	const [other, setOther] = useState(show(initial.other));
 	const [hoursEach, setHoursEach] = useState(String(initial.hoursEach));
+	const [saving, setSaving] = useState(false);
 
 	const rentN = toNumber(rent);
 	const powerN = toNumber(power);
@@ -169,13 +170,26 @@ export default function OverheadEditor({ initial }: { initial: OverheadInputs })
 				</span>
 				<Button
 					variant="primary"
-					onClick={() =>
+					disabled={saving}
+					onClick={async () => {
+						setSaving(true);
+						const result = await saveOverheadsAction({
+							rent: rentN,
+							power: powerN,
+							other: otherN,
+							hoursEach: toNumber(hoursEach),
+						});
+						setSaving(false);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						toast.success(
 							"Saved. New quotes use these rates from now on; quotes already sent keep theirs.",
-						)
-					}
+						);
+					}}
 				>
-					Save overheads
+					{saving ? "Saving…" : "Save overheads"}
 				</Button>
 			</div>
 		</>

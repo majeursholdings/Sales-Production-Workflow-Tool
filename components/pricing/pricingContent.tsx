@@ -9,6 +9,7 @@ import Stepper from "@/components/quotes/builder/stepper";
 import { DataTable, type ColumnDef } from "@/components/tables";
 import { wholeNaira } from "@/lib/quoteBuilder";
 import type { MarkupCategory, PricingChange, PricingRule } from "@/lib/pricing";
+import { saveCategoryMarkupsAction } from "@/app/(dashboard)/pricing/actions";
 
 export const pricingTitle = {
 	pageTitle: "Pricing & margins",
@@ -29,17 +30,26 @@ export default function PricingContent({
 	rules: PricingRule[];
 	history: PricingChange[];
 }) {
-	// TODO: save through the backend once it exists; for now saving only updates this page.
 	const [saved, setSaved] = useState(() =>
 		Object.fromEntries(categories.map((c) => [c.id, c.markup])),
 	);
 	const [draft, setDraft] = useState(saved);
 	const [log, setLog] = useState(history);
+	const [saving, setSaving] = useState(false);
 
 	const changed = categories.filter((c) => draft[c.id] !== saved[c.id]);
 	const over = categories.filter((c) => draft[c.id] > c.ceiling);
 
-	const save = () => {
+	const save = async () => {
+		setSaving(true);
+		const result = await saveCategoryMarkupsAction(
+			changed.map((c) => ({ id: c.id, markup: draft[c.id] })),
+		);
+		setSaving(false);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		const entries = changed.map((c) => ({
 			what: `${c.name} markup ${saved[c.id]}% → ${draft[c.id]}%`,
 			who: "You · just now",
@@ -117,11 +127,11 @@ export default function PricingContent({
 						</Button>
 						<Button
 							variant="primary"
-							disabled={changed.length === 0 || over.length > 0}
+							disabled={changed.length === 0 || over.length > 0 || saving}
 							title={over.length > 0 ? "A markup is above its ceiling" : undefined}
 							onClick={save}
 						>
-							Save changes
+							{saving ? "Saving…" : "Save changes"}
 						</Button>
 					</>
 				}

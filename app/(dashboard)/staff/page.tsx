@@ -1,6 +1,6 @@
 import StaffPageView from "@/components/pages/staff";
+import { getStaff } from "@/lib/data/staff";
 import { requireRouteAccess } from "@/lib/session";
-import { getStaff } from "@/lib/staff";
 
 export default async function StaffPage() {
 	await requireRouteAccess("/staff");

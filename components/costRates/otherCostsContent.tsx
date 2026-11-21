@@ -12,6 +12,7 @@ import { DataTable, IconButton, type ColumnDef } from "@/components/tables";
 import { cn } from "@/lib/cn";
 import type { CostItem } from "@/lib/costRates";
 import { wholeNaira } from "@/lib/quoteBuilder";
+import { saveContingencyAction, saveCostItemAction } from "@/app/(dashboard)/cost-rates/actions";
 import { costRatesTitle } from "./costRatesTitle";
 import CostItemDrawer from "./costItemDrawer";
 import CostRatesTabs from "./costRatesTabs";
@@ -59,11 +60,11 @@ export default function OtherCostsContent({
 	initialItems: CostItem[];
 	initialContingency: number;
 }) {
-	// TODO: save through the backend once it exists; for now changes only affect this page.
 	const [items, setItems] = useState(initialItems);
 	// null = closed, "new" = adding, otherwise the item being edited
 	const [drawer, setDrawer] = useState<CostItem | "new" | null>(null);
 	const [contingency, setContingency] = useState(String(initialContingency));
+	const [savingContingency, setSavingContingency] = useState(false);
 
 	const percent = Number(contingency.replace(/[^0-9.]/g, "")) || 0;
 
@@ -136,13 +137,21 @@ export default function OtherCostsContent({
 						<Button
 							variant="primary"
 							className="self-start"
-							onClick={() =>
+							disabled={savingContingency}
+							onClick={async () => {
+								setSavingContingency(true);
+								const result = await saveContingencyAction({ percent });
+								setSavingContingency(false);
+								if (!result.ok) {
+									toast.error(result.message);
+									return;
+								}
 								toast.success(
 									"Saved. New quotes use these rates from now on; quotes already sent keep theirs.",
-								)
-							}
+								);
+							}}
 						>
-							Save
+							{savingContingency ? "Saving…" : "Save"}
 						</Button>
 					</Card>
 				</aside>
@@ -152,8 +161,21 @@ export default function OtherCostsContent({
 				<CostItemDrawer
 					item={drawer === "new" ? undefined : drawer}
 					onClose={() => setDrawer(null)}
-					onSave={(saved) => {
+					onSave={async (draft) => {
 						const editing = drawer !== "new";
+						const result = await saveCostItemAction({
+							id: editing ? drawer.id : undefined,
+							name: draft.name,
+							note: draft.note,
+							type: draft.type,
+							per: draft.per,
+							amount: draft.amount,
+						});
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
+						const saved = result.data;
 						setItems((list) =>
 							editing
 								? list.map((c) => (c.id === saved.id ? saved : c))

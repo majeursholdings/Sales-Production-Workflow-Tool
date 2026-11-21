@@ -1,6 +1,5 @@
 import QuotesPageView from "@/components/pages/quotes";
-import { getQuotesOverview } from "@/lib/overviews";
-import { getQuotes } from "@/lib/quotes";
+import { getQuotes, getQuotesOverview } from "@/lib/data/quotes";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function QuotesPage() {

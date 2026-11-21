@@ -1,5 +1,5 @@
 import CostRatesOtherPageView from "@/components/pages/costRatesOther";
-import { getContingency, getCostItems } from "@/lib/costRates";
+import { getContingency, getCostItems } from "@/lib/data/costRates";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function CostRatesOtherPage() {

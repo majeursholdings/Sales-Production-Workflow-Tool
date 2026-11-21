@@ -16,6 +16,7 @@ import {
 	type StaffMember,
 	type StaffTeam,
 } from "@/lib/staff";
+import { removeStaffMemberAction, saveStaffMemberAction } from "@/app/(dashboard)/staff/actions";
 import StaffDrawer from "./staffDrawer";
 import StaffTable from "./staffTable";
 import StaffTableSkeleton from "./staffTableSkeleton";
@@ -33,7 +34,6 @@ const sum = (list: StaffMember[]) => list.reduce((total, p) => total + monthlyCo
  * side cards all depend on the staff list, so they live together here.
  */
 export default function StaffPageContent({ initialStaff }: { initialStaff: StaffMember[] }) {
-	// TODO: add, edit and remove through the backend once it exists; for now they only change this page.
 	const [staff, setStaff] = useState(initialStaff);
 	// null = closed, "new" = adding, otherwise the person being edited
 	const [drawer, setDrawer] = useState<StaffMember | "new" | null>(null);
@@ -158,7 +158,23 @@ export default function StaffPageContent({ initialStaff }: { initialStaff: Staff
 					defaultTeam={defaultTeam}
 					onClose={() => setDrawer(null)}
 					onRemove={editing ? () => setRemoving(editing) : undefined}
-					onSave={(saved) => {
+					onSave={async (draft) => {
+						const result = await saveStaffMemberAction({
+							id: editing?.id,
+							name: draft.name,
+							role: draft.role,
+							team: draft.team,
+							phone: draft.phone,
+							email: draft.email,
+							rate: draft.rate,
+							hoursPerMonth: draft.hoursPerMonth,
+							notes: draft.notes,
+						});
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
+						const saved = result.data;
 						setStaff((list) =>
 							editing
 								? list.map((p) => (p.id === saved.id ? saved : p))
@@ -179,7 +195,12 @@ export default function StaffPageContent({ initialStaff }: { initialStaff: Staff
 					title={`Remove ${removing.name} from staff?`}
 					confirmLabel="Remove from staff"
 					onCancel={() => setRemoving(null)}
-					onConfirm={() => {
+					onConfirm={async () => {
+						const result = await removeStaffMemberAction(removing.id);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						setStaff((list) => list.filter((p) => p.id !== removing.id));
 						toast.success(`${removing.name} removed from staff.`);
 						setRemoving(null);

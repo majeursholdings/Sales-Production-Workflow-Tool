@@ -1,5 +1,5 @@
 import PricingPageView from "@/components/pages/pricing";
-import { getMarkupCategories, getPricingHistory, getPricingRules } from "@/lib/pricing";
+import { getMarkupCategories, getPricingHistory, getPricingRules } from "@/lib/data/pricing";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function PricingPage() {
