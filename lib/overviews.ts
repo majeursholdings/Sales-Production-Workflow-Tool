@@ -99,27 +99,6 @@ export async function getMachinesOverview(): Promise<OverviewItem[]> {
 	];
 }
 
-export async function getStaffOverview(): Promise<OverviewItem[]> {
-	return [
-		{ label: "Staff", value: "11", note: "8 production, 3 non-production" },
-		{
-			label: "Payroll cost a month",
-			value: "₦4,180,000.00",
-			note: "Production ₦2,960,000.00 · backend ₦1,220,000.00",
-		},
-		{
-			label: "Average production rate",
-			value: "₦2,300 /h",
-			note: "Highest ₦3,100, lowest ₦1,600",
-		},
-		{
-			label: "Workshop hours a month",
-			value: "1,280 h",
-			note: "8 production staff × 160 hours",
-		},
-	];
-}
-
 // ─── Detail pages ────────────────────────────────────────────────────────────
 // One record per supplier, job card or machine. Sample records only (all
 // illustrative); an id with no record returns null so the page can 404.

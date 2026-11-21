@@ -1,6 +1,6 @@
 import StaffPageView from "@/components/pages/staff";
-import { getStaffOverview } from "@/lib/overviews";
+import { getStaff } from "@/lib/staff";
 
 export default async function StaffPage() {
-	return <StaffPageView overview={await getStaffOverview()} />;
+	return <StaffPageView staff={await getStaff()} />;
 }

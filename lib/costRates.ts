@@ -1,3 +1,5 @@
+import { getStaff, monthlyCost } from "./staff";
+
 export type OverheadInputs = {
 	/** Monthly costs, in naira. */
 	rent: number;
@@ -31,14 +33,16 @@ export const SOFA_HOURS = 41;
  * through here, so swapping in real data is a one-file change.
  */
 export async function getOverheadInputs(): Promise<OverheadInputs> {
+	// The team costs and headcounts come from Staff, so the two pages always agree
+	const staff = await getStaff();
+	const backend = staff.filter((p) => p.team === "Non-production");
 	return {
 		rent: 1200000,
 		power: 650000,
 		other: 250000,
-		// 8 non-production people × their hourly rate × 160 hours
-		staffMonthly: 3776000,
-		staffCount: 8,
-		productionCount: 10,
+		staffMonthly: backend.reduce((sum, p) => sum + monthlyCost(p), 0),
+		staffCount: backend.length,
+		productionCount: staff.filter((p) => p.team === "Production").length,
 		hoursEach: 160,
 	};
 }

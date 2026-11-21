@@ -1,22 +1,15 @@
-import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
+import PricingContent from "@/components/pricing/pricingContent";
+import type { MarkupCategory, PricingChange, PricingRule } from "@/lib/pricing";
 
-export default function PricingPage() {
+export default function PricingPage(props: {
+	categories: MarkupCategory[];
+	rules: PricingRule[];
+	history: PricingChange[];
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Pricing & margins"
-				pageDescription="Markups and margins applied when a quote is priced."
-				actions={
-					<>
-						<Button disabled>Discard changes</Button>
-						<Button variant="primary" disabled>
-							Save changes
-						</Button>
-					</>
-				}
-			/>
+			<PricingContent {...props} />
 		</PageWrapper>
 	);
 }
