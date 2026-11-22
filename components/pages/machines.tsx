@@ -1,25 +1,19 @@
-import OverviewCards, { type OverviewItem } from "@/components/common/overViewCard";
-import PageTitle from "@/components/layout/pageTitle";
+import MachinesPageContent from "@/components/machines/machinesPageContent";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
-import { Plus } from "lucide-react";
+import type { Machine } from "@/lib/machines";
 
-export default function MachinesPage({ overview }: { overview: OverviewItem[] }) {
+export default function MachinesPage({
+	machines,
+	today,
+	seesCost,
+}: {
+	machines: Machine[];
+	today: string;
+	seesCost: boolean;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Machines"
-				pageDescription="Workshop machines, their status and maintenance log."
-				actions={
-					<>
-						<Button variant="primary">
-							<Plus />
-							Add machine
-						</Button>
-					</>
-				}
-			/>
-			<OverviewCards aria-label="Machines overview" items={overview} />
+			<MachinesPageContent initialMachines={machines} today={today} seesCost={seesCost} />
 		</PageWrapper>
 	);
 }

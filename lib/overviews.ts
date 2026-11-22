@@ -74,30 +74,8 @@ export async function getJobCardsOverview(): Promise<OverviewItem[]> {
 	];
 }
 
-export async function getMachinesOverview(): Promise<OverviewItem[]> {
-	return [
-		{ label: "Machines", value: "8", note: "6 working, 1 overdue, 1 out of service" },
-		{
-			label: "Hours used this month",
-			value: "214 h",
-			note: "From job cards · busiest: CNC router",
-		},
-		{
-			label: "Maintenance spent this year",
-			value: "₦1,340,000.00",
-			note: "9 jobs logged · most: Edge bander",
-		},
-		{
-			label: "Service due in the next 30 days",
-			value: "2",
-			note: "Panel saw, Spray booth",
-			tone: "warning",
-		},
-	];
-}
-
 // ─── Detail pages ────────────────────────────────────────────────────────────
-// One record per supplier, job card or machine. Sample records only (all
+// One record per supplier or job card. Sample records only (all
 // illustrative); an id with no record returns null so the page can 404.
 
 export type DetailOverview = {
@@ -134,35 +112,13 @@ const JOB_CARDS: Record<string, DetailOverview> = {
 	},
 };
 
-const MACHINES: Record<string, DetailOverview> = {
-	"cnc-router": {
-		title: "CNC router",
-		description: "Condition, usage and maintenance history.",
-		badge: { label: "Working", variant: "success" },
-		overview: [
-			{
-				label: "Hours used so far",
-				value: "1,240 h",
-				note: "From job cards since Mar 2024 · 62 h this month",
-			},
-			{ label: "Last used", value: "6 Nov 2026", note: "JC-20261105-0029" },
-			{ label: "Maintenance cost so far", value: "₦820,000.00", note: "5 jobs logged" },
-			{ label: "Next service", value: "15 Dec 2026", note: "Every 6 months" },
-		],
-	},
-};
-
 export async function getSupplierDetail(id: string) {
 	return SUPPLIERS[id] ?? null;
 }
 export async function getJobCardDetail(id: string) {
 	return JOB_CARDS[id] ?? null;
 }
-export async function getMachineDetail(id: string) {
-	return MACHINES[id] ?? null;
-}
 
 /** Ids with a sample record, so the detail routes can be prerendered. */
 export const sampleSupplierIds = Object.keys(SUPPLIERS);
 export const sampleJobCardIds = Object.keys(JOB_CARDS);
-export const sampleMachineIds = Object.keys(MACHINES);

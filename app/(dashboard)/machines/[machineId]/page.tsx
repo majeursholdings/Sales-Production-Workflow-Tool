@@ -1,6 +1,9 @@
+import dayjs from "dayjs";
 import { notFound } from "next/navigation";
-import DetailOverviewPage from "@/components/pages/detailOverview";
-import { getMachineDetail, sampleMachineIds } from "@/lib/overviews";
+import PageWrapper from "@/components/layout/pageWrapper";
+import MachineDetailView from "@/components/machines/machineDetailView";
+import { getMachine, sampleMachineIds } from "@/lib/machines";
+import { isOwnerAppRole } from "@/lib/roles";
 import { requireRouteAccess } from "@/lib/session";
 
 export function generateStaticParams() {
@@ -8,9 +11,23 @@ export function generateStaticParams() {
 }
 
 export default async function MachinePage({ params }: PageProps<"/machines/[machineId]">) {
-	await requireRouteAccess("/machines");
+	const user = await requireRouteAccess("/machines");
 	const { machineId } = await params;
-	const detail = await getMachineDetail(machineId);
-	if (!detail) notFound();
-	return <DetailOverviewPage parent={{ label: "Machines", href: "/machines" }} detail={detail} />;
+	const machine = await getMachine(machineId);
+	if (!machine) notFound();
+	return (
+		<PageWrapper>
+			<MachineDetailView
+				// a different machine is a fresh page, with its own edits
+				key={machine.id}
+				initialMachine={machine}
+				today={dayjs().format("YYYY-MM-DD")}
+				viewer={{
+					name: user.name,
+					seesCost: user.roleKey !== "production",
+					canDelete: isOwnerAppRole(user.roleKey),
+				}}
+			/>
+		</PageWrapper>
+	);
 }
