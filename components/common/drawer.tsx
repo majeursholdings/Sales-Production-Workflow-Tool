@@ -26,7 +26,10 @@ export function Drawer({
 
 	return (
 		<>
-			<div className="fixed inset-0 z-30 bg-[rgb(33_29_26/0.4)]" onClick={onClose} />
+			<div
+				className="fixed inset-0 z-30 bg-[rgb(33_29_26/0.4)] print:hidden"
+				onClick={onClose}
+			/>
 			<section
 				role="dialog"
 				aria-modal="true"
@@ -37,7 +40,7 @@ export function Drawer({
 					if (el && !el.contains(document.activeElement)) el.focus();
 				}}
 				onKeyDown={(e) => e.key === "Escape" && onClose()}
-				className="fixed inset-y-0 end-0 z-31 flex w-140 max-w-full flex-col border-s border-line bg-surface shadow-[-8px_0_24px_rgb(33_29_26/0.08)] outline-none"
+				className="fixed inset-y-0 end-0 z-31 flex w-140 max-w-full flex-col border-s border-line bg-surface shadow-[-8px_0_24px_rgb(33_29_26/0.08)] outline-none print:hidden"
 			>
 				<div className="flex items-start gap-3 border-b border-line px-6 py-5">
 					<div className="flex min-w-0 flex-1 flex-col gap-1">

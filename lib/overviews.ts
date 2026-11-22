@@ -60,22 +60,8 @@ export async function getFinanceOverview(): Promise<OverviewItem[]> {
 	];
 }
 
-export async function getJobCardsOverview(): Promise<OverviewItem[]> {
-	return [
-		{ label: "Active job cards", value: "3", note: "1 waiting on parts, 0 in redo" },
-		{ label: "Hours logged this week", value: "126 h", note: "Across all job cards" },
-		{ label: "Redos this month", value: "1", note: "Upholstery re-stitch" },
-		{
-			label: "Rejected deliveries",
-			value: "1",
-			note: "Harbourview Suites: 2 of 12",
-			tone: "danger",
-		},
-	];
-}
-
 // ─── Detail pages ────────────────────────────────────────────────────────────
-// One record per supplier or job card. Sample records only (all
+// One record per supplier. Sample records only (all
 // illustrative); an id with no record returns null so the page can 404.
 
 export type DetailOverview = {
@@ -98,27 +84,9 @@ const SUPPLIERS: Record<string, DetailOverview> = {
 	},
 };
 
-const JOB_CARDS: Record<string, DetailOverview> = {
-	"JC-20261105-0029": {
-		title: "Harbourview Suites",
-		description: "JC-20261105-0029 · Lobby lounge chairs × 12",
-		badge: { label: "Upholstery", variant: "info" },
-		overview: [
-			{ label: "Production hours", value: "84 h", note: "of 120 h planned · 70%" },
-			{ label: "Machine hours", value: "18 h", note: "of 24 h planned · updates Machines" },
-			{ label: "Redo hours", value: "4 h", note: "Upholstery re-stitch" },
-			{ label: "Due", value: "21 Nov 2026", note: "4 days left" },
-		],
-	},
-};
-
 export async function getSupplierDetail(id: string) {
 	return SUPPLIERS[id] ?? null;
-}
-export async function getJobCardDetail(id: string) {
-	return JOB_CARDS[id] ?? null;
 }
 
 /** Ids with a sample record, so the detail routes can be prerendered. */
 export const sampleSupplierIds = Object.keys(SUPPLIERS);
-export const sampleJobCardIds = Object.keys(JOB_CARDS);

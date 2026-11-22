@@ -23,7 +23,7 @@ function DashboardNavSkeleton() {
 	return (
 		<aside
 			aria-hidden="true"
-			className="hidden w-64 shrink-0 border-r border-line bg-surface min-[861px]:block"
+			className="hidden w-64 shrink-0 border-r border-line bg-surface min-[861px]:block print:hidden"
 		/>
 	);
 }
@@ -35,7 +35,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 				<DashboardNavigation />
 			</Suspense>
 			{/* Bottom padding clears the fixed mobile tab bar. */}
-			<div className="min-w-0 flex-1 px-4 py-6 max-[860px]:pb-24 md:px-8">{children}</div>
+			<div className="min-w-0 flex-1 px-4 py-6 max-[860px]:pb-24 md:px-8 print:p-0">
+				{children}
+			</div>
 		</div>
 	);
 }

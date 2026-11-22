@@ -24,7 +24,7 @@ export function ConfirmDialog({
 }) {
 	return (
 		<div
-			className="fixed inset-0 z-40 grid place-items-center bg-[rgb(33_29_26/0.45)] p-6"
+			className="fixed inset-0 z-40 grid place-items-center bg-[rgb(33_29_26/0.45)] p-6 print:hidden"
 			onClick={onCancel}
 			onKeyDown={(e) => e.key === "Escape" && onCancel()}
 		>

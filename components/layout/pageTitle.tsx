@@ -59,7 +59,9 @@ export default function PageTitle({
 				</div>
 				<p className="text-small text-fg-tertiary">{pageDescription}</p>
 			</div>
-			{actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
+			{actions && (
+				<div className="flex flex-wrap items-center gap-3 print:hidden">{actions}</div>
+			)}
 		</div>
 	);
 }

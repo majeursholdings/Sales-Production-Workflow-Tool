@@ -338,3 +338,95 @@
 		}
 	}
 }
+
+/* ==========================================================================
+   Print: always the light palette on white paper, whatever the screen theme.
+   Navigation, drawers, dialogs and toasts are hidden with `print:hidden`.
+   ========================================================================== */
+@media print {
+	@page {
+		margin: 14mm;
+	}
+
+	:root[data-theme="dark"],
+	:root:not([data-theme]) {
+		color-scheme: light;
+
+		/* Backgrounds */
+		--bg-page: #faf9f8;
+		--bg-surface: #fefdfd;
+		--bg-subtle: #f4f2f1;
+		--bg-hover: #e8e6e3;
+		--bg-inverse: #211d1a;
+
+		/* Borders */
+		--border-default: #e8e6e3;
+		--border-strong: #d8d4d0;
+		--border-control: #857f79;
+		--border-focus: #a97150;
+
+		/* Text */
+		--text-primary: #211d1a;
+		--text-secondary: #514c47;
+		--text-tertiary: #69645d;
+		--text-inverse: #fefdfd;
+		--text-on-accent: #fefdfd;
+
+		/* Accent (primary action) */
+		--accent-solid: #6e4022;
+		--accent-solid-hover: #502a10;
+		--accent-subtle: #ffefe6;
+		--accent-text: #6e4022;
+
+		/* Status */
+		--success-subtle: #e4f9e8;
+		--success-text: #005e28;
+		--success-border: #b1e4ba;
+		--warning-subtle: #fff1db;
+		--warning-text: #674600;
+		--warning-border: #f4cf96;
+		--danger-subtle: #ffeeed;
+		--danger-text: #8f141b;
+		--danger-border: #ffc4be;
+		--danger-solid: #8f141b;
+		--danger-solid-hover: #6a000c;
+		--info-subtle: #eaf4ff;
+		--info-text: #004f8a;
+		--info-border: #b5d9ff;
+
+		/* Brand (decorative only) */
+		--brand-charcoal: #373435;
+		--brand-gold: #b5933e;
+	}
+
+	html,
+	body {
+		background: #fff;
+	}
+
+	/* keep status colours and progress bars; text still says the status */
+	* {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+
+	[data-sonner-toaster] {
+		display: none;
+	}
+
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	tr,
+	li {
+		break-inside: avoid;
+	}
+
+	h1,
+	h2,
+	h3 {
+		break-after: avoid;
+	}
+}

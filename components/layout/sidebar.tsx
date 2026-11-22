@@ -33,7 +33,7 @@ export default function Sidebar({
 		<nav
 			aria-label="Main"
 			className={cn(
-				"sticky top-0 box-border flex h-screen flex-none flex-col gap-6 overflow-hidden border-e border-line bg-surface pt-6 pb-4 transition-[width] duration-200 ease-[cubic-bezier(.2,0,0,1)] max-[860px]:hidden",
+				"sticky top-0 box-border flex h-screen flex-none flex-col gap-6 overflow-hidden border-e border-line bg-surface pt-6 pb-4 transition-[width] duration-200 ease-[cubic-bezier(.2,0,0,1)] max-[860px]:hidden print:hidden",
 				collapsed ? "w-16 px-3" : "w-62 px-4",
 			)}
 		>

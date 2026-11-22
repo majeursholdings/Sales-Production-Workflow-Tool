@@ -1,6 +1,10 @@
+import dayjs from "dayjs";
 import { notFound } from "next/navigation";
-import DetailOverviewPage from "@/components/pages/detailOverview";
-import { getJobCardDetail, sampleJobCardIds } from "@/lib/overviews";
+import PageWrapper from "@/components/layout/pageWrapper";
+import JobCardDetailView from "@/components/jobCards/jobCardDetailView";
+import { getJobCard, sampleJobCardIds } from "@/lib/jobCards";
+import { getMachines } from "@/lib/machines";
+import { canAccessRoute, hasPermission } from "@/lib/roles";
 import { requireRouteAccess } from "@/lib/session";
 
 export function generateStaticParams() {
@@ -8,11 +12,25 @@ export function generateStaticParams() {
 }
 
 export default async function JobCardPage({ params }: PageProps<"/work-orders/[jobCardId]">) {
-	await requireRouteAccess("/work-orders");
+	const user = await requireRouteAccess("/work-orders");
 	const { jobCardId } = await params;
-	const detail = await getJobCardDetail(jobCardId);
-	if (!detail) notFound();
+	const card = await getJobCard(jobCardId);
+	if (!card) notFound();
+	const machines = await getMachines();
 	return (
-		<DetailOverviewPage parent={{ label: "Job cards", href: "/work-orders" }} detail={detail} />
+		<PageWrapper>
+			<JobCardDetailView
+				// a different job card is a fresh page, with its own edits
+				key={card.id}
+				initialCard={card}
+				today={dayjs().format("YYYY-MM-DD")}
+				machineNames={machines.filter((m) => m.condition === "working").map((m) => m.name)}
+				viewer={{
+					name: user.name,
+					canEdit: hasPermission(user.roleKey, "work_orders.edit_status"),
+					canOpenQuote: canAccessRoute(user.roleKey, "/quotes"),
+				}}
+			/>
+		</PageWrapper>
 	);
 }

@@ -33,7 +33,7 @@ export default function MobileNav({
 	const moreCurrent = !tabs.some((k) => isActive(pathname, NAV_ITEMS[k].href));
 
 	return (
-		<div className="min-[861px]:hidden">
+		<div className="min-[861px]:hidden print:hidden">
 			<header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-surface px-4">
 				<Logo mode={resolvedTheme} />
 				<span className="flex-1" />
