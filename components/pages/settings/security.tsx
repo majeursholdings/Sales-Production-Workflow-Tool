@@ -5,7 +5,10 @@ import { createClient } from "@/utils/supabase/server";
 export default async function SettingsSecurityPage() {
 	const user = await getCurrentUser();
 	const supabase = await createClient();
-	const { data } = await supabase.auth.mfa.listFactors();
+	const [{ data }, { data: profile }] = await Promise.all([
+		supabase.auth.mfa.listFactors(),
+		supabase.from("profiles").select("two_step_email").eq("id", user.id).maybeSingle(),
+	]);
 
 	const factors = (data?.totp ?? [])
 		.filter((factor) => factor.status === "verified")
@@ -15,5 +18,11 @@ export default async function SettingsSecurityPage() {
 			createdAt: factor.created_at,
 		}));
 
-	return <SecurityPanel email={user.email} factors={factors} />;
+	return (
+		<SecurityPanel
+			email={user.email}
+			factors={factors}
+			emailOn={Boolean(profile?.two_step_email)}
+		/>
+	);
 }

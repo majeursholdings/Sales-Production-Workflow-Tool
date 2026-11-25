@@ -1,8 +1,14 @@
+import { sendEmailCode, verifyEmailCode } from "@/lib/emailTwoStepActions";
 import { isAppRole } from "@/lib/roles";
+import { secondStepOwed } from "@/lib/twoStep";
 import { createClient } from "@/utils/supabase/client";
 
 export type AuthResult = { ok: true } | { ok: false; message: string };
-export type SignInResult = { ok: true; requiresMfa: boolean } | { ok: false; message: string };
+/** Which second-step methods the person has set up. */
+export type TwoStepMethods = { app: boolean; email: boolean };
+
+export type SignInResult =
+	{ ok: true; requiresMfa: boolean; methods: TwoStepMethods } | { ok: false; message: string };
 
 export type VerifyMethod = "app" | "email" | "backup";
 
@@ -52,8 +58,19 @@ export async function signIn(input: {
 		};
 	}
 
-	const requiresMfa = aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2";
-	return { ok: true, requiresMfa };
+	const { data: claimsData } = await supabase.auth.getClaims();
+	const sessionId = claimsData?.claims.session_id;
+	const state = await secondStepOwed(supabase, {
+		userId: data.user.id,
+		sessionId: typeof sessionId === "string" ? sessionId : undefined,
+		aal: aal?.currentLevel ?? undefined,
+		hasApp: aal?.nextLevel === "aal2",
+	});
+	return {
+		ok: true,
+		requiresMfa: state.owed,
+		methods: { app: state.hasApp, email: state.hasEmail },
+	};
 }
 
 export async function verifyCode(input: {
@@ -91,24 +108,8 @@ export async function verifyCode(input: {
 	}
 
 	if (input.method === "email") {
-		const {
-			data: { user },
-		} = await supabase.auth.getUser();
-		if (!user?.email) {
-			return { ok: false, message: "Your session expired. Sign in again." };
-		}
-
-		const { error } = await supabase.auth.verifyOtp({
-			email: user.email,
-			token: trimmedCode,
-			type: "email",
-		});
-
-		if (error) {
-			return { ok: false, message: "That code is invalid or expired. Send a new one." };
-		}
-
-		return { ok: true };
+		// Checked on the server, which records that this session passed (see lib/twoStep.ts)
+		return verifyEmailCode(trimmedCode);
 	}
 
 	return {
@@ -120,25 +121,7 @@ export async function verifyCode(input: {
 
 export async function sendVerificationCode(_method: "email"): Promise<AuthResult> {
 	void _method;
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-
-	if (!user?.email) {
-		return { ok: false, message: "Your session expired. Sign in again." };
-	}
-
-	const { error } = await supabase.auth.signInWithOtp({
-		email: user.email,
-		options: { shouldCreateUser: false },
-	});
-
-	if (error) {
-		return { ok: false, message: error.message };
-	}
-
-	return { ok: true };
+	return sendEmailCode();
 }
 
 export async function requestPasswordReset(email: string): Promise<AuthResult> {

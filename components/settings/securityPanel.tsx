@@ -6,13 +6,16 @@ import TwoStepCard, { type EnrolledFactor } from "./twoStepCard";
 export default function SecurityPanel({
 	email,
 	factors,
+	emailOn,
 }: {
 	email: string;
 	factors: EnrolledFactor[];
+	/** Two-step codes by email are on. */
+	emailOn: boolean;
 }) {
 	return (
 		<>
-			<TwoStepCard factors={factors} />
+			<TwoStepCard factors={factors} email={email} emailOn={emailOn} />
 			<PasswordCard email={email} />
 			<SessionsCard />
 		</>

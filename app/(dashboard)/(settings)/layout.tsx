@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import PageTitle from "@/components/layout/pageTitle";
-import { isOwnerRole } from "@/components/layout/navigation";
+import { canAccessRoute, isOwnerAppRole } from "@/lib/roles";
 import { SETTINGS_GROUPS } from "@/components/settings/settingsSections";
 import SettingsNav from "@/components/settings/settingsNav";
 import { getCurrentUser } from "@/lib/session";
@@ -8,17 +8,19 @@ import PageWrapper from "@/components/layout/pageWrapper";
 
 async function SettingsShell({ children }: { children: ReactNode }) {
 	const user = await getCurrentUser();
-	const owner = isOwnerRole(user.role);
-	const groups = SETTINGS_GROUPS.filter((g) => !g.ownerOnly || owner);
+	const seesCompany = canAccessRoute(user.roleKey, "/settings/company");
+	const groups = SETTINGS_GROUPS.filter((g) => !g.companyOnly || seesCompany);
 
 	return (
 		<>
 			<PageTitle
 				pageTitle="Settings"
 				pageDescription={
-					owner
+					isOwnerAppRole(user.roleKey)
 						? "Your account and how the company runs."
-						: "Your profile, notifications and sign-in."
+						: seesCompany
+							? "Your account, plus the company settings used on every quote and invoice. Only the MD or GM can change those."
+							: "Your profile, notifications and sign-in."
 				}
 			/>
 			<div className="flex flex-col gap-6 md:flex-row md:items-start">

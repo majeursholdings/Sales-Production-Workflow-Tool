@@ -308,6 +308,8 @@ export const FormField = <T extends FieldValues = FieldValues>({
 			return wrapper(<DollarInput field={field} register={register} error={error} />);
 		case "amount":
 			return wrapper(<AmountInput field={field} control={control} error={error} />);
+		case "range":
+			return wrapper(<RangeInput field={field} control={control} error={error} />);
 		default:
 			return wrapper(<TextInput field={field} register={register} error={error} />);
 	}
@@ -1192,6 +1194,56 @@ export const AmountInput = <T extends FieldValues = FieldValues>({
 						onBlur={ctrl.onBlur}
 						className={cn(inputClass(error), "tabular")}
 					/>
+				);
+			}}
+		/>
+	);
+};
+
+// ─── Range ────────────────────────────────────────────────────────────────────
+// A slider between field.min and field.max (step field.step), with the value
+// shown beside it. The form value is a number.
+
+export const RangeInput = <T extends FieldValues = FieldValues>({
+	field,
+	control,
+	error,
+}: ControllerProps<T>) => {
+	const format = field.formatValue ?? ((v: number) => String(v));
+	return (
+		<Controller
+			name={field.name as Path<T>}
+			control={control}
+			defaultValue={(field.defaultValue ?? field.min ?? 0) as PathValue<T, Path<T>>}
+			rules={selectRules<T>(field)}
+			render={({ field: ctrl }) => {
+				const value = Number(ctrl.value);
+				return (
+					<div className="flex items-center gap-4">
+						<input
+							id={field.id ?? field.name}
+							ref={ctrl.ref}
+							name={ctrl.name}
+							type="range"
+							min={field.min}
+							max={field.max}
+							step={field.step}
+							disabled={field.disabled}
+							value={value}
+							aria-valuetext={format(value)}
+							aria-invalid={!!error || undefined}
+							aria-describedby={describedBy(field, error)}
+							onChange={(e) => ctrl.onChange(Number(e.target.value))}
+							onBlur={ctrl.onBlur}
+							className="h-6 flex-1 cursor-pointer accent-accent disabled:cursor-not-allowed"
+						/>
+						<span
+							aria-hidden="true"
+							className="min-w-14 text-end text-xl font-bold text-fg tabular"
+						>
+							{format(value)}
+						</span>
+					</div>
 				);
 			}}
 		/>

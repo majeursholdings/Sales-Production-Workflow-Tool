@@ -1,7 +1,7 @@
 import SettingsDocumentsPage from "@/components/pages/settings/documents";
-import { requireOwner } from "@/lib/session";
+import { requireRouteAccess } from "@/lib/session";
 
 export default async function DocumentsPage() {
-	await requireOwner();
+	await requireRouteAccess("/settings/documents");
 	return <SettingsDocumentsPage />;
 }

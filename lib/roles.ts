@@ -137,12 +137,14 @@ export function hasPermission(role: AppRole, permission: AppPermission): boolean
 
 /** Route prefixes restricted to specific roles. Longest/most-specific prefixes first. */
 const ROUTE_ROLE_RULES: Array<{ prefix: string; roles: readonly AppRole[] }> = [
-	{ prefix: "/settings/company", roles: ["md", "gm"] },
-	{ prefix: "/settings/documents", roles: ["md", "gm"] },
-	{ prefix: "/settings/numbering", roles: ["md", "gm"] },
-	{ prefix: "/settings/tax", roles: ["md", "gm"] },
-	{ prefix: "/settings/trade", roles: ["md", "gm"] },
-	{ prefix: "/settings/agent", roles: ["md", "gm"] },
+	// Company settings: MD and GM change them; Accounting can view them (read-only in the UI)
+	{ prefix: "/settings/company", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/documents", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/numbering", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/tax", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/trade", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/agent", roles: ["md", "gm", "accounting"] },
+	{ prefix: "/settings/sending", roles: ["md", "gm", "accounting"] },
 	{ prefix: "/team", roles: ["md", "gm"] },
 	{ prefix: "/pricing", roles: ["md", "gm", "accounting"] },
 	{ prefix: "/cost-rates", roles: ["md", "gm", "accounting"] },

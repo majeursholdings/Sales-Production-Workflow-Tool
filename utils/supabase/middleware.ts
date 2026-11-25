@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { canAccessRoute, isAppRole } from "@/lib/roles";
+import { secondStepOwed } from "@/lib/twoStep";
 
 const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/confirm"];
 const CACHE_HEADERS = ["cache-control", "expires", "pragma"] as const;
@@ -78,13 +79,17 @@ export async function updateSession(request: NextRequest) {
 		return redirectWithCookies(loginUrl, supabaseResponse);
 	}
 
-	// Enforce MFA only if the user has a verified factor and has not yet completed AAL2.
+	// Enforce the second step: an authenticator app (AAL2) or, when it's on, an email code
 	let needsMfa = false;
 	if (claims.aal === "aal1") {
 		const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-		if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
-			needsMfa = true;
-		}
+		const state = await secondStepOwed(supabase, {
+			userId: claims.sub,
+			sessionId: typeof claims.session_id === "string" ? claims.session_id : undefined,
+			aal: claims.aal,
+			hasApp: aal?.nextLevel === "aal2",
+		});
+		needsMfa = state.owed;
 	}
 
 	if (needsMfa && !isVerify && !isPublic) {

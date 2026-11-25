@@ -6,7 +6,13 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/common/buttons";
 import OtpInput from "@/components/forms/otpInput";
 import { Input } from "@/components/forms/input";
-import { sendVerificationCode, signOut, verifyCode, type VerifyMethod } from "@/lib/auth";
+import {
+	sendVerificationCode,
+	signOut,
+	verifyCode,
+	type TwoStepMethods,
+	type VerifyMethod,
+} from "@/lib/auth";
 import { AuthAlert, AuthHeading, AuthNote, TextButton } from "./authParts";
 
 const OTP_LENGTH = 6;
@@ -29,9 +35,12 @@ const methods: Record<VerifyMethod, { title: string; text: string; other: string
 	},
 };
 
-export default function VerifyForm() {
+/** The second sign-in step. `available` is what the person has set up; it starts on the app if they have one. */
+export default function VerifyForm({ available }: { available: TwoStepMethods }) {
 	const router = useRouter();
-	const [method, setMethod] = useState<VerifyMethod>("app");
+	const [method, setMethod] = useState<VerifyMethod>(
+		available.app || !available.email ? "app" : "email",
+	);
 	const [code, setCode] = useState("");
 	const [trustDevice, setTrustDevice] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -149,7 +158,11 @@ export default function VerifyForm() {
 			<div className="flex flex-col gap-2 text-body">
 				<span className="text-small text-fg-tertiary">Other ways to sign in</span>
 				{(Object.keys(methods) as VerifyMethod[])
-					.filter((key) => key !== method)
+					.filter(
+						(key) =>
+							key !== method &&
+							(key === "backup" || (key === "app" ? available.app : available.email)),
+					)
 					.map((key) => (
 						<TextButton key={key} onClick={() => switchMethod(key)}>
 							{methods[key].other}

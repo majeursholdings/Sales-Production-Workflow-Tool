@@ -1,9 +1,17 @@
-import { Card } from "@/components/common/card";
+import dayjs from "dayjs";
+import BankTermsPanel from "@/components/settings/company/bankTermsPanel";
+import { getCompanySettings } from "@/lib/companySettings";
+import { isOwnerAppRole } from "@/lib/roles";
+import { getCurrentUser } from "@/lib/session";
 
-export default function SettingsDocumentsPage() {
+export default async function SettingsDocumentsPage() {
+	const [user, settings] = await Promise.all([getCurrentUser(), getCompanySettings()]);
 	return (
-		<Card>
-			<h2>Bank & terms</h2>
-		</Card>
+		<BankTermsPanel
+			initial={settings}
+			userName={user.name}
+			canEdit={isOwnerAppRole(user.roleKey)}
+			now={dayjs().format("YYYY-MM-DDTHH:mm:ss")}
+		/>
 	);
 }

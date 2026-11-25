@@ -9,6 +9,7 @@ import {
 	type AppPermission,
 	type AppRole,
 } from "@/lib/roles";
+import { secondStepOwed } from "@/lib/twoStep";
 import { createClient } from "@/utils/supabase/server";
 
 export type SessionUser = {
@@ -40,13 +41,19 @@ export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 		return null;
 	}
 
-	// Server-side MFA enforcement: if the user has a verified factor, require AAL2.
-	const hasVerifiedMfa = Boolean(user.factors?.some((factor) => factor.status === "verified"));
-	if (hasVerifiedMfa) {
-		const { data: claimsData } = await supabase.auth.getClaims();
-		if (claimsData?.claims.aal !== "aal2") {
-			redirect("/verify");
-		}
+	// Server-side second-step enforcement: authenticator app (AAL2) or, when on, an email code.
+	const { data: claimsData } = await supabase.auth.getClaims();
+	const claims = claimsData?.claims;
+	const { owed } = await secondStepOwed(supabase, {
+		userId: user.id,
+		sessionId: typeof claims?.session_id === "string" ? claims.session_id : undefined,
+		aal: typeof claims?.aal === "string" ? claims.aal : undefined,
+		hasApp: Boolean(
+			user.factors?.some((f) => f.factor_type === "totp" && f.status === "verified"),
+		),
+	});
+	if (owed) {
+		redirect("/verify");
 	}
 
 	const [{ data: profile }, { data: roleRow }] = await Promise.all([

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { signIn } from "@/lib/auth";
+import { sendVerificationCode, signIn } from "@/lib/auth";
 import { AuthAlert, AuthHeading, AuthNote } from "./authParts";
 
 type LoginValues = { email: string; password: string; remember: boolean };
@@ -68,6 +68,10 @@ export default function LoginForm() {
 			setError(result.message);
 			setPending(false);
 			return;
+		}
+		// Email codes only: send the code now, so it's waiting when the verify page opens
+		if (result.requiresMfa && !result.methods.app && result.methods.email) {
+			await sendVerificationCode("email");
 		}
 		// Staying in "pending" through the redirect stops a second submit.
 		router.push(result.requiresMfa ? "/verify" : nextPath);

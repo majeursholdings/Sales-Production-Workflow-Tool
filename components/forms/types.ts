@@ -24,6 +24,7 @@ export type FieldType =
 	| "datetime"
 	| "file"
 	| "image"
+	| "range" // a slider between min and max, with the value shown beside it
 	| "checkbox";
 
 export type SelectOption = {
@@ -85,6 +86,8 @@ export type FormFieldConfig = {
 	trailingSlot?: ReactNode; // e.g. a "Forgot password?" link next to a checkbox
 	/** Keep the label for screen readers but don't show it — e.g. a quantity field inside a table cell. */
 	hideLabel?: boolean;
+	/** For range: how the value reads beside the slider and to screen readers, e.g. 85 → "85%". */
+	formatValue?: (value: number) => string;
 	/** For select / combobox / radio: runs after the value changes, e.g. to fill in related fields. */
 	onValueChange?: (value: string) => void;
 	/** For a "file" field: take images as well as documents (e.g. a floor plan as a photo or a PDF). */

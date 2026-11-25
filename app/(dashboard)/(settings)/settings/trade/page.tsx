@@ -1,7 +1,7 @@
 import SettingsTradePage from "@/components/pages/settings/trade";
-import { requireOwner } from "@/lib/session";
+import { requireRouteAccess } from "@/lib/session";
 
 export default async function TradePage() {
-	await requireOwner();
+	await requireRouteAccess("/settings/trade");
 	return <SettingsTradePage />;
 }

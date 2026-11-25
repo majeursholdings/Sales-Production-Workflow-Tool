@@ -1,7 +1,7 @@
 import SettingsNumberingPage from "@/components/pages/settings/numbering";
-import { requireOwner } from "@/lib/session";
+import { requireRouteAccess } from "@/lib/session";
 
 export default async function NumberingPage() {
-	await requireOwner();
+	await requireRouteAccess("/settings/numbering");
 	return <SettingsNumberingPage />;
 }
