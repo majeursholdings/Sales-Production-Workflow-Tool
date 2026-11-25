@@ -3,53 +3,41 @@
 import { useState } from "react";
 import { ImageIcon, Info, Plus } from "lucide-react";
 import { LinkButton } from "@/components/common/buttons";
+import { Card } from "@/components/common/card";
 import PageTitle from "@/components/layout/pageTitle";
-import type {
-	FurnitureAccess,
-	FurnitureCategory,
-	FurnitureTemplate,
-	FurnitureTypeSummary,
-	InventoryPart,
+import {
+	groupTypes,
+	type FurnitureAccess,
+	type FurnitureCatalog,
+	type OtherCostOption,
 } from "@/lib/furnitureTypes";
 import { furnitureTypesTitle } from "./furnitureTypesTitle";
 import TypeEditor from "./typeEditor";
 import TypeList from "./typeList";
 
-type Group = { category: FurnitureCategory; types: FurnitureTypeSummary[] };
-
 /** Furniture types: the list on the left, the selected type's template on the right. */
 export default function FurnitureTypesView({
-	groups: initialGroups,
-	templates,
-	inventory,
+	catalog,
+	otherCosts,
 	access,
 }: {
-	groups: Group[];
-	templates: Record<string, FurnitureTemplate>;
-	inventory: InventoryPart[];
+	catalog: FurnitureCatalog;
+	otherCosts: OtherCostOption[];
 	access: FurnitureAccess;
 }) {
-	const [groups, setGroups] = useState(initialGroups);
-	const [partCounts, setPartCounts] = useState(() =>
-		Object.fromEntries(Object.values(templates).map((t) => [t.typeId, t.parts.length])),
+	const { categories, types, templates, inventory, rates } = catalog;
+	const groups = groupTypes(types, categories);
+	const first = groups[0]?.types[0]?.id ?? "";
+	const [picked, setPicked] = useState(first);
+
+	// Fall back to the first type when the picked one is gone (deleted, or hidden by RLS)
+	const selected = types.find((t) => t.id === picked) ?? types.find((t) => t.id === first);
+	const partCounts = Object.fromEntries(
+		Object.values(templates).map((t) => [t.typeId, t.parts.length]),
 	);
-	const [selectedId, setSelectedId] = useState(initialGroups[0]?.types[0]?.id ?? "");
-
-	const all = groups.flatMap((g) => g.types);
-	const selected = all.find((t) => t.id === selectedId);
-
-	// A saved rename or category change moves the type in the list
-	const handleSaved = (saved: FurnitureTypeSummary, partCount: number) => {
-		setGroups((current) => {
-			const types = current
-				.flatMap((g) => g.types)
-				.map((t) => (t.id === saved.id ? saved : t));
-			return current
-				.map((g) => ({ ...g, types: types.filter((t) => t.category === g.category) }))
-				.filter((g) => g.types.length > 0);
-		});
-		setPartCounts((counts) => ({ ...counts, [saved.id]: partCount }));
-	};
+	const covers = Object.fromEntries(
+		Object.values(templates).map((t) => [t.typeId, t.photos[0]]),
+	);
 
 	return (
 		<>
@@ -81,25 +69,46 @@ export default function FurnitureTypesView({
 				</div>
 			)}
 
-			<div className="flex flex-wrap items-start gap-6">
-				<TypeList
-					groups={groups}
-					partCounts={partCounts}
-					selectedId={selectedId}
-					onSelect={setSelectedId}
-					showMarkup={access.showCost}
-				/>
-				{selected && templates[selected.id] && (
-					<TypeEditor
-						key={selected.id}
-						type={selected}
-						template={templates[selected.id]}
-						inventory={inventory}
-						access={access}
-						onSaved={handleSaved}
+			{types.length === 0 ? (
+				<Card className="items-start gap-3">
+					<h2>No furniture types yet</h2>
+					<p className="text-body text-fg-secondary">
+						{access.canEditDetails
+							? "Add the first type: its standard parts, hours and costs fill in when someone adds it to a quote."
+							: "Furniture types appear here once the MD or GM adds them."}
+					</p>
+					{access.canEditDetails && (
+						<LinkButton href="/furniture-types/new" variant="primary">
+							<Plus />
+							New furniture type
+						</LinkButton>
+					)}
+				</Card>
+			) : (
+				<div className="flex flex-wrap items-start gap-6">
+					<TypeList
+						groups={groups}
+						partCounts={partCounts}
+						covers={covers}
+						selectedId={selected?.id ?? ""}
+						onSelect={setPicked}
+						showMarkup={access.showCost}
 					/>
-				)}
-			</div>
+					{selected && templates[selected.id] && (
+						<TypeEditor
+							key={selected.id}
+							type={selected}
+							template={templates[selected.id]}
+							categories={categories}
+							inventory={inventory}
+							rates={rates}
+							otherCosts={otherCosts}
+							access={access}
+							onDeleted={() => setPicked("")}
+						/>
+					)}
+				</div>
+			)}
 		</>
 	);
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { createClientAction } from "@/app/(dashboard)/clients/actions";
 import ClientForm from "@/components/clients/clientForm";
 import { Button } from "@/components/common/buttons";
 import { Avatar, Card } from "@/components/common/card";
@@ -11,23 +12,52 @@ import { SegmentedControl } from "@/components/common/segmented-control";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { cn } from "@/lib/cn";
 import type { Client } from "@/lib/clients";
-import { DEPOSIT_RATE, VALID_DAYS } from "@/lib/quoteBuilder";
-import { updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
+import { ratePercent, type QuoteBuilderSetup } from "@/lib/quoteBuilder";
+import { resetDraft, updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
 import BuilderHeader from "./builderHeader";
+import { cannotSave, useSaveQuote } from "./useSaveQuote";
 
 type Mode = "existing" | "new";
 
 export default function ClientStep({
 	clients,
 	createdBy,
+	setup,
 }: {
 	clients: Client[];
 	createdBy: string;
+	setup: QuoteBuilderSetup;
 }) {
 	const router = useRouter();
-	const { client: selected } = useQuoteDraft();
+	const draft = useQuoteDraft();
+	const { client: selected } = draft;
 	const [mode, setMode] = useState<Mode>("existing");
 	const [search, setSearch] = useState("");
+	const [adding, startAdding] = useTransition();
+	const { save, saving } = useSaveQuote();
+	const blocked = cannotSave(draft);
+
+	// Saves a client added here to Clients, so the quote can point at them
+	const addClient = (client: Client) =>
+		startAdding(async () => {
+			const [first] = client.contact.split(" · ");
+			const result = await createClientAction({
+				name: client.name,
+				phone: first && first !== client.email ? first : "",
+				email: client.email,
+				type: client.type,
+				company: client.company,
+				location: client.location,
+				source: client.source,
+			});
+			if (!result.ok) {
+				toast.error(result.message);
+				return;
+			}
+			updateDraft({ client: result.data });
+			toast.success(`${result.data.name} added to Clients.`);
+			router.push("/quotes/new/items");
+		});
 
 	const q = search.trim().toLowerCase();
 	const shown = q
@@ -41,15 +71,22 @@ export default function ClientStep({
 			<BuilderHeader
 				step={1}
 				createdBy={createdBy}
+				header={draft.savedHeader ?? setup.header}
+				saved={draft.quoteNumber !== null}
+				sent={draft.sent}
 				actions={
 					<>
 						<Button
-							onClick={() => {
-								toast.success("Draft kept for this session.");
-								router.push("/quotes");
-							}}
+							disabled={blocked !== null || saving}
+							title={blocked ?? undefined}
+							onClick={() =>
+								save(draft, false, () => {
+									resetDraft();
+									router.push("/quotes");
+								})
+							}
 						>
-							Save draft
+							{saving ? "Saving…" : "Save draft"}
 						</Button>
 						<Button
 							variant="primary"
@@ -139,17 +176,14 @@ export default function ClientStep({
 							</div>
 							<p className="text-small text-fg-tertiary">
 								Not here? Switch to <strong>New client</strong> to add them;
-								they&apos;re saved to Clients when the quote is sent.
+								they&apos;re saved to Clients straight away.
 							</p>
 						</div>
 					) : (
 						<ClientForm
 							clients={clients}
-							submitLabel="Save client and continue"
-							onSubmit={(client) => {
-								updateDraft({ client });
-								router.push("/quotes/new/items");
-							}}
+							submitLabel={adding ? "Saving client…" : "Save client and continue"}
+							onSubmit={addClient}
 						/>
 					)}
 				</Card>
@@ -182,8 +216,8 @@ export default function ClientStep({
 							{[
 								["Prepared by", createdBy],
 								["Currency", "Naira (NGN)"],
-								["Valid for", `${VALID_DAYS} days`],
-								["Deposit to confirm", `${Math.round(DEPOSIT_RATE * 100)}%`],
+								["Valid for", `${setup.rates.validDays} days`],
+								["Deposit to confirm", ratePercent(setup.rates.depositRate)],
 							].map(([k, v]) => (
 								<div key={k} className="flex justify-between gap-3">
 									<dt className="text-fg-secondary">{k}</dt>

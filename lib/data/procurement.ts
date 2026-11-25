@@ -8,6 +8,7 @@ import type {
 	SupplierMaterial,
 	SupplierPurchaseOrder,
 } from "@/lib/suppliers";
+import { getPartDemand } from "@/lib/data/jobCards";
 import { createClient } from "@/utils/supabase/server";
 
 const PART_COLUMNS =
@@ -123,16 +124,19 @@ export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
 
 export async function getInventory(): Promise<Inventory> {
 	const supabase = await createClient();
-	const { data, error } = await supabase
-		.from("parts")
-		.select(PART_COLUMNS)
-		.eq("is_archived", false)
-		.order("name", { ascending: true });
+	const [{ data, error }, demand] = await Promise.all([
+		supabase
+			.from("parts")
+			.select(PART_COLUMNS)
+			.eq("is_archived", false)
+			.order("name", { ascending: true }),
+		// What open job cards still need beyond what's reserved for them
+		getPartDemand(),
+	]);
 
 	if (error) throw new Error(`Failed to load inventory: ${error.message}`);
 
-	// Demand comes from confirmed job cards, which aren't in the database yet.
-	return { parts: ((data ?? []) as PartRow[]).map(toPart), demand: [] };
+	return { parts: ((data ?? []) as PartRow[]).map(toPart), demand };
 }
 
 const lineTotal = (po: PurchaseOrder) =>

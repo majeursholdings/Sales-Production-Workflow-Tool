@@ -9,25 +9,26 @@ import { Badge } from "@/components/common/badge";
 import { Button, LinkButton } from "@/components/common/buttons";
 import { Card } from "@/components/common/card";
 import { ConfirmDialog } from "@/components/common/modal";
-import { SegmentedControl } from "@/components/common/segmented-control";
+import { Input, Select } from "@/components/forms/input";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { Table } from "@/components/tables";
 import { cn } from "@/lib/cn";
 import {
-	MAX_GENERAL_DISCOUNT,
-	PROJECT_COST_OPTIONS,
 	formatMoney,
 	priceQuote,
+	ratePercent,
 	wholeNaira,
 	type PricedItem,
+	type QuoteBuilderSetup,
 } from "@/lib/quoteBuilder";
-import { updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
+import { resetDraft, updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
+import AddItemDrawer from "./addItemDrawer";
 import BuilderHeader from "./builderHeader";
 import Stepper from "./stepper";
 import SummaryCard from "./summaryCard";
+import { cannotSave, useSaveQuote } from "./useSaveQuote";
 
-const fieldClass =
-	"h-10 w-full rounded-md border border-line-control bg-surface px-3 text-fg outline-none placeholder:text-fg-tertiary focus:border-focus focus:ring-1 focus:ring-focus";
+const CUSTOM_COST = "__custom";
 const wrap = "overflow-x-auto rounded-md border border-line";
 
 function BreakdownRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
@@ -39,12 +40,23 @@ function BreakdownRow({ label, value, bold }: { label: string; value: string; bo
 	);
 }
 
-export default function ItemsStep({ createdBy }: { createdBy: string }) {
+export default function ItemsStep({
+	createdBy,
+	setup,
+}: {
+	createdBy: string;
+	setup: QuoteBuilderSetup;
+}) {
 	const router = useRouter();
 	const draft = useQuoteDraft();
-	const pricing = priceQuote(draft);
+	const { catalog, rates, projectCostOptions } = setup;
+	const pricing = priceQuote(draft, catalog, rates);
 	const { client, currency } = draft;
 	const isTrade = client?.type === "Trade";
+	const money = (n: number) => formatMoney(n, currency, rates.usdRate);
+	const { save, saving } = useSaveQuote();
+	const blocked = cannotSave(draft);
+	const [adding, setAdding] = useState(false);
 
 	const [removing, setRemoving] = useState<{
 		key: string;
@@ -52,9 +64,12 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 		item: string;
 		line: number;
 	} | null>(null);
-	const [costKind, setCostKind] = useState("site");
-	const [costAmount, setCostAmount] = useState(String(PROJECT_COST_OPTIONS.site.amount));
+	const [costKind, setCostKind] = useState(projectCostOptions[0]?.id ?? CUSTOM_COST);
+	const [costAmount, setCostAmount] = useState(
+		projectCostOptions[0]?.amount ? String(projectCostOptions[0].amount) : "",
+	);
 	const [costNote, setCostNote] = useState("");
+	const costOption = projectCostOptions.find((o) => o.id === costKind);
 
 	const setQty = (item: PricedItem, qty: number) =>
 		updateDraft((d) => ({ qty: { ...d.qty, [item.id]: Math.max(1, qty) } }));
@@ -62,25 +77,53 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 		updateDraft((d) => ({ hours: { ...d.hours, [key]: Math.max(0, hours) } }));
 
 	const addCost = () => {
-		const option = PROJECT_COST_OPTIONS[costKind];
 		const amount = Number(costAmount.replace(/[^0-9.]/g, "")) || 0;
-		if (!amount) return;
-		const name =
-			costKind === "third" && costNote.trim()
-				? `Third-party work: ${costNote.trim()}`
-				: option.name;
+		if (!amount) {
+			toast.error("Enter an amount greater than ₦0.");
+			return;
+		}
+		const note = costNote.trim();
+		if (!costOption && !note) {
+			toast.error("Say what the cost is for.");
+			return;
+		}
+		const name = costOption ? (note ? `${costOption.name}: ${note}` : costOption.name) : note;
 		updateDraft((d) => ({
 			projectCosts: [
 				...d.projectCosts,
-				{ id: crypto.randomUUID(), name, type: option.type, per: option.per, amount },
+				{
+					id: crypto.randomUUID(),
+					name,
+					type: costOption?.type ?? "Direct",
+					per: costOption?.per ?? "Per project",
+					amount,
+				},
 			],
 		}));
 		setCostNote("");
 	};
 
-	const disabledAdd = {
+	const addItem = (id: string) => {
+		updateDraft((d) => ({
+			items: d.items.includes(id) ? d.items : [...d.items, id],
+			qty: { ...d.qty, [id]: d.qty[id] ?? 1 },
+			open: { ...d.open, [id]: true },
+		}));
+		setAdding(false);
+	};
+
+	const removeItem = (id: string) =>
+		updateDraft((d) => ({
+			items: d.items.filter((x) => x !== id),
+			removedParts: d.removedParts.filter((k) => !k.startsWith(`${id}|`)),
+			hours: Object.fromEntries(
+				Object.entries(d.hours).filter(([k]) => !k.startsWith(`${id}|`)),
+			),
+		}));
+
+	const notBuilt = {
 		disabled: true,
-		title: "Needs the furniture catalogue, which isn't built yet",
+		title: "Changing parts on a single quote isn't built yet",
 	};
 
 	return (
@@ -88,19 +131,26 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 			<BuilderHeader
 				step={2}
 				createdBy={createdBy}
+				header={draft.savedHeader ?? setup.header}
+				saved={draft.quoteNumber !== null}
+				sent={draft.sent}
 				actions={
 					<>
 						<Button
-							onClick={() => {
-								toast.success("Draft kept for this session.");
-								router.push("/quotes");
-							}}
+							disabled={blocked !== null || saving}
+							title={blocked ?? undefined}
+							onClick={() =>
+								save(draft, false, () => {
+									resetDraft();
+									router.push("/quotes");
+								})
+							}
 						>
-							Save draft
+							{saving ? "Saving…" : "Save draft"}
 						</Button>
 						<Button
 							variant="primary"
-							disabled={!client}
+							disabled={!client || pricing.items.length === 0}
 							onClick={() => router.push("/quotes/new/review")}
 						>
 							Review &amp; send
@@ -134,6 +184,49 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 						</LinkButton>
 					</Card>
 
+					{pricing.missing.length > 0 && (
+						<div
+							role="alert"
+							className="flex flex-wrap items-center gap-3 rounded-md border border-warning-line bg-warning-subtle px-4 py-3 text-body text-fg"
+						>
+							<span className="min-w-0 flex-1">
+								{pricing.missing.length === 1
+									? "A furniture type on this quote was removed or unpublished."
+									: `${pricing.missing.length} furniture types on this quote were removed or unpublished.`}{" "}
+								Take {pricing.missing.length === 1 ? "it" : "them"} off to save.
+							</span>
+							<Button
+								size="sm"
+								onClick={() =>
+									updateDraft((d) => ({
+										items: d.items.filter((id) => !pricing.missing.includes(id)),
+									}))
+								}
+							>
+								Take off
+							</Button>
+						</div>
+					)}
+
+					{pricing.items.length === 0 && (
+						<Card className="items-start gap-3">
+							<h2>No furniture items yet</h2>
+							<p className="text-body text-fg-secondary">
+								{catalog.length === 0
+									? "No furniture types are published yet. Once the MD or GM publishes one in Furniture types, it can be added here."
+									: "Add a furniture type; its standard parts and hours fill in, and you can adjust them for this quote."}
+							</p>
+							{catalog.length > 0 ? (
+								<Button variant="primary" onClick={() => setAdding(true)}>
+									<Plus />
+									Add furniture item
+								</Button>
+							) : (
+								<LinkButton href="/furniture-types">Go to Furniture types</LinkButton>
+							)}
+						</Card>
+					)}
+
 					{pricing.items.map((item) => {
 						const open = draft.open[item.id] ?? false;
 						return (
@@ -162,8 +255,11 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 									<div className="flex min-w-0 flex-1 basis-55 flex-col gap-1">
 										<h2>{item.name}</h2>
 										<span className="text-small text-fg-tertiary">
-											{item.meta} · {item.parts.length} parts,{" "}
-											{item.labourHours} production hours
+											{[item.category, item.description]
+												.filter(Boolean)
+												.join(" · ")}{" "}
+											· {item.parts.length} parts, {item.labourHours}{" "}
+											production hours
 										</span>
 									</div>
 									<Stepper
@@ -175,16 +271,27 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 									/>
 									<div className="flex min-w-50 flex-col items-end gap-0.5">
 										<strong className="text-h3 tabular">
-											{formatMoney(item.price, currency)}
+											{money(item.price)}
 										</strong>
 										<span className="text-right text-small text-fg-tertiary">
 											Cost{" "}
 											{wholeNaira(item.unitCostWithContingency * item.qty)}{" "}
-											incl. 5% contingency · markup{" "}
-											{Math.round(item.markup * 100)}% (cap{" "}
-											{Math.round(item.markupCap * 100)}%)
+											incl. {ratePercent(rates.contingency)} contingency ·
+											markup {ratePercent(item.markup)} (cap{" "}
+											{ratePercent(item.markupCap)})
 										</span>
 									</div>
+									<Button
+										variant="ghost"
+										size="sm"
+										icon
+										aria-label={`Take ${item.name} off the quote`}
+										title="Take off the quote"
+										className="hover:bg-danger-subtle hover:text-danger-fg"
+										onClick={() => removeItem(item.id)}
+									>
+										<Trash2 />
+									</Button>
 								</div>
 
 								{open && (
@@ -325,11 +432,16 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 
 										<div className="flex flex-wrap items-start gap-4">
 											<div className="flex flex-wrap gap-2">
-												<Button size="sm" {...disabledAdd}>
+												<Button size="sm" {...notBuilt}>
 													<Plus />
 													Add part
 												</Button>
-												<Button variant="ghost" size="sm" {...disabledAdd}>
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled
+													title="Needs the custom design flow, which isn't built yet"
+												>
 													Custom addition from photo
 												</Button>
 											</div>
@@ -347,13 +459,16 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 													value={wholeNaira(item.machineCost)}
 												/>
 												<BreakdownRow
-													label={`Workshop overhead (${item.labourHours} h × ₦3,673)`}
+													label={`Workshop overhead (${item.labourHours} h × ${wholeNaira(rates.overheadPerLabourHour)})`}
 													value={wholeNaira(item.overhead)}
 												/>
-												<BreakdownRow
-													label="Protective wrapping"
-													value={wholeNaira(item.wrapping)}
-												/>
+												{item.extras.map((e) => (
+													<BreakdownRow
+														key={e.name}
+														label={e.name}
+														value={wholeNaira(e.amount)}
+													/>
+												))}
 												<div className="my-1 h-px bg-line" />
 												<BreakdownRow
 													bold
@@ -416,52 +531,42 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 							)}
 						</ul>
 						<div className="flex flex-wrap items-end gap-3 border-t border-line px-5 py-4">
-							<label className="flex min-w-55 flex-1 basis-55 flex-col gap-2">
-								<span className="text-body font-bold">Add a cost</span>
-								<select
-									value={costKind}
-									onChange={(e) => {
-										setCostKind(e.target.value);
-										setCostAmount(
-											PROJECT_COST_OPTIONS[e.target.value].amount
-												? String(
-														PROJECT_COST_OPTIONS[e.target.value].amount,
-													)
-												: "",
-										);
-									}}
-									className={fieldClass}
-								>
-									{Object.entries(PROJECT_COST_OPTIONS).map(([key, o]) => (
-										<option key={key} value={key}>
-											{o.name}
-											{o.amount
-												? ` (${wholeNaira(o.amount)})`
-												: ", enter amount"}
-										</option>
-									))}
-								</select>
-							</label>
-							{costKind === "third" && (
-								<label className="flex min-w-50 flex-1 basis-50 flex-col gap-2">
-									<span className="text-body font-bold">What and who</span>
-									<input
-										value={costNote}
-										onChange={(e) => setCostNote(e.target.value)}
-										placeholder="e.g. Glass top, Lekki Glass Works"
-										className={fieldClass}
-									/>
-								</label>
-							)}
-							<label className="flex w-40 flex-col gap-2">
-								<span className="text-body font-bold">Amount (₦)</span>
-								<input
-									value={costAmount}
-									onChange={(e) => setCostAmount(e.target.value)}
-									inputMode="decimal"
-									className={fieldClass}
+							<Select
+								label="Add a cost"
+								className="min-w-55 flex-1 basis-55"
+								value={costKind}
+								onChange={(e) => {
+									const option = projectCostOptions.find(
+										(o) => o.id === e.target.value,
+									);
+									setCostKind(e.target.value);
+									setCostAmount(option?.amount ? String(option.amount) : "");
+								}}
+							>
+								{projectCostOptions.map((o) => (
+									<option key={o.id} value={o.id}>
+										{o.name}
+										{o.amount ? ` (${wholeNaira(o.amount)})` : ", enter amount"}
+									</option>
+								))}
+								<option value={CUSTOM_COST}>Another cost, enter amount</option>
+							</Select>
+							{(!costOption || costOption.amount === 0) && (
+								<Input
+									label={costOption ? "What and who" : "What it's for"}
+									className="min-w-50 flex-1 basis-50"
+									value={costNote}
+									onChange={(e) => setCostNote(e.target.value)}
+									placeholder="e.g. Glass top, Lekki Glass Works"
 								/>
-							</label>
+							)}
+							<Input
+								label="Amount (₦)"
+								className="w-40"
+								value={costAmount}
+								onChange={(e) => setCostAmount(e.target.value)}
+								inputMode="decimal"
+							/>
 							<Button onClick={addCost}>Add cost</Button>
 						</div>
 						<p className="px-5 pb-4 text-small text-fg-tertiary">
@@ -471,10 +576,12 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 					</Card>
 
 					<div className="flex flex-wrap gap-3">
-						<Button {...disabledAdd}>
-							<Plus />
-							Add furniture item
-						</Button>
+						{pricing.items.length > 0 && (
+							<Button onClick={() => setAdding(true)}>
+								<Plus />
+								Add furniture item
+							</Button>
+						)}
 						<Button
 							{...{
 								disabled: true,
@@ -488,7 +595,7 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 				</div>
 
 				<aside aria-label="Quote totals" className="flex min-w-0 flex-col gap-6">
-					<SummaryCard pricing={pricing} currency={currency} />
+					<SummaryCard pricing={pricing} currency={currency} rates={rates} />
 					<Card>
 						<h2>Discount</h2>
 						{isTrade ? (
@@ -508,40 +615,35 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 							</div>
 						) : (
 							<>
-								<SegmentedControl<string>
-									label="General discount"
-									value={String(draft.discount)}
-									onChange={(v) => updateDraft({ discount: Number(v) })}
-									options={Array.from(
-										{ length: MAX_GENERAL_DISCOUNT + 1 },
-										(_, p) => ({
-											value: String(p),
-											label: p ? `${p}%` : "None",
-										}),
-									)}
-									className="self-start"
-								/>
+								<span className="inline-flex items-center gap-3">
+									<span className="text-body font-bold">General discount</span>
+									<Stepper
+										value={Math.min(draft.discount, rates.maxDiscount)}
+										min={0}
+										onChange={(n) =>
+											updateDraft({
+												discount: Math.max(0, Math.min(rates.maxDiscount, n)),
+											})
+										}
+										format={(n) => (n ? `${n}%` : "None")}
+										decreaseLabel="Smaller discount"
+										increaseLabel="Bigger discount"
+									/>
+								</span>
 								{draft.discount > 0 && (
-									<label className="flex flex-col gap-2">
-										<span className="text-body font-bold">Reason</span>
-										<input
-											value={draft.discountReason}
-											onChange={(e) =>
-												updateDraft({ discountReason: e.target.value })
-											}
-											placeholder="Why this client gets a discount"
-											className={fieldClass}
-										/>
-										<small className="text-small text-fg-tertiary">
-											Shown to Accounting and the MD/GM, not on the
-											client&apos;s quote.
-										</small>
-									</label>
+									<Input
+										label="Reason"
+										value={draft.discountReason}
+										onChange={(e) =>
+											updateDraft({ discountReason: e.target.value })
+										}
+										placeholder="Why this client gets a discount"
+										hint="Shown to Accounting and the MD/GM, not on the client's quote."
+									/>
 								)}
 								<p className="text-small text-fg-tertiary">
-									General discount at your discretion, up to{" "}
-									{MAX_GENERAL_DISCOUNT}% of the price before VAT. The MD or GM
-									sets the limit.
+									General discount at your discretion, up to {rates.maxDiscount}%
+									of the price before VAT. The MD or GM sets the limit.
 								</p>
 							</>
 						)}
@@ -554,6 +656,14 @@ export default function ItemsStep({ createdBy }: { createdBy: string }) {
 				</aside>
 			</div>
 
+			{adding && (
+				<AddItemDrawer
+					catalog={catalog}
+					onQuote={draft.items}
+					onAdd={addItem}
+					onClose={() => setAdding(false)}
+				/>
+			)}
 			{removing && (
 				<ConfirmDialog
 					title={`Remove ${removing.part} from the ${removing.item}?`}

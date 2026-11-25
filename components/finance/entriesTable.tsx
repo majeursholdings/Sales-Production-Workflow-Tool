@@ -8,6 +8,7 @@ import {
 	DataTable,
 	ExportMenu,
 	IconLink,
+	TableState,
 	TableToolbar,
 	exportRows,
 	useTableRows,
@@ -154,6 +155,15 @@ export default function EntriesTable({
 			rows={rows}
 			pagination={pagination}
 			emptyMessage={`No entries match these filters in ${rangeText}.`}
+			emptyState={
+				data.length === 0 ? (
+					<TableState
+						kind="empty"
+						title={`No money in or out in ${rangeText}`}
+						description="Payments recorded on invoices, expenses recorded here and deliveries received on purchase orders show up here."
+					/>
+				) : undefined
+			}
 			toolbar={
 				<>
 					<EntriesHead count={data.length} />

@@ -19,7 +19,7 @@ export type ExpenseValues = {
 	category: FinanceCategory;
 	amount: string;
 	paidTo: string;
-	method: string;
+	method: (typeof PAYMENT_METHODS)[number]["value"];
 	reference: string;
 	note: string;
 };
@@ -27,13 +27,11 @@ export type ExpenseValues = {
 /** Right-hand drawer for recording a running cost (wages, rent, power, delivery…). */
 export default function RecordExpenseDrawer({
 	today,
-	earliest,
 	onSave,
 	onClose,
 }: {
 	today: string;
-	earliest: string;
-	onSave: (values: ExpenseValues) => void;
+	onSave: (values: ExpenseValues) => Promise<void>;
 	onClose: () => void;
 }) {
 	const methods = useForm<ExpenseValues>({
@@ -48,6 +46,7 @@ export default function RecordExpenseDrawer({
 			note: "",
 		},
 	});
+	const saving = methods.formState.isSubmitting;
 
 	const fields: FormFieldConfig[] = [
 		{
@@ -55,7 +54,6 @@ export default function RecordExpenseDrawer({
 			type: "date",
 			label: "Date paid",
 			defaultValue: today,
-			minDate: earliest,
 			maxDate: today,
 			validation: validators.required("Date paid"),
 		},
@@ -131,8 +129,8 @@ export default function RecordExpenseDrawer({
 				renderFooter={() => (
 					<div className="flex flex-wrap items-center justify-end gap-3">
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary">
-							Save expense
+						<Button type="submit" variant="primary" disabled={saving}>
+							{saving ? "Saving…" : "Save expense"}
 						</Button>
 					</div>
 				)}

@@ -5,7 +5,6 @@ import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import { cn } from "@/lib/cn";
-import type { FurnitureCategory } from "@/lib/furnitureTypes";
 import TypePhoto from "./typePhoto";
 
 /** Pick which photo is the cover. The first photo is the cover, so choosing one moves it to the front. */
@@ -17,8 +16,8 @@ export default function ChangeCoverDrawer({
 	onClose,
 }: {
 	typeName: string;
-	category: FurnitureCategory;
-	/** Photo captions, cover first. */
+	category: string;
+	/** Photo URLs, cover first. */
 	photos: string[];
 	/** Index in `photos` of the one chosen as the new cover. */
 	onChoose: (index: number) => void;
@@ -32,28 +31,25 @@ export default function ChangeCoverDrawer({
 			footer={
 				<>
 					<span className="min-w-0 flex-1 text-small text-fg-tertiary">
-						These are placeholders until photo upload is connected.
+						The cover is saved with the template.
 					</span>
 					<Button onClick={onClose}>Close</Button>
 				</>
 			}
 		>
 			<ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-				{photos.map((caption, i) => {
+				{photos.map((src, i) => {
 					const isCover = i === 0;
+					const caption = isCover ? "Cover photo" : `Photo ${i + 1}`;
 					return (
 						<li
-							key={caption}
+							key={src}
 							className={cn(
 								"flex flex-col items-center gap-2 rounded-lg border p-3",
 								isCover ? "border-accent bg-accent-subtle" : "border-line",
 							)}
 						>
-							<TypePhoto
-								category={category}
-								size="lg"
-								label={`${caption} (placeholder)`}
-							/>
+							<TypePhoto category={category} src={src} size="lg" label={caption} />
 							<span className="text-center text-body">{caption}</span>
 							{isCover ? (
 								<Badge variant="success">Cover</Badge>

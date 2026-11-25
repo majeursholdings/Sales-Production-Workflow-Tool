@@ -53,7 +53,7 @@ export default function TeamDrawer({
 				name: "fullName",
 				type: "text",
 				label: "Full name",
-				placeholder: "e.g. Chiamaka Eze",
+				placeholder: "Full name",
 				defaultValue: member?.fullName ?? "",
 				validation: validators.required("Full name"),
 			},

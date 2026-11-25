@@ -12,7 +12,7 @@ export const QUOTE_STATUS: Record<QuoteStatus, { label: string; tone: BadgeVaria
 };
 
 export type Quote = {
-	/** The quote number, e.g. MAJ-QT-20261106-1015. It is also what the URL uses. */
+	/** The quote number, e.g. MAJ-QT-YYYYMMDD-HHmm. It is also what the URL uses. */
 	id: string;
 	client: string;
 	/** One line describing what's quoted. */
@@ -32,7 +32,7 @@ export type QuoteLine = { name: string; desc: string; qty: number; unit: number 
 
 export type QuoteVersion = {
 	n: number;
-	/** Sent line, e.g. "Sent 6 Nov, 10:42 by Emeka Obi". */
+	/** Sent line, e.g. "Sent 6 Nov, 10:42 by <name>". */
 	sentLine: string;
 	lines: QuoteLine[];
 	/** What changed from the version before, for every version but the first. */
@@ -50,6 +50,8 @@ export type QuoteDetail = {
 	activity: { when: string; what: string; detail: string }[];
 	/** The deposit that confirms the order, as a share of the total. */
 	depositRate: number;
+	/** The VAT rate the quote was priced with. */
+	vatRate: number;
 	validityLine: string;
 };
 

@@ -6,12 +6,19 @@ import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { everyLabel, type Machine } from "@/lib/machines";
+import { MACHINE_STATUS, everyLabel, type Machine, type MachineCondition } from "@/lib/machines";
 
 /** What the add / edit form collects. The rest of a machine (history, hours, photo) isn't edited here. */
 export type MachineDetails = Pick<
 	Machine,
-	"name" | "serialNumber" | "location" | "bought" | "serviceEveryMonths" | "hourlyCost" | "notes"
+	| "name"
+	| "serialNumber"
+	| "location"
+	| "bought"
+	| "serviceEveryMonths"
+	| "hourlyCost"
+	| "notes"
+	| "condition"
 >;
 
 type Values = {
@@ -22,6 +29,7 @@ type Values = {
 	every: string;
 	hourlyCost: string;
 	notes: string;
+	condition: MachineCondition;
 };
 
 const EVERY_OPTIONS = [1, 2, 3, 6, 12].map((m) => ({
@@ -39,7 +47,7 @@ export default function MachineDrawer({
 	/** The machine being edited; leave out to add one. */
 	machine?: Machine;
 	seesCost: boolean;
-	onSave: (details: MachineDetails) => void;
+	onSave: (details: MachineDetails) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const methods = useForm<Values>({ mode: "onTouched" });
@@ -98,6 +106,22 @@ export default function MachineDrawer({
 					},
 				] satisfies FormFieldConfig[])
 			: []),
+		...(machine
+			? ([
+					{
+						name: "condition",
+						type: "select",
+						label: "Condition",
+						description:
+							"Out of service takes it off job cards until it's working again. Say why in the notes.",
+						defaultValue: machine.condition,
+						options: (["working", "out_of_service"] as const).map((c) => ({
+							value: c,
+							label: c === "working" ? "Working" : MACHINE_STATUS[c].label,
+						})),
+					},
+				] satisfies FormFieldConfig[])
+			: []),
 		{
 			name: "notes",
 			type: "textarea",
@@ -124,6 +148,7 @@ export default function MachineDrawer({
 				hideRequiredMarks
 				onSubmit={(v) =>
 					onSave({
+						condition: machine ? v.condition : "working",
 						name: v.name.trim(),
 						serialNumber: v.serialNumber.trim(),
 						location: v.location.trim(),
@@ -134,11 +159,11 @@ export default function MachineDrawer({
 						notes: v.notes?.trim() ?? "",
 					})
 				}
-				renderFooter={({ canSubmit }) => (
+				renderFooter={({ canSubmit, isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
 						<span className="flex-1" />
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary" disabled={!canSubmit}>
+						<Button type="submit" variant="primary" disabled={!canSubmit || isLoading}>
 							{machine ? "Save changes" : "Add machine"}
 						</Button>
 					</div>

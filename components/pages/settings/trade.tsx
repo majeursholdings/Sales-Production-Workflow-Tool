@@ -1,8 +1,8 @@
 import dayjs from "dayjs";
 import TradePanel from "@/components/settings/company/tradePanel";
-import { getCompanySettings } from "@/lib/companySettings";
 import { getClients } from "@/lib/data/clients";
-import { isOwnerAppRole } from "@/lib/roles";
+import { getCompanySettings } from "@/lib/data/companySettings";
+import { hasPermission } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function SettingsTradePage() {
@@ -22,9 +22,8 @@ export default async function SettingsTradePage() {
 
 	return (
 		<TradePanel
-			initial={settings}
-			userName={user.name}
-			canEdit={isOwnerAppRole(user.roleKey)}
+			settings={settings}
+			canEdit={hasPermission(user.roleKey, "settings.company")}
 			now={dayjs().format("YYYY-MM-DDTHH:mm:ss")}
 			clientCounts={clientCounts}
 		/>

@@ -73,7 +73,9 @@ export function OwedCard({ owed }: { owed: OwedToday }) {
 				<b className="font-display text-h2 tabular">{naira(owed.toMajeurs.amount)}</b>
 			</div>
 			<p className="text-small text-fg-tertiary">
-				Balances on {owed.toMajeurs.invoices} part-paid invoices. Due before delivery.
+				{owed.toMajeurs.invoices === 0
+					? "No part-paid invoices."
+					: `Balances on ${owed.toMajeurs.invoices} part-paid ${owed.toMajeurs.invoices === 1 ? "invoice" : "invoices"}. Due before delivery.`}
 			</p>
 			<LinkButton href="/invoices" size="sm" className="self-start">
 				Open invoices
@@ -84,8 +86,9 @@ export function OwedCard({ owed }: { owed: OwedToday }) {
 				<b className="font-display text-h2 tabular">{naira(owed.toSuppliers.amount)}</b>
 			</div>
 			<p className="text-small text-fg-tertiary">
-				{owed.toSuppliers.purchaseOrders} purchase orders sent, part received or awaiting
-				approval.
+				{owed.toSuppliers.purchaseOrders === 0
+					? "No open purchase orders."
+					: `Value still to arrive on ${owed.toSuppliers.purchaseOrders} ${owed.toSuppliers.purchaseOrders === 1 ? "purchase order" : "purchase orders"} sent, part received or awaiting approval.`}
 			</p>
 			<LinkButton href="/purchase-orders" size="sm" className="self-start">
 				Open purchase orders

@@ -16,7 +16,6 @@ import PartThumb from "@/components/inventory/partThumb";
 import PageTitle from "@/components/layout/pageTitle";
 import { DataTable, IconButton, TableState, type ColumnDef } from "@/components/tables";
 import {
-	PO_APPROVAL_LIMIT,
 	availableOf,
 	costLabel,
 	shortfallsOf,
@@ -73,6 +72,7 @@ export default function NewPurchaseOrderContent({
 	today,
 	userName,
 	initialSupplierId,
+	approvalLimit,
 }: {
 	orders: PurchaseOrder[];
 	inventory: Inventory;
@@ -81,6 +81,7 @@ export default function NewPurchaseOrderContent({
 	userName: string;
 	/** From ?supplier=, e.g. when started from a supplier's page. */
 	initialSupplierId?: string;
+	approvalLimit: number;
 }) {
 	const router = useRouter();
 	const formId = useId();
@@ -150,7 +151,7 @@ export default function NewPurchaseOrderContent({
 	const qtyOf = (sku: string) => whole(values[qtyKey(supplierId, sku)]);
 	const costOf = (sku: string) => Number(values[costKey(supplierId, sku)] ?? 0) || 0;
 	const total = lineSkus.reduce((sum, sku) => sum + qtyOf(sku) * costOf(sku), 0);
-	const approval = needsApproval(total);
+	const approval = needsApproval(total, approvalLimit);
 
 	const rows: LineRow[] = lineSkus.map((sku) => {
 		const part = inventory.parts.find((p) => p.sku === sku);
@@ -421,8 +422,9 @@ export default function NewPurchaseOrderContent({
 						{supplier && (
 							<p className="text-small text-fg-secondary">
 								Supplies{" "}
-								{supplier.materials.map((m) => materialOf(catalog, m.sku).name).join(", ") ||
-									"nothing in inventory yet"}
+								{supplier.materials
+									.map((m) => materialOf(catalog, m.sku).name)
+									.join(", ") || "nothing in inventory yet"}
 								.
 							</p>
 						)}
@@ -547,8 +549,8 @@ export default function NewPurchaseOrderContent({
 								className="rounded-md border border-warning-line bg-warning-subtle px-4 py-3 text-body text-fg"
 							>
 								<strong>Needs approval.</strong> Orders over{" "}
-								{costLabel(PO_APPROVAL_LIMIT)} go to the MD or GM before the
-								supplier sees them.
+								{costLabel(approvalLimit)} go to the MD or GM before the supplier
+								sees them.
 							</p>
 						)}
 					</Card>

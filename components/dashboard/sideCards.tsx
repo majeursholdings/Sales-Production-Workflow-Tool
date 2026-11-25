@@ -12,15 +12,18 @@ const barColour: Record<BadgeVariant, string> = {
 	danger: "bg-danger-fg",
 };
 
-/** "Deliveries this month": production's view of what leaves the workshop and when. */
+/** "Deliveries expected": supplier orders on their way, soonest first. */
 export function DeliveriesCard({ items }: { items: DeliveryItem[] }) {
 	return (
 		<Card>
-			<h2>Deliveries this month</h2>
+			<h2>Deliveries expected</h2>
+			{items.length === 0 && (
+				<p className="text-body text-fg-secondary">No supplier deliveries on the way.</p>
+			)}
 			<ul className="flex flex-col">
 				{items.map((d) => (
 					<li
-						key={d.date}
+						key={d.detail}
 						className="flex items-start gap-3 border-t border-line py-3 first:border-t-0 first:pt-0"
 					>
 						<Badge variant={d.tone}>{d.date}</Badge>
@@ -31,9 +34,7 @@ export function DeliveriesCard({ items }: { items: DeliveryItem[] }) {
 					</li>
 				))}
 			</ul>
-			<p className="text-small text-fg-tertiary">
-				Balance must be paid before an order leaves the workshop.
-			</p>
+			<p className="text-small text-fg-tertiary">Overdue deliveries are shown in red.</p>
 		</Card>
 	);
 }
@@ -44,6 +45,9 @@ export function QuotesByStatusCard({ rows }: { rows: PipelineRow[] }) {
 	return (
 		<Card>
 			<h2>Quotes by status</h2>
+			{rows.length === 0 && (
+				<p className="text-body text-fg-secondary">No quotes in the last 30 days.</p>
+			)}
 			{rows.map((r) => (
 				<div key={r.label} className="flex flex-col gap-1">
 					<div className="flex items-baseline justify-between gap-3">
@@ -70,10 +74,11 @@ export function RecentActivityCard({ items }: { items: FeedItem[] }) {
 	return (
 		<Card>
 			<h2>Recent activity</h2>
+			{items.length === 0 && <p className="text-body text-fg-secondary">No activity yet.</p>}
 			<ul className="flex flex-col">
 				{items.map((f) => (
 					<li
-						key={`${f.who}-${f.when}`}
+						key={`${f.who}-${f.when}-${f.text}`}
 						className="flex items-start gap-3 border-t border-line py-3 first:border-t-0 first:pt-0 last:pb-0"
 					>
 						<Avatar initials={f.who} />

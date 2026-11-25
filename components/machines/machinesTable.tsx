@@ -8,6 +8,7 @@ import {
 	ExportMenu,
 	IconLink,
 	StatusBadge,
+	TableState,
 	TableToolbar,
 	exportRows,
 	useTableRows,
@@ -15,6 +16,7 @@ import {
 	type ExportColumn,
 	type ExportFormat,
 } from "@/components/tables";
+import { Button } from "@/components/common/buttons";
 import { cn } from "@/lib/cn";
 import {
 	MACHINE_STATUS,
@@ -130,10 +132,12 @@ export default function MachinesTable({
 	machines,
 	today,
 	seesCost,
+	onAdd,
 }: {
 	machines: Machine[];
 	today: string;
 	seesCost: boolean;
+	onAdd: () => void;
 }) {
 	const data: MachineRow[] = machines.map((m) => ({ ...m, status: statusOf(m, today) }));
 	const { rows, pagination } = useTableRows({
@@ -178,6 +182,16 @@ export default function MachinesTable({
 			rows={rows}
 			pagination={pagination}
 			emptyMessage="No machines match your search. Try a different name or serial number."
+			emptyState={
+				data.length === 0 ? (
+					<TableState
+						kind="empty"
+						title="No machines yet"
+						description="Add each workshop machine so job cards can log machine time against it and its servicing is tracked."
+						action={<Button onClick={onAdd}>Add machine</Button>}
+					/>
+				) : undefined
+			}
 			toolbar={
 				<TableToolbar
 					search={{ placeholder: "Machine or serial number" }}

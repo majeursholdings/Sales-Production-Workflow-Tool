@@ -2,13 +2,9 @@ import dayjs from "dayjs";
 import { notFound } from "next/navigation";
 import PageWrapper from "@/components/layout/pageWrapper";
 import MachineDetailView from "@/components/machines/machineDetailView";
-import { getMachine, sampleMachineIds } from "@/lib/machines";
+import { getMachine } from "@/lib/data/machines";
 import { isOwnerAppRole } from "@/lib/roles";
 import { requireRouteAccess } from "@/lib/session";
-
-export function generateStaticParams() {
-	return sampleMachineIds.map((machineId) => ({ machineId }));
-}
 
 export default async function MachinePage({ params }: PageProps<"/machines/[machineId]">) {
 	const user = await requireRouteAccess("/machines");
@@ -18,9 +14,9 @@ export default async function MachinePage({ params }: PageProps<"/machines/[mach
 	return (
 		<PageWrapper>
 			<MachineDetailView
-				// a different machine is a fresh page, with its own edits
+				// a different machine is a fresh page, with its own drawers closed
 				key={machine.id}
-				initialMachine={machine}
+				machine={machine}
 				today={dayjs().format("YYYY-MM-DD")}
 				viewer={{
 					name: user.name,

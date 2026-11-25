@@ -14,6 +14,7 @@ import {
 	type CostRequest,
 	type PartRow,
 } from "@/lib/costRequests";
+import { PART_CATEGORIES, PART_UNITS } from "@/lib/inventory";
 import type { SupplierCatalog } from "@/lib/suppliers";
 import { toneClass } from "./requestPhoto";
 
@@ -208,8 +209,29 @@ function FixRow({
 							{field({
 								name: key("addInv"),
 								type: "checkbox",
-								label: "Add to inventory so the agent can match it next time (you'll be asked for a part photo)",
+								label: "Add to inventory so the agent can match it next time",
 							})}
+							{row.resolution.addToInventory && (
+								<div className="grid gap-4 sm:grid-cols-2">
+									{field({
+										name: key("category"),
+										type: "select",
+										label: "Inventory category",
+										placeholder: "Pick a category",
+										options: PART_CATEGORIES.map((c) => ({ label: c, value: c })),
+										validation: {
+											validate: (v: string) =>
+												!!v || "Pick a category for inventory",
+										},
+									})}
+									{field({
+										name: key("unit"),
+										type: "select",
+										label: "Unit",
+										options: PART_UNITS.map((u) => ({ label: u, value: u })),
+									})}
+								</div>
+							)}
 						</>
 					)}
 				</>

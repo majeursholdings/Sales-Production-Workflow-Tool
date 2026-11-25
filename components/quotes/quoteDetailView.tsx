@@ -26,7 +26,8 @@ import { Input, Textarea } from "@/components/forms/input";
 import { Menu, MenuItem } from "@/components/tables/menu";
 import { Table } from "@/components/tables";
 import { formatNaira } from "@/lib/currency";
-import { QUOTE_STATUS, VAT_RATE, subtotal, type QuoteDetail } from "@/lib/quotes";
+import { QUOTE_STATUS, subtotal, type QuoteDetail } from "@/lib/quotes";
+import dayjs from "dayjs";
 import {
 	cancelQuoteAction,
 	logQuoteFollowUpAction,
@@ -48,16 +49,17 @@ export default function QuoteDetailView({
 	const [cancelling, setCancelling] = useState(false);
 	const [cancelReason, setCancelReason] = useState("");
 	const [transferRef, setTransferRef] = useState("");
+	const [paidOn, setPaidOn] = useState(() => dayjs().format("YYYY-MM-DD"));
 	const [submitting, setSubmitting] = useState(false);
 	const [extraActivity, setExtraActivity] = useState<QuoteDetail["activity"]>([]);
 
 	const version = versions.find((v) => v.n === viewing) ?? current;
 	const isCurrent = version.n === current.n;
 	const sub = subtotal(version.lines);
-	const vat = sub * VAT_RATE;
+	const vat = sub * detail.vatRate;
 	const total = sub + vat;
 
-	const currentTotal = subtotal(current.lines) * (1 + VAT_RATE);
+	const currentTotal = subtotal(current.lines) * (1 + detail.vatRate);
 	const deposit = currentTotal * depositRate;
 	const balance = currentTotal - deposit;
 
@@ -258,7 +260,9 @@ export default function QuoteDetailView({
 									<dd className="tabular">{formatNaira(sub)}</dd>
 								</div>
 								<div className="flex justify-between gap-3 text-body">
-									<dt className="text-fg-secondary">VAT ({VAT_RATE * 100}%)</dt>
+									<dt className="text-fg-secondary">
+										VAT ({detail.vatRate * 100}%)
+									</dt>
 									<dd className="tabular">{formatNaira(vat)}</dd>
 								</div>
 								<div className="flex items-baseline justify-between gap-3 border-t border-line pt-2 font-bold">
@@ -313,7 +317,7 @@ export default function QuoteDetailView({
 										</strong>
 										<span className="text-small text-fg-tertiary">
 											{v.sentLine} ·{" "}
-											{formatNaira(subtotal(v.lines) * (1 + VAT_RATE))}
+											{formatNaira(subtotal(v.lines) * (1 + detail.vatRate))}
 										</span>
 									</span>
 								</li>
@@ -355,7 +359,13 @@ export default function QuoteDetailView({
 									defaultValue={formatNaira(deposit)}
 									inputMode="decimal"
 								/>
-								<Input label="Date received" defaultValue="7 Nov 2026" />
+								<Input
+									label="Date received"
+									type="date"
+									max={dayjs().format("YYYY-MM-DD")}
+									value={paidOn}
+									onChange={(e) => setPaidOn(e.target.value)}
+								/>
 								<Input
 									label="Transfer reference"
 									placeholder="From the bank alert"
@@ -374,6 +384,7 @@ export default function QuoteDetailView({
 											versionNumber: current.n,
 											amount: deposit,
 											reference: transferRef,
+											paidOn,
 										});
 										setSubmitting(false);
 										if (!result.ok) {

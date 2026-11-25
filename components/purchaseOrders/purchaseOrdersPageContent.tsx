@@ -35,7 +35,7 @@ import ShortfallSuggestions, {
 export const purchaseOrdersTitle = {
 	pageTitle: "Purchase orders",
 	pageDescription:
-		"What we've ordered from suppliers. Orders over ₦1,000,000 need MD or GM approval before they're sent.",
+		"What we've ordered from suppliers. Large orders need MD or GM approval before they're sent.",
 };
 
 /** Suggestions, the orders table and an order's drawer: all read and change the same orders. */
@@ -46,6 +46,7 @@ export default function PurchaseOrdersPageContent({
 	today,
 	userName,
 	canApprove,
+	approvalLimit,
 }: {
 	orders: PurchaseOrder[];
 	inventory: Inventory;
@@ -53,6 +54,7 @@ export default function PurchaseOrdersPageContent({
 	today: string;
 	userName: string;
 	canApprove: boolean;
+	approvalLimit: number;
 }) {
 	const [open, setOpen] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState<PurchaseOrder | null>(null);
@@ -179,6 +181,7 @@ export default function PurchaseOrdersPageContent({
 					supplier={supplierOf(current)}
 					today={today}
 					canApprove={canApprove}
+					approvalLimit={approvalLimit}
 					onSend={() => send(current)}
 					onApprove={() => approve(current)}
 					onRecordDelivery={(received, date, quality) =>

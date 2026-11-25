@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import PageWrapper from "@/components/layout/pageWrapper";
 import NewPurchaseOrderContent from "@/components/purchaseOrders/newPurchaseOrderContent";
 import { getInventory, getPurchaseOrders, getSupplierCatalog } from "@/lib/data/procurement";
+import { getCompanySettings } from "@/lib/data/companySettings";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function NewPurchaseOrderPage({
@@ -16,6 +17,7 @@ export default async function NewPurchaseOrderPage({
 		getInventory(),
 		getSupplierCatalog(),
 	]);
+	const poApprovalLimit = (await getCompanySettings()).tax.poApprovalLimit;
 	return (
 		<PageWrapper>
 			<NewPurchaseOrderContent
@@ -24,6 +26,7 @@ export default async function NewPurchaseOrderPage({
 				catalog={catalog}
 				today={dayjs().format("YYYY-MM-DD")}
 				userName={user.name}
+				approvalLimit={poApprovalLimit}
 				initialSupplierId={supplier}
 			/>
 		</PageWrapper>

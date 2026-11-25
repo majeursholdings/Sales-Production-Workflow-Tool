@@ -3,15 +3,36 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Eye, FileText, MoreVertical, Printer, RotateCcw, Timer, Truck } from "lucide-react";
+import {
+	Check,
+	Eye,
+	FileText,
+	MoreVertical,
+	PackageCheck,
+	PackageSearch,
+	Pencil,
+	Printer,
+	RotateCcw,
+	Timer,
+	Truck,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+	logTimeAction,
+	pickPartAction,
+	recordDeliveryAction,
+	recordRedoAction,
+	reservePartsAction,
+	updateJobCardAction,
+	type JobCardDetails,
+} from "@/app/(dashboard)/work-orders/actions";
 import { Button, buttonClasses } from "@/components/common/buttons";
 import { Badge } from "@/components/common/badge";
 import { Card, CardHeader } from "@/components/common/card";
 import OverviewCards from "@/components/common/overViewCard";
 import PageTitle from "@/components/layout/pageTitle";
 import { Menu, MenuItem } from "@/components/tables/menu";
-import { IconButton, IconLink, StatusBadge, Table } from "@/components/tables";
+import { IconButton, IconLink, StatusBadge, Table, TableState } from "@/components/tables";
 import { cn } from "@/lib/cn";
 import {
 	DELIVERY_STATE,
@@ -21,18 +42,18 @@ import {
 	buildJobCardOverview,
 	cardFigures,
 	fmtHours,
-	logTime,
 	longDate,
-	recordDelivery,
-	sendBack,
 	shortDate,
 	stepFigures,
 	stepLabel,
 	type DeliveryDraft,
 	type JobCard,
 	type LogDraft,
+	type WorkshopPerson,
 } from "@/lib/jobCards";
+import type { MachineOption } from "@/lib/machines";
 import DeliveryDrawer from "./deliveryDrawer";
+import EditJobCardDrawer from "./editJobCardDrawer";
 import FurnitureIcon from "./furnitureIcon";
 import HoursBar from "./hoursBar";
 import LogTimeDrawer from "./logTimeDrawer";
@@ -44,6 +65,7 @@ type Drawer =
 	| { kind: "log"; step: number; finished?: boolean }
 	| { kind: "redo"; step: number }
 	| { kind: "delivery" }
+	| { kind: "edit" }
 	| null;
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -61,19 +83,21 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
  * when time is logged, so they live together here.
  */
 export default function JobCardDetailView({
-	initialCard,
+	card,
 	today,
-	machineNames,
+	machines,
+	people,
 	viewer,
 }: {
-	initialCard: JobCard;
+	card: JobCard;
 	today: string;
 	/** Machines that are in service, for logging machine time. */
-	machineNames: string[];
+	machines: MachineOption[];
+	/** The Production team, who can log time. */
+	people: WorkshopPerson[];
 	viewer: { name: string; canEdit: boolean; canOpenQuote: boolean };
 }) {
 	const router = useRouter();
-	const [card, setCard] = useState(initialCard);
 	const [drawer, setDrawer] = useState<Drawer>(null);
 
 	const figures = cardFigures(card);
@@ -98,51 +122,87 @@ export default function JobCardDetailView({
 
 	const close = () => setDrawer(null);
 
-	const saveLog = (draft: LogDraft) => {
-		setCard((c) => logTime(c, draft));
+	/** Runs a server action; on success closes the drawer and confirms, otherwise shows why. */
+	const run = async (action: Promise<{ ok: boolean; message?: string }>, message: string) => {
+		const result = await action;
+		if (!result.ok) {
+			toast.error(result.message ?? "Something went wrong. Try again.");
+			return;
+		}
 		close();
-		toast.success(
+		toast.success(message);
+	};
+
+	const saveLog = (draft: LogDraft) =>
+		run(
+			logTimeAction(card.id, {
+				...draft,
+				machines: draft.machines.map((m) => ({ machineId: m.machineId, hours: m.hours })),
+			}),
 			`${fmtHours(draft.hours)} logged on ${STEP_NAMES[draft.step].toLowerCase()}${
 				draft.machines.length
 					? `, with ${draft.machines.length} ${draft.machines.length === 1 ? "machine" : "machines"}`
 					: ""
 			}.`,
 		);
-	};
 
-	const saveRedo = (draft: RedoDraft) => {
-		setCard((c) => sendBack(c, draft));
-		close();
-		toast.success(
+	const saveRedo = (draft: RedoDraft) =>
+		run(
+			recordRedoAction(card.id, draft),
 			`${STEP_NAMES[draft.step]} marked for redo. ${fmtHours(draft.hours)} extra expected; it shows in Redos and rejections.`,
 		);
-	};
 
-	const saveSendBack = (draft: SendBackDraft) => {
-		setCard((c) =>
-			sendBack(c, {
+	const saveSendBack = (draft: SendBackDraft) =>
+		run(
+			recordRedoAction(card.id, {
 				step: draft.step,
 				reason: draft.reason,
 				hours: draft.hours,
 				foundAt: STEP_NAMES[current ?? draft.step],
 				date: today,
 			}),
-		);
-		close();
-		toast.success(
 			`${STEP_NAMES[draft.step]} sent back for redo. It and the steps after it are reopened.`,
+		);
+
+	const saveDelivery = (draft: DeliveryDraft) =>
+		run(
+			recordDeliveryAction(
+				card.id,
+				draft.outcome === "accepted"
+					? { outcome: "accepted", date: draft.date, by: draft.by, notes: draft.notes }
+					: {
+							outcome: "rejected",
+							date: draft.date,
+							by: draft.by,
+							notes: draft.notes,
+							what: draft.what ?? "",
+							reason: draft.reason ?? "Other",
+							backTo: draft.backTo ?? 0,
+						},
+			),
+			draft.outcome === "accepted"
+				? "Delivery recorded. The job card is closed."
+				: `Rejection recorded. ${STEP_NAMES[draft.backTo ?? 0]} and the steps after it are reopened.`,
+		);
+
+	const saveDetails = (details: JobCardDetails) =>
+		run(updateJobCardAction(card.id, details), "Job card details saved.");
+
+	const reserve = async () => {
+		const result = await reservePartsAction(card.id);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
+		toast.success(
+			result.data.short
+				? "Reserved what's in stock. Some parts are still short."
+				: "All parts are reserved. Cutting can start.",
 		);
 	};
 
-	const saveDelivery = (draft: DeliveryDraft) => {
-		setCard((c) => recordDelivery(c, draft));
-		close();
-		toast.success(
-			draft.outcome === "accepted"
-				? "Delivery recorded. The job card is closed and the balance invoice is ready."
-				: `Rejection recorded. ${STEP_NAMES[draft.backTo ?? 0]} and the steps after it are reopened.`,
-		);
-	};
+	const pick = (sku: string, name: string) =>
+		run(pickPartAction(card.id, sku), `${name} picked and taken out of stock.`);
 
 	return (
 		<>
@@ -203,6 +263,26 @@ export default function JobCardDetailView({
 									>
 										<Truck aria-hidden="true" />
 										Record delivery
+									</MenuItem>
+									<MenuItem
+										disabled={!open}
+										onSelect={() => setDrawer({ kind: "edit" })}
+									>
+										<Pencil aria-hidden="true" />
+										Edit details and booking
+									</MenuItem>
+									<MenuItem
+										disabled={
+											!open ||
+											!card.parts.some(
+												(p) =>
+													p.status === "Short" || p.status === "On order",
+											)
+										}
+										onSelect={reserve}
+									>
+										<PackageSearch aria-hidden="true" />
+										Reserve parts from stock
 									</MenuItem>
 								</>
 							)}
@@ -385,6 +465,17 @@ export default function JobCardDetailView({
 								</tr>
 							</thead>
 							<tbody>
+								{card.build.length === 0 && (
+									<tr>
+										<td colSpan={3}>
+											<TableState
+												kind="empty"
+												title="Nothing to build"
+												description="The quote this job card came from had no items."
+											/>
+										</td>
+									</tr>
+								)}
 								{card.build.map((item) => (
 									<tr key={item.name}>
 										<td>
@@ -424,7 +515,7 @@ export default function JobCardDetailView({
 								Parts picking list
 							</h2>
 							<span className="text-small text-fg-tertiary">
-								Reserved from stock when the deposit was recorded
+								Reserved from stock when the job card was started
 							</span>
 						</CardHeader>
 						<Table>
@@ -435,11 +526,27 @@ export default function JobCardDetailView({
 										Needed
 									</th>
 									<th scope="col">Status</th>
+									{editable && (
+										<th scope="col" className="print:hidden">
+											<span className="sr-only">Actions</span>
+										</th>
+									)}
 								</tr>
 							</thead>
 							<tbody>
+								{card.parts.length === 0 && (
+									<tr>
+										<td colSpan={editable ? 4 : 3}>
+											<TableState
+												kind="empty"
+												title="No parts listed"
+												description="This job card was started without a picking list."
+											/>
+										</td>
+									</tr>
+								)}
 								{card.parts.map((p) => (
-									<tr key={p.name}>
+									<tr key={p.sku}>
 										<td>
 											<span className="flex flex-col">
 												<span className="font-bold text-fg">{p.name}</span>
@@ -454,15 +561,30 @@ export default function JobCardDetailView({
 												{p.status}
 											</StatusBadge>
 										</td>
+										{editable && (
+											<td className="text-end print:hidden">
+												{p.status === "Reserved" && (
+													<IconButton
+														aria-label={`Mark ${p.name.toLowerCase()} picked`}
+														title="Mark picked"
+														onClick={() => pick(p.sku, p.name)}
+													>
+														<PackageCheck aria-hidden="true" />
+													</IconButton>
+												)}
+											</td>
+										)}
 									</tr>
 								))}
 							</tbody>
 						</Table>
-						{card.parts.some((p) => p.status === "Short") && (
+						{card.parts.some(
+							(p) => p.status === "Short" || p.status === "On order",
+						) && (
 							<p className="border-t border-line px-5 py-3 text-small text-fg-tertiary">
-								Short parts are on{" "}
-								<Link href="/purchase-orders">purchase orders</Link> from
-								procurement.
+								Short parts are ordered on{" "}
+								<Link href="/purchase-orders">purchase orders</Link> by procurement.
+								Once they arrive, use “Reserve parts from stock” in the ⋯ menu.
 							</p>
 						)}
 					</Card>
@@ -538,7 +660,7 @@ export default function JobCardDetailView({
 						</dl>
 						<p className="border-t border-line pt-3 text-small text-fg-secondary">
 							<strong className="text-fg">Note from customer care:</strong>{" "}
-							{card.note}
+							{card.note || "None."}
 						</p>
 					</Card>
 				</aside>
@@ -561,7 +683,8 @@ export default function JobCardDetailView({
 					card={card}
 					step={drawer.step}
 					finished={drawer.finished}
-					machineNames={machineNames}
+					machines={machines}
+					people={people}
 					userName={viewer.name}
 					today={today}
 					onSave={saveLog}
@@ -579,6 +702,9 @@ export default function JobCardDetailView({
 					onSave={saveRedo}
 					onClose={close}
 				/>
+			)}
+			{drawer?.kind === "edit" && (
+				<EditJobCardDrawer card={card} today={today} onSave={saveDetails} onClose={close} />
 			)}
 			{drawer?.kind === "delivery" && (
 				<DeliveryDrawer

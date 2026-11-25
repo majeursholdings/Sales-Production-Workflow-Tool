@@ -5,13 +5,12 @@ import { Card } from "@/components/common/card";
 import { SegmentedControl } from "@/components/common/segmented-control";
 import { cn } from "@/lib/cn";
 import {
-	DEPOSIT_RATE,
-	USD_RATE,
 	formatMoney,
+	ratePercent,
+	type BuilderRates,
 	type Currency,
 	type Pricing,
 } from "@/lib/quoteBuilder";
-import { VAT_RATE } from "@/lib/quotes";
 import { updateDraft } from "@/lib/quoteDraft";
 
 function Row({
@@ -37,11 +36,14 @@ function Row({
 export default function SummaryCard({
 	pricing,
 	currency,
+	rates,
 }: {
 	pricing: Pricing;
 	currency: Currency;
+	rates: BuilderRates;
 }) {
-	const m = (n: number) => formatMoney(n, currency);
+	const m = (n: number) => formatMoney(n, currency, rates.usdRate);
+	const usd = rates.usdRate.toLocaleString("en-NG");
 	return (
 		<Card className="gap-2">
 			<div className="mb-1 flex items-center gap-3">
@@ -61,7 +63,10 @@ export default function SummaryCard({
 			<Row label="Machines" value={m(pricing.machineTotal)} />
 			<Row label="Workshop overhead" value={m(pricing.overheadTotal)} />
 			<Row label="Other and project costs" value={m(pricing.otherTotal)} />
-			<Row label="Contingency (5%)" value={m(pricing.contingency)} />
+			<Row
+				label={`Contingency (${ratePercent(rates.contingency)})`}
+				value={m(pricing.contingency)}
+			/>
 			<Row bold label="Total cost" value={m(pricing.totalCost)} />
 			<Row label="Markup on furniture" value={m(pricing.markup)} />
 			{pricing.discountPercent > 0 && (
@@ -73,7 +78,7 @@ export default function SummaryCard({
 			)}
 			<div className="my-1 h-px bg-line" />
 			<Row bold label="Subtotal" value={m(pricing.subtotal)} />
-			<Row label={`VAT (${VAT_RATE * 100}%)`} value={m(pricing.vat)} />
+			<Row label={`VAT (${ratePercent(rates.vatRate)})`} value={m(pricing.vat)} />
 			<div className="my-1 h-px bg-line" />
 			<div className="flex items-baseline justify-between gap-3 font-bold">
 				<span>Total</span>
@@ -81,12 +86,12 @@ export default function SummaryCard({
 			</div>
 			<p className="text-small text-fg-tertiary">
 				{currency === "USD"
-					? `Shown at today’s example rate (₦${USD_RATE.toLocaleString("en-NG")} = $1). The rate locks when the quote is sent.`
-					: `≈ ${formatMoney(pricing.total, "USD")} at today’s example rate (₦${USD_RATE.toLocaleString("en-NG")} = $1).`}
+					? `Shown at today’s rate (₦${usd} = $1). The rate locks when the quote is sent.`
+					: `≈ ${formatMoney(pricing.total, "USD", rates.usdRate)} at today’s rate (₦${usd} = $1).`}
 			</p>
 			<div className="mt-1 flex flex-col gap-1 rounded-md bg-accent-subtle p-3">
 				<div className="flex justify-between gap-3 font-bold text-accent-fg">
-					<span>Deposit to confirm ({Math.round(DEPOSIT_RATE * 100)}%)</span>
+					<span>Deposit to confirm ({ratePercent(rates.depositRate)})</span>
 					<span className="tabular">{m(pricing.deposit)}</span>
 				</div>
 				<p className="text-small text-fg-secondary">

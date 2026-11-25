@@ -13,9 +13,12 @@ import {
 	type GeneralDiscount,
 	type TradeTier,
 } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
+import {
+	saveGeneralDiscountAction,
+	saveTradeTiersAction,
+} from "@/app/(dashboard)/(settings)/settings/actions";
 import { pct, percentOf, percentRule } from "./rules";
-import { RecentChanges, SaveRow, SettingsCard, lockFields } from "./settingsCard";
+import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
 type TierValues = Record<string, string>;
 type DiscountValues = { maxPercent: string; who: GeneralDiscount["who"] };
@@ -34,22 +37,21 @@ const tierValues = (tiers: TradeTier[]): TierValues =>
 
 /** Trade program: spend tiers and their discounts, plus the general discount sales can give. */
 export default function TradePanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
 	clientCounts,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
 	/** Trade clients in each tier now, by tier name ("Starter" for below the first). */
 	clientCounts: Record<string, number>;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const tierSave = useSettingsSave();
+	const discountSave = useSettingsSave();
 	const { tiers, generalDiscount } = settings;
 
 	const tierForm = useForm<TierValues>({ mode: "onTouched", defaultValues: tierValues(tiers) });
@@ -153,15 +155,13 @@ export default function TradePanel({
 			minSpend: Number(v[minKey(i)]),
 			discountPercent: percentOf(v[pctKey(i)]),
 		}));
-		saveCompanySettings(
-			{ tiers: next },
-			{
-				by: userName,
-				what: `Set trade tiers: ${next.map((t) => `${t.name} ${pct(t.discountPercent)} from ${naira(t.minSpend)}`).join(", ")}`,
-			},
-		);
-		toast.success(
+		tierSave.save(
+			() =>
+				saveTradeTiersAction(
+					next.map((t) => ({ minSpend: t.minSpend, discountPercent: t.discountPercent })),
+				),
 			"Trade tiers saved. Tiers are re-checked tonight; sent quotes keep their discount.",
+			() => tierForm.reset(tierValues(next)),
 		);
 	};
 
@@ -171,7 +171,7 @@ export default function TradePanel({
 			type: "text",
 			label: "Most they can give",
 			inputMode: "decimal",
-			description: "Default 3% of the price before VAT.",
+			description: "A percentage of the price before VAT.",
 			validation: percentRule("Most they can give", 0, 100),
 		},
 		{
@@ -236,16 +236,15 @@ export default function TradePanel({
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
 						const max = percentOf(v.maxPercent);
-						saveCompanySettings(
-							{ generalDiscount: { maxPercent: max, who: v.who } },
-							{
-								by: userName,
-								what: `Set the general discount to at most ${pct(max)} (${DISCOUNT_WHO.find((w) => w.value === v.who)?.label.toLowerCase()})`,
-							},
+						discountSave.save(
+							() => saveGeneralDiscountAction({ maxPercent: max, who: v.who }),
+							"General discount saved. It applies to new quotes.",
+							() => discountForm.reset({ maxPercent: pct(max), who: v.who }),
 						);
-						toast.success("General discount saved. It applies to new quotes.");
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow label="Save" />)}
+					renderFooter={() =>
+						readOnly ? null : <SaveRow label="Save" saving={discountSave.saving} />
+					}
 				/>
 			</SettingsCard>
 

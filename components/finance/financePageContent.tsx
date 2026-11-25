@@ -7,9 +7,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import OverviewCards from "@/components/common/overViewCard";
 import PageTitle from "@/components/layout/pageTitle";
+import { recordExpenseAction } from "@/app/(dashboard)/finance/actions";
 import type { FinanceData } from "@/lib/data/finance";
 import {
-	CATEGORY_LABELS,
 	bucketize,
 	breakdown,
 	buildOverview,
@@ -21,7 +21,6 @@ import {
 	totalsOf,
 	vatSummary,
 	type DateRange,
-	type FinanceEntry,
 	type Period,
 } from "@/lib/finance";
 import EntriesTable, { exportEntries, toEntryRows } from "./entriesTable";
@@ -36,16 +35,8 @@ import { BreakdownCard, OwedCard, VatCard } from "./sideCards";
  * The page title (with "Record expense"), the period bar and everything computed from it:
  * the figures, chart, entries and the side cards. They all follow the chosen period, so they live together here.
  */
-export default function FinancePageContent({
-	data,
-	recordedBy,
-}: {
-	data: FinanceData;
-	/** Name shown against expenses recorded in this session. */
-	recordedBy: string;
-}) {
-	const { today, owed } = data;
-	const [recorded, setRecorded] = useState<FinanceEntry[]>([]);
+export default function FinancePageContent({ data }: { data: FinanceData }) {
+	const { today, owed, entries: all } = data;
 	const [period, setPeriod] = useState<Period>("month");
 	const [custom, setCustom] = useState<DateRange>(() => ({
 		start: dayjs(today).subtract(29, "day").format("YYYY-MM-DD"),
@@ -53,9 +44,7 @@ export default function FinancePageContent({
 	}));
 	const [recording, setRecording] = useState(false);
 
-	// newest first, with anything recorded here
-	const all = [...recorded, ...data.entries].sort((a, b) => b.date.localeCompare(a.date));
-	const earliest = data.entries.reduce((min, e) => (e.date < min ? e.date : min), today);
+	const earliest = all.reduce((min, e) => (e.date < min ? e.date : min), today);
 
 	const range = resolveRange(period, custom, today);
 	const previous = previousRange(range);
@@ -65,21 +54,24 @@ export default function FinancePageContent({
 	const { buckets, grain } = bucketize(current, range);
 	const rangeText = describeRange(range);
 
-	const saveExpense = (values: ExpenseValues) => {
-		const stamp = dayjs(values.date).format("YYYYMMDD");
-		const entry: FinanceEntry = {
-			id: `exp-${Date.now()}`,
-			date: values.date,
-			kind: "out",
+	const saveExpense = async (values: ExpenseValues) => {
+		const amount = Number(values.amount);
+		const result = await recordExpenseAction({
+			// the date input hands back an ISO timestamp once changed
+			date: dayjs(values.date).format("YYYY-MM-DD"),
 			category: values.category,
-			amount: Number(values.amount),
-			description: `${CATEGORY_LABELS[values.category]}: ${values.paidTo.trim()}`,
-			reference: values.reference.trim() || `MAJ-EXP-${stamp}-${dayjs().format("HHmm")}`,
-			recordedBy,
-		};
-		setRecorded((prev) => [entry, ...prev]);
+			amount,
+			paidTo: values.paidTo,
+			method: values.method,
+			reference: values.reference,
+			note: values.note,
+		});
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setRecording(false);
-		toast.success(`Expense of ${naira(entry.amount)} recorded for ${values.paidTo.trim()}.`);
+		toast.success(`Expense of ${naira(amount)} recorded for ${values.paidTo.trim()}.`);
 	};
 
 	const downloadReport = () =>
@@ -163,7 +155,6 @@ export default function FinancePageContent({
 			{recording && (
 				<RecordExpenseDrawer
 					today={today}
-					earliest={earliest}
 					onSave={saveExpense}
 					onClose={() => setRecording(false)}
 				/>

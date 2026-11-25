@@ -222,6 +222,7 @@ export async function getQuoteDetail(quoteNumber: string): Promise<QuoteDetail |
 			detail: a.detail ?? "",
 		})),
 		depositRate: Number(quoteRow.deposit_rate ?? 0.7),
+		vatRate: Number(quoteRow.vat_rate ?? VAT_RATE),
 		validityLine: `${sentPrefix} · Valid until ${validUntilLabel}`,
 	};
 }

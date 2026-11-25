@@ -10,11 +10,12 @@ import type { FormFieldConfig } from "@/components/forms/types";
 import {
 	STEP_NAMES,
 	STEP_STATUS,
-	WORKSHOP_PEOPLE,
 	parseHours,
 	type JobCard,
 	type LogDraft,
+	type WorkshopPerson,
 } from "@/lib/jobCards";
+import type { MachineOption } from "@/lib/machines";
 
 type Values = {
 	step: string;
@@ -38,7 +39,8 @@ export default function LogTimeDrawer({
 	card,
 	step,
 	finished = false,
-	machineNames,
+	machines,
+	people,
 	userName,
 	today,
 	onSave,
@@ -50,19 +52,22 @@ export default function LogTimeDrawer({
 	/** Start with "This step is finished" ticked. */
 	finished?: boolean;
 	/** Machines that are in service and can be picked. */
-	machineNames: string[];
+	machines: MachineOption[];
+	/** The Production team. */
+	people: WorkshopPerson[];
 	userName: string;
 	today: string;
-	onSave: (draft: LogDraft) => void;
+	onSave: (draft: LogDraft) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const methods = useForm<Values>({ mode: "onTouched", defaultValues: { machines: [] } });
 	const picked = useWatch({ control: methods.control, name: "machines" }) ?? [];
 	const redo = useWatch({ control: methods.control, name: "redo" });
 
-	const people: string[] = (WORKSHOP_PEOPLE as readonly string[]).includes(userName)
-		? [...WORKSHOP_PEOPLE]
-		: [userName, ...WORKSHOP_PEOPLE];
+	// The Production team, plus whoever is logging if they aren't on it
+	const names = people.map((p) => p.name);
+	const whoOptions = names.includes(userName) ? names : [userName, ...names];
+	const machineName = (id: string) => machines.find((m) => m.id === id)?.name ?? id;
 
 	const fields: FormFieldConfig[] = [
 		{
@@ -80,7 +85,10 @@ export default function LogTimeDrawer({
 			type: "select",
 			label: "Who",
 			defaultValue: userName,
-			options: people.map((p) => ({ label: p, value: p })),
+			description: people.length
+				? undefined
+				: "Add the Production team under Staff so they can be picked here.",
+			options: whoOptions.map((p) => ({ label: p, value: p })),
 		},
 		{
 			name: "date",
@@ -103,17 +111,19 @@ export default function LogTimeDrawer({
 			name: "machines",
 			type: "multiselect",
 			label: "Machines used",
-			description: "Machine hours update each machine's usage on the Machines page.",
+			description: machines.length
+				? "Machine hours update each machine's usage on the Machines page."
+				: "No machines are in service. Add them on the Machines page.",
 			placeholder: "No machines",
-			options: machineNames.map((m) => ({ label: m, value: m })),
+			options: machines.map((m) => ({ label: m.name, value: m.id })),
 		},
-		...picked.map((machine, i): FormFieldConfig => ({
+		...picked.map((id, i): FormFieldConfig => ({
 			name: `mh_${i}`,
 			type: "text",
-			label: `${machine}: hours`,
+			label: `${machineName(id)}: hours`,
 			inputMode: "decimal",
 			defaultValue: "",
-			validation: hoursRule(`Enter the hours on the ${machine.toLowerCase()}`),
+			validation: hoursRule(`Enter the hours on the ${machineName(id).toLowerCase()}`),
 		})),
 		{ name: "redo", type: "checkbox", label: "This was redo work", defaultValue: false },
 		...(redo
@@ -158,8 +168,9 @@ export default function LogTimeDrawer({
 						who: v.who,
 						date: dayjs(v.date).format("YYYY-MM-DD"),
 						hours: parseHours(v.hours),
-						machines: (v.machines ?? []).map((machine, i) => ({
-							machine,
+						machines: (v.machines ?? []).map((machineId, i) => ({
+							machineId,
+							machine: machineName(machineId),
 							hours: parseHours(v[`mh_${i}`]),
 						})),
 						redoNote: v.redo ? v.redoNote.trim() : undefined,
@@ -167,10 +178,10 @@ export default function LogTimeDrawer({
 						finished: v.finished,
 					})
 				}
-				renderFooter={() => (
+				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center justify-end gap-3">
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary">
+						<Button type="submit" variant="primary" disabled={isLoading}>
 							Log time
 						</Button>
 					</div>

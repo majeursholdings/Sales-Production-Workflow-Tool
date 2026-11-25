@@ -1,7 +1,5 @@
 import dayjs from "dayjs";
 import { CONFIDENCE_THRESHOLD } from "@/lib/costRequests";
-import { VAT_RATE } from "@/lib/finance";
-import { PO_APPROVAL_LIMIT } from "@/lib/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,7 +17,7 @@ export type CompanyDetails = {
 
 export type SignInPolicy = {
 	requireTwoStep: boolean;
-	/** ISO date it applies from. */
+	/** ISO date it applies from; empty when it has never been turned on. */
 	twoStepFrom: string;
 	/** Hours without activity before people are signed out. */
 	idleHours: number;
@@ -50,8 +48,9 @@ export type TaxSettings = {
 export type DollarRate = {
 	/** Naira per $1. */
 	rate: number;
+	/** Who last changed the rate; empty when it's never been changed. */
 	setBy: string;
-	/** ISO date-time. */
+	/** ISO date-time of the last change; empty when it's never been changed. */
 	setAt: string;
 	rounding: "1" | "0.01" | "5";
 };
@@ -79,6 +78,20 @@ export type SendingSettings = {
 	ccAccountingOnInvoices: boolean;
 };
 
+/** Which settings card a change was made in. */
+export type SettingsSection =
+	| "company"
+	| "sign_in"
+	| "bank"
+	| "terms"
+	| "numbering"
+	| "tax"
+	| "dollar"
+	| "trade"
+	| "discount"
+	| "agent"
+	| "sending";
+
 export type SettingsChange = { by: string; what: string; at: string };
 
 export type CompanySettings = {
@@ -93,7 +106,7 @@ export type CompanySettings = {
 	generalDiscount: GeneralDiscount;
 	agent: AgentRules;
 	sending: SendingSettings;
-	/** Newest first. */
+	/** Newest first. Empty for people who can't see the history. */
 	changes: SettingsChange[];
 };
 
@@ -108,10 +121,10 @@ export const NUMBERED_DOCUMENTS: { key: NumberedDocument; label: string }[] = [
 ];
 
 /** What the next number looks like: the prefix, then the date and time (cost requests count up). */
-export function nextNumber(doc: NumberedDocument, prefix: string, now: string, lastRequest = 14) {
+export function nextNumber(doc: NumberedDocument, prefix: string, now: string, lastRequest = 0) {
 	const t = dayjs(now);
 	if (doc === "costRequest") return `${prefix}${String(lastRequest + 1).padStart(4, "0")}`;
-	if (doc === "jobCard") return `${prefix}${t.format("YYYYMMDD")}-0032`;
+	if (doc === "jobCard") return `${prefix}${t.format("YYYYMMDD")}-0001`;
 	return `${prefix}${t.format("YYYYMMDD-HHmm")}`;
 }
 
@@ -132,6 +145,7 @@ export const DISCOUNT_WHO: { value: GeneralDiscount["who"]; label: string }[] = 
 	{ value: "owners", label: "MD and GM only" },
 ];
 
+/** Trade tiers new installs start with (matches the pricing_rules.trade_tiers default). */
 export const DEFAULT_TIERS: TradeTier[] = [
 	{ name: "Silver", minSpend: 20_000_000, discountPercent: 5 },
 	{ name: "Gold", minSpend: 50_000_000, discountPercent: 10 },
@@ -167,80 +181,15 @@ export function unknownPlaceholders(message: string) {
 	return used.filter((p) => !(MESSAGE_PLACEHOLDERS as readonly string[]).includes(p));
 }
 
-// ─── Sample data ─────────────────────────────────────────────────────────────
-// TODO: replace with a company_settings table. Values are the design's sample;
-// the ones the app already uses elsewhere (VAT, deposit, PO approval limit,
-// agent threshold) come from those constants so the pages agree. Fields the
-// design left as placeholders ([RC NUMBER], [TIN], …) start empty.
-
-const SETTINGS: CompanySettings = {
-	details: {
-		logoUrl: "/majeurs-logo-black.png",
-		tradingName: "Majeurs",
-		registeredName: "Majeurs Holdings Ltd",
-		rcNumber: "",
-		tin: "",
-		address: "",
-		phone: "",
-		whatsapp: "",
-		website: "majeursholdings.com",
-	},
-	signIn: { requireTwoStep: true, twoStepFrom: "2026-11-14", idleHours: 12 },
-	bank: {
-		ngnBank: "",
-		ngnAccountName: "Majeurs Holdings Ltd",
-		ngnAccountNumber: "",
-		usdBank: "",
-		usdAccountNumber: "",
-		swift: "",
-	},
-	terms: {
-		quoteTerms:
-			"This quote is valid for 7 days. A 70% deposit confirms the order and starts production. The balance is due before delivery. Lead times start from the deposit date. Prices for custom items are fixed once the quote is accepted.",
-		invoiceFooter:
-			"Thank you for choosing Majeurs. Please use the invoice number as your transfer reference.",
-	},
-	numbering: {
-		quote: "MAJ-QT-",
-		invoice: "MAJ-INV-",
-		purchaseOrder: "MAJ-PO-",
-		jobCard: "JC-",
-		costRequest: "CR-",
-	},
-	tax: {
-		vatPercent: VAT_RATE * 100,
-		depositPercent: 70,
-		quoteValidityDays: 7,
-		poApprovalLimit: PO_APPROVAL_LIMIT,
-	},
-	dollar: { rate: 1460, setBy: "Bisi Lawal", setAt: "2026-11-07T09:10:00", rounding: "1" },
-	tiers: DEFAULT_TIERS,
-	generalDiscount: { maxPercent: 3, who: "care-and-sales" },
-	agent: DEFAULT_AGENT_RULES,
-	sending: {
-		fromEmail: "quotes@majeursholdings.com",
-		senderName: "Majeurs",
-		quoteEmail:
-			"Hi {client first name}, thank you for choosing Majeurs. Your quote {quote number} is attached and valid until {valid until}. Reply to this email or message us on WhatsApp with any questions. {prepared by}",
-		whatsappMessage:
-			"Hi {client first name}, here's your Majeurs quote {quote number}: {link}. It's valid until {valid until}.",
-		ccAccountingOnInvoices: true,
-	},
-	changes: [
-		{
-			by: "Bisi Lawal",
-			what: "Changed the dollar rate from ₦1,455.00 to ₦1,460.00",
-			at: "2026-11-07T09:10:00",
-		},
-		{
-			by: "Femi Ogunleye",
-			what: "Turned on two-step verification for every role",
-			at: "2026-11-06T16:20:00",
-		},
-		{ by: "Amaka Udeh", what: "Updated quote terms", at: "2026-11-02T11:45:00" },
-	],
-};
-
-export async function getCompanySettings(): Promise<CompanySettings> {
-	return SETTINGS;
+/** Trade tiers from pricing_rules.trade_tiers (jsonb), skipping anything malformed, lowest first. */
+export function parseTradeTiers(raw: unknown): TradeTier[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.map((t) => ({
+			name: String(t?.name ?? "").trim(),
+			minSpend: Number(t?.minSpend),
+			discountPercent: Number(t?.discountPercent),
+		}))
+		.filter((t) => t.name && Number.isFinite(t.minSpend) && Number.isFinite(t.discountPercent))
+		.sort((a, b) => a.minSpend - b.minSpend);
 }

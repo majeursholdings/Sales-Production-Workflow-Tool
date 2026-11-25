@@ -20,15 +20,15 @@ import {
 	neededLabel,
 	statusOf,
 	type CostRequest,
+	type DeclineReason,
 	type Review,
 } from "@/lib/costRequests";
 import type { SupplierCatalog } from "@/lib/suppliers";
 import PartsTable, { type RenderField } from "./partsTable";
 import RequestPhoto from "./requestPhoto";
 
-type Reason = (typeof DECLINE_REASONS)[number]["value"];
 type AskValues = { question: string };
-type DeclineValues = { reason: Reason; alternative: string };
+type DeclineValues = { reason: DeclineReason; alternative: string };
 type ApproveValues = { saveAsType: boolean };
 
 /** Renders fields of one react-hook-form form with the shared FormField. */
@@ -75,6 +75,7 @@ export default function RequestDetail({
 	catalog,
 	now,
 	focus,
+	pending,
 	onFocus,
 	field,
 	onApprove,
@@ -87,12 +88,16 @@ export default function RequestDetail({
 	catalog: SupplierCatalog;
 	now: string;
 	focus: string | null;
+	/** A change is being saved: actions are disabled until it's done. */
+	pending: boolean;
 	onFocus: (partId: string | null) => void;
 	/** Renders a field of the page's fix form, for the flagged parts. */
 	field: RenderField;
 	onApprove: (saveAsType: boolean) => void;
-	onAsk: (question: string) => void;
-	onDecline: (reason: string, alternative: string) => void;
+	/** Resolves true once the question is saved. */
+	onAsk: (question: string) => Promise<boolean>;
+	/** Resolves true once the request is marked can't source. */
+	onDecline: (reason: DeclineReason, alternative: string) => Promise<boolean>;
 	onReopen: () => void;
 }) {
 	const id = useId();
@@ -121,13 +126,6 @@ export default function RequestDetail({
 			a.download = img.src.split("/").pop() ?? "photo";
 			a.click();
 		}
-	};
-
-	const declineLabel = (value: Reason) => {
-		const r = DECLINE_REASONS.find((x) => x.value === value);
-		return value === "deadline"
-			? `${r?.short} ${neededLabel(request.neededBy)}`
-			: (r?.short ?? "");
 	};
 
 	return (
@@ -258,7 +256,7 @@ export default function RequestDetail({
 					</h3>
 					<ul className="flex flex-col gap-3">
 						{request.questions.map((q) => (
-							<li key={q.at} className="flex items-start gap-3 text-body">
+							<li key={q.id} className="flex items-start gap-3 text-body">
 								<Avatar initials={initials(q.by)} />
 								<span className="flex-1">
 									{q.text}
@@ -282,8 +280,8 @@ export default function RequestDetail({
 				<form
 					noValidate
 					aria-labelledby={`${id}-ask-title`}
-					onSubmit={askForm.handleSubmit((v) => {
-						onAsk(v.question.trim());
+					onSubmit={askForm.handleSubmit(async (v) => {
+						if (!(await onAsk(v.question.trim()))) return;
 						askForm.reset();
 						setAsking(false);
 					})}
@@ -317,7 +315,7 @@ export default function RequestDetail({
 						},
 					})}
 					<div className="flex flex-wrap gap-3">
-						<Button type="submit" variant="primary">
+						<Button type="submit" variant="primary" disabled={pending}>
 							Send question
 						</Button>
 						<Button onClick={() => setAsking(false)}>Cancel</Button>
@@ -335,7 +333,7 @@ export default function RequestDetail({
 						<strong>Marked can&apos;t source: {request.declineReason}.</strong> {by} can
 						change the design or remove the line from {request.quote}.
 						{request.alternative && ` Suggested instead: ${request.alternative}`}{" "}
-						<Button variant="ghost" size="sm" onClick={onReopen}>
+						<Button variant="ghost" size="sm" disabled={pending} onClick={onReopen}>
 							Reopen request
 						</Button>
 					</p>
@@ -357,11 +355,19 @@ export default function RequestDetail({
 							label: "Also save as a new furniture type, so it can be quoted from the catalogue next time",
 						})}
 					<div className="flex flex-wrap items-center gap-3">
-						<Button type="submit" variant="primary" disabled={review.open > 0}>
+						<Button
+							type="submit"
+							variant="primary"
+							disabled={pending || review.open > 0}
+						>
 							Approve parts list
 						</Button>
 						<Button onClick={() => setAsking(true)}>Ask a question</Button>
-						<Button variant="danger" onClick={() => setDeclining(true)}>
+						<Button
+							variant="danger"
+							disabled={pending}
+							onClick={() => setDeclining(true)}
+						>
 							Can&apos;t source
 						</Button>
 						{review.open > 0 && (
@@ -387,7 +393,7 @@ export default function RequestDetail({
 						by {request.approvedBy}. The line on{" "}
 						<Link href={`/quotes/${request.quote}`}>{request.quote}</Link> can now be
 						priced.
-						{request.newPiece && approveForm.getValues("saveAsType") && (
+						{request.newPiece && request.saveAsType && (
 							<>
 								{" "}
 								Next:{" "}
@@ -406,9 +412,8 @@ export default function RequestDetail({
 					title={`Can't source the ${request.title.toLowerCase()}?`}
 					confirmLabel="Mark can't source"
 					cancelLabel="Keep request open"
-					onConfirm={declineForm.handleSubmit((v) => {
-						onDecline(declineLabel(v.reason), v.alternative.trim());
-						setDeclining(false);
+					onConfirm={declineForm.handleSubmit(async (v) => {
+						if (await onDecline(v.reason, v.alternative.trim())) setDeclining(false);
 					})}
 					onCancel={() => setDeclining(false)}
 				>

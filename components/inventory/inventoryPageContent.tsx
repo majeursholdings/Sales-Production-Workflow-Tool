@@ -40,7 +40,7 @@ export const inventoryTitle = {
 
 type Drawer = { kind: "add" } | { kind: "edit"; sku: string } | { kind: "raise" } | null;
 
-/** "2 parts are short for confirmed orders. JC-… (Tunde Bakare) needs a walnut slab and …" */
+/** "2 parts are short for confirmed orders. JC-… (<client>) needs a walnut slab and …" */
 function ShortfallCallout({
 	parts,
 	shortfalls,
@@ -94,12 +94,14 @@ export default function InventoryPageContent({
 	catalog,
 	today,
 	userName,
+	approvalLimit,
 }: {
 	inventory: Inventory;
 	orders: PurchaseOrder[];
 	catalog: SupplierCatalog;
 	today: string;
 	userName: string;
+	approvalLimit: number;
 }) {
 	const router = useRouter();
 	const [drawer, setDrawer] = useState<Drawer>(null);
@@ -234,6 +236,7 @@ export default function InventoryPageContent({
 
 			{drawer?.kind === "raise" && (
 				<RaiseOrdersDrawer
+					approvalLimit={approvalLimit}
 					groups={suggestOrders(inventory, catalog)
 						.map((g) => ({ ...g, lines: g.lines.filter((l) => !onOrder.has(l.sku)) }))
 						.filter((g) => g.lines.length > 0)}

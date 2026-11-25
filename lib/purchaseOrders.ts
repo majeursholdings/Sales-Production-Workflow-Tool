@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import type { BadgeVariant } from "@/components/common/badge";
-import { PO_APPROVAL_LIMIT, shortfallsOf, type Inventory, type OrderGroup } from "@/lib/inventory";
+import { shortfallsOf, type Inventory, type OrderGroup } from "@/lib/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -66,9 +66,9 @@ export const STATUS_GROUP: Record<POStatus, "draft" | "open" | "received"> = {
 	received: "received",
 };
 
-/** Who approves orders over PO_APPROVAL_LIMIT. */
-export const APPROVERS = "Amaka Udeh (GM) or Femi Ogunleye (MD)";
-export const APPROVERS_BOTH = "Amaka Udeh (GM) and Femi Ogunleye (MD)";
+/** Who approves orders over the approval limit (Settings → Tax & limits). */
+export const APPROVERS = "the MD or GM";
+export const APPROVERS_BOTH = "the MD and GM";
 
 export const DELIVER_TO = ["Workshop, Ikeja", "Showroom"];
 export const PAYMENT_TERMS = [
@@ -80,7 +80,7 @@ export const PAYMENT_TERMS = [
 export const poTotal = (po: Pick<PurchaseOrder, "lines">) =>
 	po.lines.reduce((sum, l) => sum + l.ordered * l.unitCost, 0);
 
-export const needsApproval = (total: number) => total > PO_APPROVAL_LIMIT;
+export const needsApproval = (total: number, limit: number) => total > limit;
 
 /** ₦294,000.00 */
 export const money = (n: number) =>
@@ -108,12 +108,12 @@ export function deliveryNote(po: PurchaseOrder) {
 }
 
 /** A new PO number from the time, unique among `taken`. */
-export function poNumber(taken: Set<string>, now = dayjs()) {
+export function poNumber(taken: Set<string>, now = dayjs(), prefix = "MAJ-PO-") {
 	let t = now;
-	let number = `MAJ-PO-${t.format("YYYYMMDD-HHmm")}`;
+	let number = `${prefix}${t.format("YYYYMMDD-HHmm")}`;
 	while (taken.has(number)) {
 		t = t.add(1, "minute");
-		number = `MAJ-PO-${t.format("YYYYMMDD-HHmm")}`;
+		number = `${prefix}${t.format("YYYYMMDD-HHmm")}`;
 	}
 	return number;
 }

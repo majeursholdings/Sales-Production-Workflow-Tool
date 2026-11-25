@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import Link from "next/link";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/common/badge";
 import { toast } from "sonner";
 import { Button, buttonClasses } from "@/components/common/buttons";
 import { Card, CardHeader, CardTitle } from "@/components/common/card";
@@ -13,19 +14,22 @@ import { IconButton, Table } from "@/components/tables";
 import { Menu, MenuItem } from "@/components/tables/menu";
 import { formatNaira } from "@/lib/currency";
 import {
-	CATEGORY_MARKUP,
-	FURNITURE_CATEGORIES,
-	LABOUR_RATES,
-	MACHINE_RATES,
+	deleteFurnitureTypeAction,
+	saveFurnitureTypeAction,
+} from "@/app/(dashboard)/furniture-types/actions";
+import {
 	costTemplate,
 	percent,
+	type CostingRates,
 	type ExtraCost,
 	type FurnitureAccess,
 	type FurnitureCategory,
 	type FurnitureTemplate,
+	type FurnitureTypeStatus,
 	type FurnitureTypeSummary,
 	type HoursRow,
 	type InventoryPart,
+	type OtherCostOption,
 	type TemplatePart,
 } from "@/lib/furnitureTypes";
 import AddHoursDrawer, { type HoursKind } from "./addHoursDrawer";
@@ -41,34 +45,26 @@ type Draft = {
 	labour: HoursRow[];
 	machines: HoursRow[];
 	extras: ExtraCost[];
-	/** Photo captions, cover first. */
+	/** Photo URLs, cover first. */
 	photos: string[];
 };
 
 type Details = {
 	name: string;
-	category: FurnitureCategory;
+	categoryId: string;
 	description: string;
 	buildNotes: string;
 };
-
-// Stand-in captions until photo upload is connected
-const PHOTO_CAPTIONS = [
-	"Front view",
-	"Side view",
-	"Detail close-up",
-	"Back view",
-	"Frame detail",
-	"In a room",
-];
 
 const startOf = (t: FurnitureTemplate): Draft => ({
 	parts: t.parts,
 	labour: t.labour,
 	machines: t.machines,
 	extras: t.extras,
-	photos: PHOTO_CAPTIONS.slice(0, t.photoCount),
+	photos: t.photos,
 });
+
+const photoLabel = (index: number) => (index === 0 ? "Cover photo" : `Photo ${index + 1}`);
 
 /**
  * One furniture type's template: details, standard parts, hours and costs, and build notes.
@@ -78,40 +74,51 @@ const startOf = (t: FurnitureTemplate): Draft => ({
 export default function TypeEditor({
 	type,
 	template,
+	categories,
 	inventory,
+	rates,
+	otherCosts,
 	access,
-	onSaved,
+	onDeleted,
 }: {
 	type: FurnitureTypeSummary;
 	template: FurnitureTemplate;
+	categories: FurnitureCategory[];
 	inventory: InventoryPart[];
+	rates: CostingRates;
+	/** Standard costs from Cost rates that can be added per piece. */
+	otherCosts: OtherCostOption[];
 	access: FurnitureAccess;
-	/** Tells the page the saved name, category and parts count, so the list stays in step. */
-	onSaved: (summary: FurnitureTypeSummary, partCount: number) => void;
+	onDeleted: () => void;
 }) {
 	const { canEditDetails, canEditParts, showCost } = access;
-	// TODO: save through the backend once it exists; for now it only changes this page.
+	// Edits stay local until saved; the saved template comes back from the server as `template`.
 	const [draft, setDraft] = useState<Draft>(() => startOf(template));
-	const [saved, setSaved] = useState<Draft>(() => startOf(template));
 	const [removing, setRemoving] = useState<string | null>(null);
+	const [deleting, setDeleting] = useState(false);
 	const [drawer, setDrawer] = useState<"part" | "other" | "cover" | HoursKind | null>(null);
+	const [saving, startSaving] = useTransition();
 
 	const form = useForm<Details>({
 		defaultValues: {
 			name: type.name,
-			category: type.category,
+			categoryId: type.categoryId,
 			description: template.description,
 			buildNotes: template.buildNotes,
 		},
 	});
-	const category = useWatch({ control: form.control, name: "category" }) ?? type.category;
+	const categoryId = useWatch({ control: form.control, name: "categoryId" }) ?? type.categoryId;
 	const name = useWatch({ control: form.control, name: "name" }) ?? type.name;
 	const description = useWatch({ control: form.control, name: "description" }) ?? "";
-	const { markup: markupRate, cap } = CATEGORY_MARKUP[category];
+	const category = categories.find((c) => c.id === categoryId);
+	const categoryName = category?.name ?? type.category;
+	const markupRate = category?.markup ?? 0;
+	const cap = category?.cap ?? 0;
 
 	const bySku = new Map(inventory.map((p) => [p.sku, p]));
-	const cost = costTemplate(draft, inventory, markupRate);
-	const dirty = form.formState.isDirty || JSON.stringify(draft) !== JSON.stringify(saved);
+	const cost = costTemplate(draft, inventory, markupRate, rates);
+	const dirty =
+		form.formState.isDirty || JSON.stringify(draft) !== JSON.stringify(startOf(template));
 
 	const setPartQty = (sku: string, qty: number) =>
 		setDraft((d) => ({ ...d, parts: d.parts.map((p) => (p.sku === sku ? { ...p, qty } : p)) }));
@@ -121,26 +128,59 @@ export default function TypeEditor({
 			[key]: d[key].map((r) => (r.name === rowName ? { ...r, hours } : r)),
 		}));
 
-	const save = form.handleSubmit((values) => {
-		setSaved(draft);
-		form.reset(values);
-		onSaved(
-			{ id: type.id, name: values.name.trim() || type.name, category: values.category },
-			draft.parts.length,
-		);
-		toast.success(
-			`${values.name.trim() || type.name} template saved. ${
-				showCost
-					? "New quotes use it from now on."
-					: "Procurement and Accounting were notified so costs can be checked."
-			}`,
-		);
-	});
+	const save = (status: FurnitureTypeStatus) =>
+		form.handleSubmit((values) =>
+			startSaving(async () => {
+				const label = values.name.trim() || type.name;
+				const result = await saveFurnitureTypeAction({
+					id: type.id,
+					name: label,
+					categoryId: values.categoryId,
+					description: values.description,
+					buildNotes: values.buildNotes,
+					leadTime: template.leadTime,
+					standardSize: template.standardSize,
+					cratePieces: template.cratePieces,
+					status,
+					photos: draft.photos,
+					parts: draft.parts,
+					labour: draft.labour.map(({ name, hours }) => ({ name, hours })),
+					machines: draft.machines.map(({ name, hours }) => ({ name, hours })),
+					extras: draft.extras,
+				});
+				if (!result.ok) {
+					toast.error(result.message);
+					return;
+				}
+				form.reset(values);
+				toast.success(
+					status === "published" && type.status === "draft"
+						? `${label} is published. Sales and customer care can quote it now.`
+						: `${label} template saved. ${
+								showCost
+									? "New quotes use it from now on."
+									: "Costs are checked by the MD/GM before quoting."
+							}`,
+				);
+			}),
+		)();
 
 	const discard = () => {
-		setDraft(saved);
+		setDraft(startOf(template));
 		form.reset();
 	};
+
+	const remove = () =>
+		startSaving(async () => {
+			const result = await deleteFurnitureTypeAction(type.id);
+			setDeleting(false);
+			if (!result.ok) {
+				toast.error(result.message);
+				return;
+			}
+			toast.success(`${type.name} deleted.`);
+			onDeleted();
+		});
 
 	const removingPart = removing ? bySku.get(removing) : undefined;
 
@@ -149,14 +189,22 @@ export default function TypeEditor({
 			<Card className="gap-4" aria-label="Furniture type details">
 				<div className="flex flex-wrap items-center gap-4">
 					<TypePhoto
-						category={category}
+						category={categoryName}
+						src={draft.photos[0]}
 						size="lg"
-						label={`Cover photo: ${name}, ${draft.photos[0] ?? "placeholder"}`}
+						label={`Cover photo: ${name}`}
 					/>
 					<div className="flex min-w-0 flex-1 basis-52 flex-col gap-2">
+						{type.status === "draft" && (
+							<Badge variant="warning" className="self-start">
+								Draft: not on quotes yet
+							</Badge>
+						)}
 						<span className="text-small text-fg-tertiary">
-							Cover photo: {draft.photos[0]} · {draft.photos.length} photos · shown on
-							quotes, job cards and here
+							{draft.photos.length === 0
+								? "No photos yet"
+								: `${draft.photos.length} ${draft.photos.length === 1 ? "photo" : "photos"}`}{" "}
+							· the cover is shown on quotes, job cards and here
 						</span>
 						{canEditDetails && (
 							<div className="flex flex-wrap gap-2">
@@ -189,11 +237,11 @@ export default function TypeEditor({
 							<Select
 								label="Category"
 								hint="Sets the markup and ceiling from Pricing & margins."
-								{...form.register("category")}
+								{...form.register("categoryId")}
 							>
-								{FURNITURE_CATEGORIES.map((c) => (
-									<option key={c} value={c}>
-										{c}
+								{categories.map((c) => (
+									<option key={c.id} value={c.id}>
+										{c.name}
 									</option>
 								))}
 							</Select>
@@ -203,7 +251,7 @@ export default function TypeEditor({
 				) : (
 					<div className="flex flex-col gap-1">
 						<span className="text-overline font-bold tracking-[0.06em] text-fg-secondary uppercase">
-							{type.category}
+							{categoryName}
 						</span>
 						<h2 className="text-h2">{type.name}</h2>
 						<p className="text-body text-fg-secondary">{description}</p>
@@ -423,8 +471,9 @@ export default function TypeEditor({
 						<div className="flex flex-1 basis-80 flex-col gap-2">
 							<CostBreakdown
 								cost={cost}
-								category={category}
+								category={categoryName}
 								markupRate={markupRate}
+								rates={rates}
 							/>
 							<p className="text-small text-fg-tertiary">
 								Customer care can raise the markup on a quote up to the{" "}
@@ -447,6 +496,9 @@ export default function TypeEditor({
 					/>
 				) : (
 					<ul className="flex list-disc flex-col gap-1 ps-5 text-body text-fg-secondary">
+						{template.buildNotes.trim() === "" && (
+							<li className="list-none text-fg-tertiary">No build notes yet.</li>
+						)}
 						{template.buildNotes
 							.split(/(?<=\.)\s+/)
 							.filter(Boolean)
@@ -459,23 +511,58 @@ export default function TypeEditor({
 
 			{canEditParts && (
 				<div className="flex flex-wrap items-center justify-end gap-3">
+					{canEditDetails && (
+						<Button
+							variant="ghost"
+							className="me-auto hover:bg-danger-subtle hover:text-danger-fg"
+							disabled={saving}
+							onClick={() => setDeleting(true)}
+						>
+							<Trash2 />
+							Delete type
+						</Button>
+					)}
 					<span className="text-small text-fg-tertiary">
 						Changes apply to new quotes and job cards only.{" "}
 						{dirty && "You have unsaved changes."}
 					</span>
-					<Button disabled={!dirty} onClick={discard}>
+					<Button disabled={!dirty || saving} onClick={discard}>
 						Discard
 					</Button>
-					<Button variant="primary" disabled={!dirty} onClick={save}>
-						Save template
-					</Button>
+					{type.status === "draft" && canEditDetails ? (
+						<>
+							<Button disabled={!dirty || saving} onClick={() => save("draft")}>
+								Save draft
+							</Button>
+							<Button
+								variant="primary"
+								disabled={saving || draft.parts.length === 0}
+								title={
+									draft.parts.length === 0
+										? "Add at least one part to publish"
+										: undefined
+								}
+								onClick={() => save("published")}
+							>
+								{saving ? "Saving…" : "Publish type"}
+							</Button>
+						</>
+					) : (
+						<Button
+							variant="primary"
+							disabled={!dirty || saving}
+							onClick={() => save(type.status)}
+						>
+							{saving ? "Saving…" : "Save template"}
+						</Button>
+					)}
 				</div>
 			)}
 
 			{drawer === "cover" && (
 				<ChangeCoverDrawer
 					typeName={name}
-					category={category}
+					category={categoryName}
 					photos={draft.photos}
 					onClose={() => setDrawer(null)}
 					onChoose={(index) => {
@@ -485,7 +572,7 @@ export default function TypeEditor({
 						}));
 						setDrawer(null);
 						toast.success(
-							`${draft.photos[index]} is now the cover. Save the template to keep it.`,
+							`${photoLabel(index)} is now the cover. Save the template to keep it.`,
 						);
 					}}
 				/>
@@ -507,7 +594,8 @@ export default function TypeEditor({
 				<AddHoursDrawer
 					kind={drawer}
 					typeName={name}
-					rates={drawer === "labour" ? LABOUR_RATES : MACHINE_RATES}
+					rates={drawer === "labour" ? rates.labourRates : rates.machineRates}
+					overheadPerLabourHour={rates.overheadPerLabourHour}
 					existing={drawer === "labour" ? draft.labour : draft.machines}
 					showCost={showCost}
 					onClose={() => setDrawer(null)}
@@ -525,6 +613,7 @@ export default function TypeEditor({
 			{drawer === "other" && (
 				<AddOtherCostDrawer
 					typeName={name}
+					options={otherCosts}
 					existing={draft.extras}
 					onClose={() => setDrawer(null)}
 					onAdd={(extra) => {
@@ -548,6 +637,17 @@ export default function TypeEditor({
 					}}
 				>
 					It comes off this template. You can add it back from inventory.
+				</ConfirmDialog>
+			)}
+			{deleting && (
+				<ConfirmDialog
+					title={`Delete ${type.name}?`}
+					confirmLabel="Delete type"
+					onCancel={() => setDeleting(false)}
+					onConfirm={remove}
+				>
+					It comes off Furniture types and can&apos;t be added to new quotes. Quotes
+					already sent keep their prices.
 				</ConfirmDialog>
 			)}
 		</div>

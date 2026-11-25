@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonClasses } from "@/components/common/buttons";
+import {
+	deleteMachineAction,
+	deleteMaintenanceAction,
+	logMaintenanceAction,
+	updateMachineAction,
+	updateMaintenanceAction,
+} from "@/app/(dashboard)/machines/actions";
 import { Card } from "@/components/common/card";
 import { ConfirmDialog } from "@/components/common/modal";
 import OverviewCards from "@/components/common/overViewCard";
@@ -16,7 +23,6 @@ import {
 	buildMachineOverview,
 	dateLabel,
 	everyLabel,
-	sortHistory,
 	statusOf,
 	type Machine,
 	type MaintenanceRecord,
@@ -46,63 +52,53 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
  * so they live together here.
  */
 export default function MachineDetailView({
-	initialMachine,
+	machine,
 	today,
 	viewer,
 }: {
-	initialMachine: Machine;
+	machine: Machine;
 	today: string;
 	viewer: { name: string; seesCost: boolean; canDelete: boolean };
 }) {
 	const router = useRouter();
-	const [machine, setMachine] = useState(initialMachine);
 	const [drawer, setDrawer] = useState<Drawer>(null);
 	const [removing, setRemoving] = useState<Removing>(null);
 
 	const status = statusOf(machine, today);
 	const editingRecord = drawer?.kind === "log" ? drawer.record : undefined;
 
-	const saveLog = (draft: MaintenanceDraft) => {
-		if (editingRecord) {
-			setMachine((m) => ({
-				...m,
-				history: sortHistory(
-					m.history.map((r) => (r.id === editingRecord.id ? { ...r, ...draft } : r)),
-				),
-			}));
-			toast.success("Maintenance record updated.");
-		} else {
-			const record: MaintenanceRecord = {
-				id: crypto.randomUUID(),
-				date: draft.date,
-				type: draft.type,
-				notes: draft.notes,
-				doneBy: draft.doneBy,
-				loggedBy: viewer.name,
-				cost: draft.cost,
-				photoCount: 0,
-			};
-			// A machine that was out of service stays that way until someone says it's working again
-			const working = machine.condition === "working" || !!draft.backInService;
-			setMachine((m) => ({
-				...m,
-				history: sortHistory([record, ...m.history]),
-				condition: working ? "working" : "out_of_service",
-				nextService: working ? (draft.nextService ?? null) : null,
-			}));
-			toast.success(
-				working && draft.nextService
-					? `${draft.type} logged for the ${machine.name.toLowerCase()}. Next service due ${dateLabel(draft.nextService)}.`
-					: `${draft.type} logged for the ${machine.name.toLowerCase()}.`,
-			);
+	/** Runs a server action; on success closes what's open and confirms, otherwise shows why. */
+	const run = async (action: Promise<{ ok: boolean; message?: string }>, message: string) => {
+		const result = await action;
+		if (!result.ok) {
+			toast.error(result.message ?? "Something went wrong. Try again.");
+			return false;
 		}
 		setDrawer(null);
+		setRemoving(null);
+		toast.success(message);
+		return true;
 	};
 
-	const saveDetails = (details: MachineDetails) => {
-		setMachine((m) => ({ ...m, ...details }));
-		setDrawer(null);
-		toast.success(`${details.name} saved.`);
+	const saveLog = async (draft: MaintenanceDraft) => {
+		if (editingRecord) {
+			await run(
+				updateMaintenanceAction(machine.id, editingRecord.id, draft),
+				"Maintenance record updated.",
+			);
+			return;
+		}
+		const working = machine.condition === "working" || !!draft.backInService;
+		await run(
+			logMaintenanceAction(machine.id, draft),
+			working && draft.nextService
+				? `${draft.type} logged for the ${machine.name.toLowerCase()}. Next service due ${dateLabel(draft.nextService)}.`
+				: `${draft.type} logged for the ${machine.name.toLowerCase()}.`,
+		);
+	};
+
+	const saveDetails = async (details: MachineDetails) => {
+		await run(updateMachineAction(machine.id, details), `${details.name} saved.`);
 	};
 
 	const alert =
@@ -220,7 +216,7 @@ export default function MachineDetailView({
 					className="flex min-w-0 flex-col gap-3"
 				>
 					<h2 id="maintenance-history-title">Maintenance history</h2>
-					{/* the table keeps its filter and page in the URL, which needs Suspense on a static page */}
+					{/* the table keeps its filter and page in the URL, which needs Suspense */}
 					<Suspense fallback={<MaintenanceTableSkeleton />}>
 						<MaintenanceTable
 							history={machine.history}
@@ -262,15 +258,15 @@ export default function MachineDetailView({
 					title={`Delete ${machine.name.toLowerCase()}?`}
 					confirmLabel="Delete machine"
 					onCancel={() => setRemoving(null)}
-					onConfirm={() => {
-						toast.success(`${machine.name} deleted.`);
-						router.push("/machines");
+					onConfirm={async () => {
+						if (await run(deleteMachineAction(machine.id), `${machine.name} deleted.`))
+							router.push("/machines");
 					}}
 				>
-					Its photo and {machine.history.length} maintenance{" "}
-					{machine.history.length === 1 ? "record are" : "records are"} deleted. Furniture
-					types that use it lose its machine time, so their prices drop. This can&apos;t
-					be undone.
+					It comes off the machines list and can&apos;t be picked on job cards any more.
+					Machine time already logged on job cards, and its {machine.history.length}{" "}
+					maintenance {machine.history.length === 1 ? "record" : "records"}, are kept for
+					the records.
 				</ConfirmDialog>
 			)}
 			{removing?.kind === "record" && (
@@ -278,15 +274,12 @@ export default function MachineDetailView({
 					title={`Delete the ${removing.record.type.toLowerCase()} on ${dateLabel(removing.record.date)}?`}
 					confirmLabel="Delete record"
 					onCancel={() => setRemoving(null)}
-					onConfirm={() => {
-						const id = removing.record.id;
-						setMachine((m) => ({
-							...m,
-							history: m.history.filter((r) => r.id !== id),
-						}));
-						setRemoving(null);
-						toast.success("Record deleted.");
-					}}
+					onConfirm={() =>
+						run(
+							deleteMaintenanceAction(machine.id, removing.record.id),
+							"Record deleted.",
+						)
+					}
 				>
 					It&apos;s removed from the {machine.name.toLowerCase()}&apos;s history. Any
 					expense Accounting recorded for it stays. This can&apos;t be undone.

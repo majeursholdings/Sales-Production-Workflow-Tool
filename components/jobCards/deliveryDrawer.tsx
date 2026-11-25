@@ -36,7 +36,7 @@ export default function DeliveryDrawer({
 	card: JobCard;
 	userName: string;
 	today: string;
-	onSave: (draft: DeliveryDraft) => void;
+	onSave: (draft: DeliveryDraft) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const methods = useForm<Values>({ mode: "onTouched" });
@@ -81,7 +81,7 @@ export default function DeliveryDrawer({
 						type: "text",
 						label: "What was rejected",
 						description: "Item and how many",
-						defaultValue: `${card.build[0].name} × 1`,
+						defaultValue: card.build[0] ? `${card.build[0].name} × 1` : "",
 						validation: validators.required("What was rejected"),
 					},
 					{
@@ -139,13 +139,13 @@ export default function DeliveryDrawer({
 							: {}),
 					})
 				}
-				renderFooter={() => (
+				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
 						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
 							Photo upload isn&apos;t connected yet.
 						</span>
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary">
+						<Button type="submit" variant="primary" disabled={isLoading}>
 							{rejected ? "Record rejection" : "Record delivery"}
 						</Button>
 					</div>

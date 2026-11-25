@@ -5,7 +5,7 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/currency";
-import { OVERHEAD_PER_LABOUR_HOUR, type HoursRow } from "@/lib/furnitureTypes";
+import type { HoursRow } from "@/lib/furnitureTypes";
 import QtyStepper from "./qtyStepper";
 
 export type HoursKind = "labour" | "machine";
@@ -16,6 +16,7 @@ const COPY = {
 		intro: "Hours a role spends on one piece. Each hour is costed at that role's average rate from Staff.",
 		list: "Role",
 		empty: "Every role is already on this type. Change its hours in the table.",
+		none: "No production roles yet. Add production staff in Staff first; their roles show up here.",
 		source: "Roles and rates come from Staff.",
 		save: "Add labour",
 	},
@@ -24,6 +25,7 @@ const COPY = {
 		intro: "Hours a machine runs for one piece. Logged machine time on job cards is compared with this.",
 		list: "Machine",
 		empty: "Every machine is already on this type. Change its hours in the table.",
+		none: "No machines yet. Add machines in Machines first.",
 		source: "Machines and hourly costs come from Machines.",
 		save: "Add machine time",
 	},
@@ -34,6 +36,7 @@ export default function AddHoursDrawer({
 	kind,
 	typeName,
 	rates,
+	overheadPerLabourHour,
 	existing,
 	showCost,
 	onAdd,
@@ -43,6 +46,7 @@ export default function AddHoursDrawer({
 	typeName: string;
 	/** Name → hourly rate for everything that could be added. */
 	rates: Record<string, number>;
+	overheadPerLabourHour: number;
 	/** Rows already on the type. */
 	existing: HoursRow[];
 	showCost: boolean;
@@ -67,7 +71,7 @@ export default function AddHoursDrawer({
 						{picked && showCost
 							? `Adds ${formatNaira(hours * rate)} per piece${
 									kind === "labour"
-										? `, plus ${formatNaira(hours * OVERHEAD_PER_LABOUR_HOUR)} workshop overhead.`
+										? `, plus ${formatNaira(hours * overheadPerLabourHour)} workshop overhead.`
 										: "."
 								}`
 							: picked
@@ -86,7 +90,9 @@ export default function AddHoursDrawer({
 			}
 		>
 			{left.length === 0 ? (
-				<p className="text-body text-fg-secondary">{copy.empty}</p>
+				<p className="text-body text-fg-secondary">
+					{Object.keys(rates).length === 0 ? copy.none : copy.empty}
+				</p>
 			) : (
 				<>
 					<div role="group" aria-label={copy.list} className="flex flex-col gap-2">

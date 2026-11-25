@@ -5,23 +5,23 @@ import { Search } from "lucide-react";
 import { Badge } from "@/components/common/badge";
 import { Card } from "@/components/common/card";
 import { cn } from "@/lib/cn";
-import { CATEGORY_MARKUP, percent, type FurnitureTypeSummary } from "@/lib/furnitureTypes";
-import type { FurnitureCategory } from "@/lib/furnitureTypes";
+import { percent, type FurnitureGroup } from "@/lib/furnitureTypes";
 import TypePhoto from "./typePhoto";
-
-type Group = { category: FurnitureCategory; types: FurnitureTypeSummary[] };
 
 /** Furniture types grouped by category, with a search box. Picking one shows its template. */
 export default function TypeList({
 	groups,
 	partCounts,
+	covers,
 	selectedId,
 	onSelect,
 	showMarkup,
 }: {
-	groups: Group[];
+	groups: FurnitureGroup[];
 	/** Parts per piece, by type id. */
 	partCounts: Record<string, number>;
+	/** Cover photo URL, by type id. */
+	covers: Record<string, string | undefined>;
 	selectedId: string;
 	onSelect: (id: string) => void;
 	showMarkup: boolean;
@@ -32,7 +32,7 @@ export default function TypeList({
 		.map((g) => ({
 			...g,
 			types: g.types.filter(
-				(t) => !needle || `${t.name} ${t.category}`.toLowerCase().includes(needle),
+				(t) => !needle || `${t.name} ${g.category.name}`.toLowerCase().includes(needle),
 			),
 		}))
 		.filter((g) => g.types.length > 0);
@@ -61,21 +61,19 @@ export default function TypeList({
 				)}
 				{shown.map((group) => (
 					<div
-						key={group.category}
+						key={group.category.id}
 						role="group"
 						aria-label={
-							group.category +
-							(showMarkup
-								? `, ${percent(CATEGORY_MARKUP[group.category].markup)} markup`
-								: "")
+							group.category.name +
+							(showMarkup ? `, ${percent(group.category.markup)} markup` : "")
 						}
 						className="border-b border-line last:border-b-0"
 					>
 						<div className="flex items-center gap-2 px-5 pt-4 pb-2">
-							<b>{group.category}</b>
+							<b>{group.category.name}</b>
 							{showMarkup && (
 								<Badge variant="neutral">
-									{percent(CATEGORY_MARKUP[group.category].markup)} markup
+									{percent(group.category.markup)} markup
 								</Badge>
 							)}
 							<span className="ms-auto text-small text-fg-tertiary">
@@ -94,10 +92,13 @@ export default function TypeList({
 											"aria-pressed:bg-accent-subtle aria-pressed:font-bold aria-pressed:text-accent-fg",
 										)}
 									>
-										<TypePhoto category={t.category} />
+										<TypePhoto category={t.category} src={covers[t.id]} />
 										<span className="min-w-0 flex-1">{t.name}</span>
+										{t.status === "draft" && (
+											<Badge variant="warning">Draft</Badge>
+										)}
 										<span className="text-small font-normal text-fg-tertiary">
-											{partCounts[t.id]} parts
+											{partCounts[t.id] ?? 0} parts
 										</span>
 									</button>
 								</li>

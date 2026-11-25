@@ -6,7 +6,7 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/currency";
-import { INVENTORY_CATEGORIES, type InventoryPart } from "@/lib/furnitureTypes";
+import type { InventoryPart } from "@/lib/furnitureTypes";
 import QtyStepper from "./qtyStepper";
 
 /** Pick a part from inventory and say how many go into one piece. */
@@ -31,6 +31,7 @@ export default function AddPartDrawer({
 	const [picked, setPicked] = useState<InventoryPart | null>(null);
 	const [qty, setQty] = useState(1);
 
+	const categories = [...new Set(inventory.map((p) => p.category))].sort();
 	const needle = query.trim().toLowerCase();
 	const shown = inventory.filter(
 		(p) =>
@@ -100,7 +101,7 @@ export default function AddPartDrawer({
 					className="h-10 rounded-md border border-line-control bg-surface px-3 text-body text-fg"
 				>
 					<option value="All">All</option>
-					{INVENTORY_CATEGORIES.map((c) => (
+					{categories.map((c) => (
 						<option key={c} value={c}>
 							{c}
 						</option>
@@ -111,7 +112,9 @@ export default function AddPartDrawer({
 			<ul className="flex flex-col gap-2">
 				{shown.length === 0 && (
 					<li className="py-6 text-center text-body text-fg-secondary">
-						No inventory parts match.
+						{inventory.length === 0
+							? "Inventory is empty. Add parts in Inventory first."
+							: "No inventory parts match."}
 					</li>
 				)}
 				{shown.map((p) => {
@@ -141,7 +144,9 @@ export default function AddPartDrawer({
 								<span className="flex min-w-0 flex-1 flex-col">
 									<strong>{p.name}</strong>
 									<span className="text-small text-fg-secondary">
-										{p.sku} · {p.spec} · {p.stock}
+										{[p.sku, p.spec, `${p.available} available`]
+											.filter(Boolean)
+											.join(" · ")}
 									</span>
 								</span>
 								<span className="text-small whitespace-nowrap text-fg-secondary">

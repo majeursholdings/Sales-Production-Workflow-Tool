@@ -1,46 +1,52 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, Send } from "lucide-react";
-import { toast } from "sonner";
 import { Button, LinkButton } from "@/components/common/buttons";
 import { Card } from "@/components/common/card";
 import { SegmentedControl } from "@/components/common/segmented-control";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { Input, Textarea } from "@/components/forms/input";
 import {
-	DEPOSIT_RATE,
-	DRAFT_ISSUED,
-	DRAFT_NUMBER,
-	DRAFT_VALID_UNTIL,
-	USD_RATE,
+	clientLines,
 	formatMoney,
 	priceQuote,
+	ratePercent,
 	type Currency,
+	type QuoteBuilderSetup,
 } from "@/lib/quoteBuilder";
-import { VAT_RATE } from "@/lib/quotes";
 import { resetDraft, updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
 import BuilderHeader from "./builderHeader";
+import { cannotSave, useSaveQuote } from "./useSaveQuote";
 
 /** The paper stays light in dark mode: it previews what the client receives. */
 const paper = "text-[#211d1a]";
 const paperMuted = "text-[#514c47]";
 
-export default function ReviewStep({ createdBy }: { createdBy: string }) {
+export default function ReviewStep({
+	createdBy,
+	setup,
+}: {
+	createdBy: string;
+	setup: QuoteBuilderSetup;
+}) {
 	const router = useRouter();
 	const draft = useQuoteDraft();
-	const pricing = priceQuote(draft);
+	const { catalog, rates } = setup;
+	const pricing = priceQuote(draft, catalog, rates);
 	const { client, currency } = draft;
-	const m = (n: number) => formatMoney(n, currency);
-	const [sent, setSent] = useState<Currency | null>(null);
+	const m = (n: number) => formatMoney(n, currency, rates.usdRate);
+	const header = draft.savedHeader ?? setup.header;
+	const { save, saving } = useSaveQuote();
+	const blocked = cannotSave(draft);
+	const sent = draft.sent;
 
 	if (!client) {
 		return (
 			<PageWrapper>
-				<BuilderHeader step={3} createdBy={createdBy} />
+				<BuilderHeader step={3} createdBy={createdBy} header={header} />
 				<Card>
 					<h2>Choose a client first</h2>
 					<p className="text-body text-fg-secondary">
@@ -58,17 +64,30 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 	}
 
 	const first = client.name.split(" ")[0];
-	const percent = Math.round(DEPOSIT_RATE * 100);
+	const percent = ratePercent(rates.depositRate);
+	const lines = clientLines(pricing, draft.projectCosts);
+	const usd = rates.usdRate.toLocaleString("en-NG");
 
 	return (
 		<PageWrapper>
 			<BuilderHeader
 				step={3}
 				createdBy={createdBy}
-				sent={sent !== null}
+				header={header}
+				saved={draft.quoteNumber !== null}
+				sent={sent}
 				actions={
 					<>
 						<LinkButton href="/quotes/new/items">Back to items</LinkButton>
+						{!sent && (
+							<Button
+								disabled={blocked !== null || saving}
+								title={blocked ?? undefined}
+								onClick={() => save(draft, false)}
+							>
+								{saving ? "Saving…" : "Save draft"}
+							</Button>
+						)}
 						<Button disabled title="PDF download isn't built yet">
 							<Download />
 							Download PDF
@@ -95,11 +114,11 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 								<span className="text-overline font-bold text-[#6e4022] uppercase">
 									Quote
 								</span>
-								<strong>{DRAFT_NUMBER}</strong>
+								<strong>{header.number}</strong>
 								<span className={`text-small ${paperMuted}`}>
-									Issued {DRAFT_ISSUED}
+									Issued {header.issued}
 									<br />
-									Valid until {DRAFT_VALID_UNTIL}
+									Valid until {header.validUntil}
 								</span>
 							</div>
 						</header>
@@ -139,44 +158,35 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 									</tr>
 								</thead>
 								<tbody>
-									{pricing.items.map((i) => (
+									{lines.map((l) => (
 										<tr
-											key={i.id}
+											key={l.name}
 											className="border-b border-[#e8e6e3] align-top"
 										>
 											<td className="py-3 pe-3">
-												<strong>{i.name}</strong>
-												<br />
-												<span className={`text-small ${paperMuted}`}>
-													{i.meta.split(" · ")[1] ?? i.meta}
-												</span>
+												<strong>{l.name}</strong>
+												{l.description && (
+													<>
+														<br />
+														<span className={`text-small ${paperMuted}`}>
+															{l.description}
+														</span>
+													</>
+												)}
 											</td>
-											<td className="px-3 py-3 text-end tabular">{i.qty}</td>
+											<td className="px-3 py-3 text-end tabular">{l.qty}</td>
 											<td className="px-3 py-3 text-end whitespace-nowrap tabular">
-												{m(i.price / i.qty)}
+												{m(l.unitPrice)}
 											</td>
 											<td className="py-3 ps-3 text-end font-bold whitespace-nowrap tabular">
-												{m(i.price)}
+												{m(l.unitPrice * l.qty)}
 											</td>
 										</tr>
 									))}
-									{pricing.projectLine > 0 && (
-										<tr className="border-b border-[#e8e6e3] align-top">
-											<td className="py-3 pe-3">
-												<strong>Delivery and installation</strong>
-												<br />
-												<span className={`text-small ${paperMuted}`}>
-													{draft.projectCosts
-														.map((c) => c.name)
-														.join(", ")}
-												</span>
-											</td>
-											<td className="px-3 py-3 text-end tabular">1</td>
-											<td className="px-3 py-3 text-end whitespace-nowrap tabular">
-												{m(pricing.projectLine)}
-											</td>
-											<td className="py-3 ps-3 text-end font-bold whitespace-nowrap tabular">
-												{m(pricing.projectLine)}
+									{lines.length === 0 && (
+										<tr>
+											<td colSpan={4} className={`py-3 ${paperMuted}`}>
+												No items yet.
 											</td>
 										</tr>
 									)}
@@ -186,20 +196,16 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 
 						<div className="flex justify-end">
 							<dl className="flex w-80 max-w-full flex-col gap-2 text-body">
-								{pricing.discountPercent > 0 && (
-									<div className="flex justify-between gap-3">
-										<dt className={paperMuted}>
-											Discount ({pricing.discountPercent}%)
-										</dt>
-										<dd className="tabular">− {m(pricing.discount)}</dd>
-									</div>
-								)}
 								<div className="flex justify-between gap-3">
-									<dt className={paperMuted}>Subtotal</dt>
+									<dt className={paperMuted}>
+										Subtotal
+										{pricing.discountPercent > 0 &&
+											` (includes ${pricing.discountPercent}% discount)`}
+									</dt>
 									<dd className="tabular">{m(pricing.subtotal)}</dd>
 								</div>
 								<div className="flex justify-between gap-3">
-									<dt className={paperMuted}>VAT ({VAT_RATE * 100}%)</dt>
+									<dt className={paperMuted}>VAT ({ratePercent(rates.vatRate)})</dt>
 									<dd className="tabular">{m(pricing.vat)}</dd>
 								</div>
 								<div className="flex items-baseline justify-between gap-3 border-t border-[#e8e6e3] pt-2 font-bold">
@@ -209,7 +215,7 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 									</dd>
 								</div>
 								<div className="flex justify-between gap-3 font-bold">
-									<dt>Deposit due ({percent}%)</dt>
+									<dt>Deposit due ({percent})</dt>
 									<dd className="tabular">{m(pricing.deposit)}</dd>
 								</div>
 								<div className="flex justify-between gap-3">
@@ -224,9 +230,9 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 								Payment &amp; terms
 							</span>
 							<span className={`text-small ${paperMuted}`}>
-								Pay the {percent}% deposit by bank transfer to confirm your order;
+								Pay the {percent} deposit by bank transfer to confirm your order;
 								production starts once it is received. The balance is due before
-								delivery. This quote is valid until {DRAFT_VALID_UNTIL}. [BANK
+								delivery. This quote is valid until {header.validUntil}. [BANK
 								DETAILS FROM SETTINGS]
 							</span>
 						</footer>
@@ -234,7 +240,7 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 				</div>
 
 				<aside aria-label="Send quote" className="flex min-w-0 flex-col gap-6">
-					{sent === null ? (
+					{!sent ? (
 						<Card className="gap-4">
 							<h2>Send quote</h2>
 							<Input
@@ -263,13 +269,13 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 								/>
 								<small className="text-small text-fg-tertiary">
 									{currency === "USD"
-										? `Converted at today’s example rate (₦${USD_RATE.toLocaleString("en-NG")} = $1); the rate is locked on send.`
-										: `USD converts at the rate on send (≈ ${formatMoney(pricing.total, "USD")} today).`}
+										? `Converted at today’s rate (₦${usd} = $1); the rate is locked on send.`
+										: `USD converts at the rate on send (≈ ${formatMoney(pricing.total, "USD", rates.usdRate)} today).`}
 								</small>
 							</div>
 							<Textarea
 								label="Message"
-								defaultValue={`Hi ${first}, thank you for choosing Majeurs. Your quote is attached; a ${percent}% deposit by transfer confirms the order and starts production.`}
+								defaultValue={`Hi ${first}, thank you for choosing Majeurs. Your quote is attached; a ${percent} deposit by transfer confirms the order and starts production.`}
 								className="[&_textarea]:h-26"
 							/>
 							<label className="flex items-center gap-2 text-body">
@@ -284,18 +290,17 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 							<Button
 								variant="primary"
 								className="w-full"
-								onClick={() => {
-									// TODO: email the PDF and save the quote through the backend; for now it only marks it sent here.
-									setSent(currency);
-									toast.success(`Quote sent to ${client.name}.`);
-								}}
+								disabled={blocked !== null || saving}
+								title={blocked ?? undefined}
+								// TODO: email the PDF and WhatsApp the client once sending is connected
+								onClick={() => save(draft, true)}
 							>
 								<Send />
-								Send quote
+								{saving ? "Saving…" : "Send quote"}
 							</Button>
 							<p className="text-small text-fg-tertiary">
-								Emails the PDF from quotes@majeursholdings.com and marks the quote
-								as Sent. Replies come to you.
+								Saves the quote and marks it as Sent. Emailing the PDF isn&apos;t
+								connected yet, so share it with the client yourself for now.
 							</p>
 						</Card>
 					) : (
@@ -303,10 +308,12 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 							role="status"
 							className="flex flex-col items-start gap-2 rounded-lg border border-success-line bg-success-subtle p-5"
 						>
-							<h2 className="text-success-fg">Quote sent to {client.name}</h2>
+							<h2 className="text-success-fg">
+								Quote {header.number} marked as sent
+							</h2>
 							<p className="text-body text-fg">
-								Sent in {sent === "USD" ? "US dollars" : "naira"}. It expires on{" "}
-								{DRAFT_VALID_UNTIL} if no deposit is recorded.
+								In {currency === "USD" ? "US dollars" : "naira"}. It expires on{" "}
+								{header.validUntil} if no deposit is recorded.
 							</p>
 							<Button
 								size="sm"
@@ -323,7 +330,7 @@ export default function ReviewStep({ createdBy }: { createdBy: string }) {
 						<h2 className="text-fg">What happens next</h2>
 						<ol className="flex list-decimal flex-col gap-1 ps-5">
 							<li>
-								The client pays the {percent}% deposit by transfer. The deposit rate
+								The client pays the {percent} deposit by transfer. The deposit rate
 								is set in{" "}
 								<Link href="/settings/tax">Settings › Tax, FX &amp; deposit</Link>.
 							</li>
