@@ -11,7 +11,6 @@ import type { FormFieldConfig } from "@/components/forms/types";
 import { cn } from "@/lib/cn";
 import { wholeNaira } from "@/lib/quoteBuilder";
 import {
-	MATERIALS,
 	materialOf,
 	offersFor,
 	plural,
@@ -53,11 +52,11 @@ export default function AddMaterialDrawer({
 
 	const mine = new Set(supplier.materials.map((m) => m.sku));
 	const q = query.trim().toLowerCase();
-	const options = MATERIALS.filter((m) => !mine.has(m.sku)).filter(
+	const options = catalog.materials.filter((m) => !mine.has(m.sku)).filter(
 		(m) => !q || m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q),
 	);
 
-	const unit = sku ? materialOf(sku).unit : "unit";
+	const unit = sku ? materialOf(catalog, sku).unit : "unit";
 	const others = sku ? offersFor(catalog, sku) : [];
 	const pricePlaceholder = others.length
 		? (() => {

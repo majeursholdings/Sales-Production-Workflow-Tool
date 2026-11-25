@@ -2,12 +2,7 @@ import { notFound } from "next/navigation";
 import { isOwnerRole } from "@/components/layout/navigation";
 import QuoteDetailView from "@/components/quotes/quoteDetailView";
 import { getQuoteDetail } from "@/lib/data/quotes";
-import { sampleQuoteIds } from "@/lib/quotes";
 import { requireRouteAccess } from "@/lib/session";
-
-export function generateStaticParams() {
-	return sampleQuoteIds.map((quoteId) => ({ quoteId }));
-}
 
 export default async function QuotePage({ params }: PageProps<"/quotes/[quoteId]">) {
 	const user = await requireRouteAccess("/quotes");

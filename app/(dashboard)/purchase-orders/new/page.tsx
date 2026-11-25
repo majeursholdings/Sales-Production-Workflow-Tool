@@ -1,10 +1,8 @@
 import dayjs from "dayjs";
 import PageWrapper from "@/components/layout/pageWrapper";
 import NewPurchaseOrderContent from "@/components/purchaseOrders/newPurchaseOrderContent";
-import { getInventory } from "@/lib/inventory";
-import { getPurchaseOrders } from "@/lib/purchaseOrders";
+import { getInventory, getPurchaseOrders, getSupplierCatalog } from "@/lib/data/procurement";
 import { requireRouteAccess } from "@/lib/session";
-import { getSupplierCatalog } from "@/lib/suppliers";
 
 export default async function NewPurchaseOrderPage({
 	searchParams,
@@ -21,7 +19,7 @@ export default async function NewPurchaseOrderPage({
 	return (
 		<PageWrapper>
 			<NewPurchaseOrderContent
-				initialOrders={orders}
+				orders={orders}
 				inventory={inventory}
 				catalog={catalog}
 				today={dayjs().format("YYYY-MM-DD")}

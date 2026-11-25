@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import SuppliersPageView from "@/components/pages/suppliers";
-import { getSupplierCatalog } from "@/lib/suppliers";
+import { getSupplierCatalog } from "@/lib/data/procurement";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function SuppliersPage() {

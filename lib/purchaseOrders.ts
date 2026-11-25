@@ -26,6 +26,8 @@ export type PurchaseOrder = {
 	date: string;
 	raisedBy: string;
 	supplierId: string;
+	/** The supplier's business name, kept even after the supplier is deleted. */
+	supplierName: string;
 	lines: POLine[];
 	status: POStatus;
 	/** ISO date the supplier said it would arrive, or null before it's sent. */
@@ -164,6 +166,7 @@ export function draftsFromGroups(
 			date: today,
 			raisedBy,
 			supplierId: g.supplierId,
+			supplierName: g.supplier,
 			lines: g.lines.map((l) => ({
 				sku: l.sku,
 				name: l.name,
@@ -186,98 +189,21 @@ export function draftsFromGroups(
 	});
 }
 
-// ─── Sample data ─────────────────────────────────────────────────────────────
-// TODO: replace with the purchase_orders table once there's a backend. The
-// orders are the design's sample (all illustrative). The pages only read
-// orders through getPurchaseOrders, so swapping in real data is a one-file
-// change.
-
-const BY = "Ifeanyi Nwosu";
-
-const restock = (
-	number: string,
-	date: string,
-	supplierId: string,
-	lines: POLine[],
-	status: POStatus,
-	expected: string | null,
-	extra: Partial<PurchaseOrder> = {},
-): PurchaseOrder => ({
-	number,
-	date,
-	raisedBy: BY,
-	supplierId,
-	lines,
-	status,
-	expected,
-	deliveredOn: status === "received" ? expected : null,
-	quality: status === "received" || status === "part" ? "As ordered" : null,
-	approvalRequested: null,
-	jobCard: null,
-	client: null,
-	deliverTo: DELIVER_TO[0],
-	paymentTerms: PAYMENT_TERMS[0],
-	note: "",
-	...extra,
+/** What the server needs to create an order from a drafted one (it assigns the number). */
+export const orderInput = (po: PurchaseOrder, send = false) => ({
+	supplierId: po.supplierId,
+	lines: po.lines.map(({ sku, name, unit, ordered, unitCost }) => ({
+		sku,
+		name,
+		unit,
+		ordered,
+		unitCost,
+	})),
+	send,
+	expected: po.expected,
+	jobCard: po.jobCard,
+	client: po.client,
+	deliverTo: po.deliverTo,
+	paymentTerms: po.paymentTerms,
+	note: po.note,
 });
-
-const line = (
-	sku: string,
-	name: string,
-	unit: string,
-	ordered: number,
-	received: number,
-	unitCost: number,
-): POLine => ({ sku, name, unit, ordered, received, unitCost });
-
-const ORDERS: PurchaseOrder[] = [
-	restock(
-		"MAJ-PO-20261106-1120",
-		"2026-11-06",
-		"balogun-textiles",
-		[line("UPH-BCL-OAT", "Bouclé fabric, oat", "yard", 40, 0, 9800)],
-		"sent",
-		"2026-11-10",
-	),
-	restock(
-		"MAJ-PO-20261104-0945",
-		"2026-11-04",
-		"lagos-foam-supply",
-		[line("UPH-FOAM-40", "High-density foam 40D", "sheet", 10, 6, 32000)],
-		"part",
-		"2026-11-08",
-		{ deliveredOn: "2026-11-06" },
-	),
-	restock(
-		"MAJ-PO-20261103-1600",
-		"2026-11-03",
-		"springfield-seating-ltd",
-		[line("SEA-PKT-3S", "Pocket spring unit", "set", 4, 4, 45000)],
-		"received",
-		"2026-11-06",
-	),
-	restock(
-		"MAJ-PO-20261102-1410",
-		"2026-11-02",
-		"ogun-timber-co",
-		[line("TMB-WAL-24", "Walnut hardwood", "piece", 60, 0, 18500)],
-		"approval",
-		null,
-		{ approvalRequested: "2 Nov, 14:12" },
-	),
-	restock(
-		"MAJ-PO-20261028-1030",
-		"2026-10-28",
-		"ladipo-hardware-traders",
-		[
-			line("HDW-LEG-BR6", "Tapered brass legs", "piece", 32, 32, 6500),
-			line("HDW-INL-8MM", "Brass inlay strip", "metre", 40, 40, 4500),
-		],
-		"received",
-		"2026-10-30",
-	),
-];
-
-export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
-	return ORDERS;
-}

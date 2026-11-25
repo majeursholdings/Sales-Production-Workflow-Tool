@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import dayjs from "dayjs";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { LinkButton } from "@/components/common/buttons";
@@ -9,17 +8,17 @@ import { ConfirmDialog } from "@/components/common/modal";
 import PageTitle from "@/components/layout/pageTitle";
 import type { Inventory } from "@/lib/inventory";
 import {
-	addPurchaseOrders,
-	deletePurchaseOrder,
-	updatePurchaseOrder,
-	usePurchaseOrders,
-} from "@/lib/purchaseOrderStore";
+	approvePurchaseOrderAction,
+	createPurchaseOrdersAction,
+	deleteDraftPurchaseOrderAction,
+	recordDeliveryAction,
+	sendPurchaseOrderAction,
+} from "@/app/(dashboard)/purchase-orders/actions";
 import {
 	APPROVERS_BOTH,
 	addWorkingDays,
 	draftsFromGroups,
-	needsApproval,
-	poTotal,
+	orderInput,
 	skusOnOrder,
 	type DeliveryQuality,
 	type PurchaseOrder,
@@ -41,28 +40,28 @@ export const purchaseOrdersTitle = {
 
 /** Suggestions, the orders table and an order's drawer: all read and change the same orders. */
 export default function PurchaseOrdersPageContent({
-	initialOrders,
+	orders,
 	inventory,
 	catalog,
 	today,
 	userName,
 	canApprove,
 }: {
-	initialOrders: PurchaseOrder[];
+	orders: PurchaseOrder[];
 	inventory: Inventory;
 	catalog: SupplierCatalog;
 	today: string;
 	userName: string;
 	canApprove: boolean;
 }) {
-	const orders = usePurchaseOrders(initialOrders);
 	const [open, setOpen] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState<PurchaseOrder | null>(null);
 
 	const suggestions = shortfallSuggestions(inventory, catalog, skusOnOrder(orders));
 	const current = orders.find((po) => po.number === open);
 	const supplierOf = (po: PurchaseOrder) => catalog.suppliers.find((s) => s.id === po.supplierId);
-	const supplierName = (po: PurchaseOrder) => supplierOf(po)?.business ?? "the supplier";
+	const supplierName = (po: PurchaseOrder) =>
+		supplierOf(po)?.business ?? (po.supplierName || "the supplier");
 
 	/** The expected date from the slowest line's lead time with this supplier. */
 	const expectedFor = (po: PurchaseOrder) => {
@@ -77,71 +76,73 @@ export default function PurchaseOrdersPageContent({
 		return addWorkingDays(today, lead || 5);
 	};
 
-	const createDrafts = () => {
+	const createDrafts = async () => {
 		const drafts = draftsFromGroups(suggestionGroups(suggestions), {
 			inventory,
 			taken: new Set(orders.map((po) => po.number)),
 			raisedBy: userName,
 			today,
 		});
-		addPurchaseOrders(drafts);
+		const result = await createPurchaseOrdersAction(drafts.map((po) => orderInput(po)));
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		toast.success(
-			`${plural(drafts.length, "draft order")} created. Check quantities, then send them from each order.`,
+			`${plural(result.data.length, "draft order")} created. Check quantities, then send them from each order.`,
 		);
 	};
 
-	const send = (po: PurchaseOrder) => {
-		setOpen(null);
-		if (needsApproval(poTotal(po))) {
-			updatePurchaseOrder({
-				...po,
-				status: "approval",
-				approvalRequested: dayjs().format("D MMM, HH:mm"),
-			});
-			toast.success(
-				`Sent to ${APPROVERS_BOTH} for approval. ${supplierName(po)} gets it once approved.`,
-			);
+	const send = async (po: PurchaseOrder) => {
+		const result = await sendPurchaseOrderAction(po.number, po.expected ?? expectedFor(po));
+		if (!result.ok) {
+			toast.error(result.message);
 			return;
 		}
-		updatePurchaseOrder({ ...po, status: "sent", expected: po.expected ?? expectedFor(po) });
-		toast.success(`${po.number} marked as sent to ${supplierName(po)}.`);
+		setOpen(null);
+		toast.success(
+			result.data.status === "approval"
+				? `Sent to ${APPROVERS_BOTH} for approval. ${supplierName(po)} gets it once approved.`
+				: `${po.number} marked as sent to ${supplierName(po)}.`,
+		);
 	};
 
-	const approve = (po: PurchaseOrder) => {
+	const approve = async (po: PurchaseOrder) => {
+		const result = await approvePurchaseOrderAction(po.number, po.expected ?? expectedFor(po));
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setOpen(null);
-		updatePurchaseOrder({ ...po, status: "sent", expected: po.expected ?? expectedFor(po) });
 		toast.success(`${po.number} approved and marked as sent to ${supplierName(po)}.`);
 	};
 
-	const recordDelivery = (
+	const recordDelivery = async (
 		po: PurchaseOrder,
 		received: Record<string, number>,
 		date: string,
 		quality: DeliveryQuality,
 	) => {
-		const lines = po.lines.map((l) => ({
-			...l,
-			received: l.received + (received[l.sku] ?? 0),
-		}));
-		const done = lines.every((l) => l.received >= l.ordered);
-		updatePurchaseOrder({
-			...po,
-			lines,
-			status: done ? "received" : "part",
-			deliveredOn: date,
-			quality,
-		});
+		const result = await recordDeliveryAction(po.number, { received, date, quality });
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setOpen(null);
 		toast.success(
-			done
-				? `Delivery recorded on ${po.number}. Everything ordered has arrived.`
+			result.data.status === "received"
+				? `Delivery recorded on ${po.number}. Everything ordered has arrived and is in stock.`
 				: `Delivery recorded on ${po.number}. The rest is still to come.`,
 		);
 	};
 
-	const remove = (po: PurchaseOrder) => {
-		deletePurchaseOrder(po.number);
+	const remove = async (po: PurchaseOrder) => {
+		const result = await deleteDraftPurchaseOrderAction(po.number);
 		setDeleting(null);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setOpen(null);
 		toast.success(`Draft ${po.number} deleted.`);
 	};

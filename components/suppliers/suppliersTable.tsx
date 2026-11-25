@@ -17,7 +17,6 @@ import {
 } from "@/components/tables";
 import { useTableParam } from "@/components/tables/tableContext";
 import {
-	MATERIALS,
 	formatScore,
 	materialOf,
 	offersFor,
@@ -37,6 +36,8 @@ export type SupplierRow = Supplier & {
 	rating: number;
 	skus: string[];
 	materialCount: number;
+	/** SKU → material name, from inventory. */
+	materialNames: Record<string, string>;
 	/** Business, contact and material names, for the search box. */
 	searchText: string;
 };
@@ -86,7 +87,7 @@ export const supplierColumns: ColumnDef<SupplierRow>[] = [
 			<span className="flex max-w-80 flex-wrap gap-1">
 				{s.materials.map((m) => (
 					<Chip key={m.sku}>
-						{materialOf(m.sku).name} · {formatScore(scoreOf(m.ratings))}
+						{s.materialNames[m.sku] ?? m.sku} · {formatScore(scoreOf(m.ratings))}
 					</Chip>
 				))}
 			</span>
@@ -128,17 +129,20 @@ export const supplierColumns: ColumnDef<SupplierRow>[] = [
 	},
 ];
 
-export function toSupplierRows(suppliers: Supplier[]): SupplierRow[] {
-	return suppliers
+export function toSupplierRows(catalog: SupplierCatalog): SupplierRow[] {
+	return catalog.suppliers
 		.map((s) => ({
 			...s,
+			materialNames: Object.fromEntries(
+				s.materials.map((m) => [m.sku, materialOf(catalog, m.sku).name]),
+			),
 			rating: supplierRating(s) ?? -1,
 			skus: s.materials.map((m) => m.sku),
 			materialCount: s.materials.length,
 			searchText: [
 				s.business,
 				s.contact,
-				...s.materials.map((m) => materialOf(m.sku).name),
+				...s.materials.map((m) => materialOf(catalog, m.sku).name),
 			].join(" "),
 		}))
 		.sort((a, b) => b.rating - a.rating);
@@ -156,7 +160,7 @@ function MaterialNote({ catalog }: { catalog: SupplierCatalog }) {
 
 	return (
 		<p className="border-b border-line px-5 py-3 text-small text-fg-secondary">
-			{materialOf(sku).name}: {plural(offers.length, "supplier")}.{" "}
+			{materialOf(catalog, sku).name}: {plural(offers.length, "supplier")}.{" "}
 			{preferred ? `Preferred: ${preferred.business}. ` : "No preferred supplier yet. "}
 			Open a supplier and use Compare to see them side by side.
 		</p>
@@ -170,7 +174,7 @@ export default function SuppliersTable({
 	catalog: SupplierCatalog;
 	today: string;
 }) {
-	const data = toSupplierRows(catalog.suppliers);
+	const data = toSupplierRows(catalog);
 	const { rows, pagination } = useTableRows({
 		tableId: TABLE_ID,
 		data,
@@ -195,7 +199,7 @@ export default function SuppliersTable({
 				s.materials
 					.map(
 						(m) =>
-							`${materialOf(m.sku).name} (₦${m.price.toLocaleString("en-NG")}, ${formatScore(scoreOf(m.ratings))})`,
+							`${materialOf(catalog, m.sku).name} (₦${m.price.toLocaleString("en-NG")}, ${formatScore(scoreOf(m.ratings))})`,
 					)
 					.join("; "),
 		},
@@ -218,7 +222,7 @@ export default function SuppliersTable({
 		);
 	};
 
-	const supplied = MATERIALS.filter((m) => offersFor(catalog, m.sku).length > 0);
+	const supplied = catalog.materials.filter((m) => offersFor(catalog, m.sku).length > 0);
 
 	return (
 		<DataTable

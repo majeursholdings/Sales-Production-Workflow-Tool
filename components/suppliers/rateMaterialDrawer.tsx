@@ -55,7 +55,7 @@ export default function RateMaterialDrawer({
 	onClose: () => void;
 }) {
 	const formId = useId();
-	const material = materialOf(link.sku);
+	const material = materialOf(catalog, link.sku);
 	const name = material.name.toLowerCase();
 	const cmp = compareOffer(catalog, supplier.id, link.sku);
 

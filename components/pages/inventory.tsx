@@ -20,8 +20,8 @@ export default function InventoryPage({
 	return (
 		<PageWrapper>
 			<InventoryPageContent
-				initialInventory={inventory}
-				initialOrders={orders}
+				inventory={inventory}
+				orders={orders}
 				catalog={catalog}
 				today={today}
 				userName={userName}

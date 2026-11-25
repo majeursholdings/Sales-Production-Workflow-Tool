@@ -11,7 +11,7 @@ export default function SuppliersPage({
 }) {
 	return (
 		<PageWrapper>
-			<SuppliersPageContent initialCatalog={catalog} today={today} />
+			<SuppliersPageContent catalog={catalog} today={today} />
 		</PageWrapper>
 	);
 }

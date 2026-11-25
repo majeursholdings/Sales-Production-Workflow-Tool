@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import PageTitle from "@/components/layout/pageTitle";
-import { supplierId, type SupplierCatalog } from "@/lib/suppliers";
+import { createSupplierAction } from "@/app/(dashboard)/suppliers/actions";
+import type { SupplierCatalog } from "@/lib/suppliers";
 import SupplierDrawer, { type SupplierDetails } from "./supplierDrawer";
 import SuppliersTable from "./suppliersTable";
 import SuppliersTableSkeleton from "./suppliersTableSkeleton";
@@ -19,36 +20,25 @@ export const suppliersTitle = {
 
 /** The page title (with "Add supplier") and the table both depend on the supplier list, so they live together here. */
 export default function SuppliersPageContent({
-	initialCatalog,
+	catalog,
 	today,
 }: {
-	initialCatalog: SupplierCatalog;
+	catalog: SupplierCatalog;
 	today: string;
 }) {
-	const [catalog, setCatalog] = useState(initialCatalog);
+	const router = useRouter();
 	const [adding, setAdding] = useState(false);
 
-	const add = (details: SupplierDetails) => {
-		const id = supplierId(details.business, new Set(catalog.suppliers.map((s) => s.id)));
-		setCatalog((c) => ({
-			...c,
-			suppliers: [
-				...c.suppliers,
-				{
-					...details,
-					id,
-					area: details.address.split(",").slice(-2).join(",").trim(),
-					since: dayjs(today).format("MMM YYYY"),
-					onTimePercent: 0,
-					deliveries: 0,
-					paidThisYear: 0,
-					materials: [],
-					purchaseOrders: [],
-				},
-			],
-		}));
+	const add = async (details: SupplierDetails) => {
+		const result = await createSupplierAction(details);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setAdding(false);
-		toast.success(`${details.business} added. Add the materials they supply on their page.`);
+		toast.success(`${details.business} added. Add the materials they supply on their page.`, {
+			action: { label: "Open", onClick: () => router.push(`/suppliers/${result.data.id}`) },
+		});
 	};
 
 	return (

@@ -22,7 +22,7 @@ export default function PurchaseOrdersPage({
 	return (
 		<PageWrapper>
 			<PurchaseOrdersPageContent
-				initialOrders={orders}
+				orders={orders}
 				inventory={inventory}
 				catalog={catalog}
 				today={today}

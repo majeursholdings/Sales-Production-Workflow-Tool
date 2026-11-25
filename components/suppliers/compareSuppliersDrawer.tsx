@@ -30,7 +30,7 @@ export default function CompareSuppliersDrawer({
 	onMakePreferred: (supplierId: string) => void;
 	onClose: () => void;
 }) {
-	const material = materialOf(sku);
+	const material = materialOf(catalog, sku);
 	const offers = offersFor(catalog, sku);
 	const preferredId = preferredSupplierId(catalog, sku);
 	const count = offers.length;

@@ -82,7 +82,14 @@ export async function updateSession(request: NextRequest) {
 	// Enforce the second step: an authenticator app (AAL2) or, when it's on, an email code
 	let needsMfa = false;
 	if (claims.aal === "aal1") {
-		const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+		// Pass the (already verified) access token so enrolled factors come from the Auth
+		// server, not from the user object in the cookie, which the browser can edit.
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+		const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(
+			session?.access_token,
+		);
 		const state = await secondStepOwed(supabase, {
 			userId: claims.sub,
 			sessionId: typeof claims.session_id === "string" ? claims.session_id : undefined,

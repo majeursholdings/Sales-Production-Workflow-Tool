@@ -120,7 +120,7 @@ export default function SupplierMaterialsTable({
 	onView: (sku: string) => void;
 }) {
 	const rows: MaterialRow[] = supplier.materials.map((m) => {
-		const material = materialOf(m.sku);
+		const material = materialOf(catalog, m.sku);
 		return {
 			...m,
 			id: m.sku,

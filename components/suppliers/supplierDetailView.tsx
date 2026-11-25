@@ -25,10 +25,16 @@ import {
 	materialOf,
 	offersFor,
 	plural,
-	type Supplier,
 	type SupplierCatalog,
-	type SupplierMaterial,
 } from "@/lib/suppliers";
+import {
+	addSupplierMaterialAction,
+	deleteSupplierAction,
+	rateSupplierMaterialAction,
+	removeSupplierMaterialAction,
+	setPreferredSupplierAction,
+	updateSupplierAction,
+} from "@/app/(dashboard)/suppliers/actions";
 import AddMaterialDrawer, { type NewMaterial } from "./addMaterialDrawer";
 import CompareSuppliersDrawer from "./compareSuppliersDrawer";
 import MaterialViewDrawer from "./materialViewDrawer";
@@ -71,18 +77,13 @@ function ContactLine({ icon, children }: { icon: ReactNode; children: ReactNode 
  * comparing reads every supplier, so the whole catalog lives here.
  */
 export default function SupplierDetailView({
-	initialCatalog,
+	catalog,
 	supplierId,
-	today,
-	viewerName,
 }: {
-	initialCatalog: SupplierCatalog;
+	catalog: SupplierCatalog;
 	supplierId: string;
-	today: string;
-	viewerName: string;
 }) {
 	const router = useRouter();
-	const [catalog, setCatalog] = useState(initialCatalog);
 	const [drawer, setDrawer] = useState<Drawer>(null);
 	const [removing, setRemoving] = useState<Removing>(null);
 
@@ -92,74 +93,49 @@ export default function SupplierDetailView({
 			? supplier.materials.find((m) => m.sku === drawer.sku)
 			: undefined;
 
-	const update = (change: (s: Supplier) => Supplier) =>
-		setCatalog((c) => ({
-			...c,
-			suppliers: c.suppliers.map((s) => (s.id === supplierId ? change(s) : s)),
-		}));
-
-	const updateLink = (sku: string, change: (m: SupplierMaterial) => SupplierMaterial) =>
-		update((s) => ({
-			...s,
-			materials: s.materials.map((m) => (m.sku === sku ? change(m) : m)),
-		}));
-
-	const setPreferred = (sku: string, id: string | null) =>
-		setCatalog((c) => {
-			const preferred = { ...c.preferred };
-			if (id) preferred[sku] = id;
-			else delete preferred[sku];
-			return { ...c, preferred };
-		});
-
-	const saveRating = (sku: string, draft: RatingDraft) => {
-		const { preferred, ...rest } = draft;
-		updateLink(sku, (m) => ({ ...m, ...rest, ratedOn: today, ratedBy: viewerName }));
-		if (preferred) setPreferred(sku, supplierId);
-		else if (catalog.preferred[sku] === supplierId) {
-			// No longer preferred here: hand it to the best-scoring other supplier
-			const next = offersFor(catalog, sku).find((o) => o.supplier.id !== supplierId);
-			setPreferred(sku, next?.supplier.id ?? null);
+	/** Runs a server action; on success closes what's open and confirms, otherwise shows why. */
+	const run = async (
+		action: Promise<{ ok: true } | { ok: false; message: string }>,
+		message: string,
+	) => {
+		const result = await action;
+		if (!result.ok) {
+			toast.error(result.message);
+			return false;
 		}
 		setDrawer(null);
+		setRemoving(null);
+		toast.success(message);
+		return true;
+	};
+
+	const saveRating = (sku: string, draft: RatingDraft) => {
 		const score =
 			(draft.ratings.quality + draft.ratings.reliability + draft.ratings.availability) / 3;
-		toast.success(
-			`Rating saved. ${materialOf(sku).name} from ${supplier.business} now scores ${score.toFixed(1)}.`,
+		return run(
+			rateSupplierMaterialAction(supplierId, sku, draft),
+			`Rating saved. ${materialOf(catalog, sku).name} from ${supplier.business} now scores ${score.toFixed(1)}.`,
 		);
 	};
 
-	const addMaterial = (material: NewMaterial) => {
-		update((s) => ({
-			...s,
-			materials: [
-				...s.materials,
-				{ ...material, ratings: null, ratedOn: null, ratedBy: null, ratingNote: "" },
-			],
-		}));
-		setDrawer(null);
-		toast.success(
-			`${materialOf(material.sku).name} added to ${supplier.business}. Rate it after the first delivery.`,
+	const addMaterial = (material: NewMaterial) =>
+		run(
+			addSupplierMaterialAction(supplierId, material),
+			`${materialOf(catalog, material.sku).name} added to ${supplier.business}. Rate it after the first delivery.`,
 		);
-	};
 
-	const stopBuying = (sku: string) => {
-		update((s) => ({ ...s, materials: s.materials.filter((m) => m.sku !== sku) }));
-		if (catalog.preferred[sku] === supplierId) setPreferred(sku, null);
-		setRemoving(null);
-		setDrawer(null);
-		toast.success(
-			`Stopped buying ${materialOf(sku).name.toLowerCase()} from ${supplier.business}.`,
+	const stopBuying = (sku: string) =>
+		run(
+			removeSupplierMaterialAction(supplierId, sku),
+			`Stopped buying ${materialOf(catalog, sku).name.toLowerCase()} from ${supplier.business}.`,
 		);
-	};
 
 	const saveDetails = (details: SupplierDetails) => {
 		const bankChanged =
 			details.bankDetails.accountNumber !== supplier.bankDetails.accountNumber ||
 			details.bankDetails.bank !== supplier.bankDetails.bank;
-		update((s) => ({ ...s, ...details }));
-		setDrawer(null);
-		toast.success(
+		return run(
+			updateSupplierAction(supplierId, details),
 			bankChanged
 				? "Supplier details saved. The bank change was flagged to Accounting to confirm by phone."
 				: "Supplier details saved.",
@@ -334,11 +310,15 @@ export default function SupplierDetailView({
 					catalog={catalog}
 					sku={drawer.sku}
 					currentSupplierId={supplierId}
-					onMakePreferred={(id) => {
-						setPreferred(drawer.sku, id);
+					onMakePreferred={async (id) => {
 						const business = catalog.suppliers.find((s) => s.id === id)?.business;
+						const result = await setPreferredSupplierAction(drawer.sku, id);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						toast.success(
-							`${business} is now the preferred supplier for ${materialOf(drawer.sku).name.toLowerCase()}.`,
+							`${business} is now the preferred supplier for ${materialOf(catalog, drawer.sku).name.toLowerCase()}.`,
 						);
 					}}
 					onClose={() => setDrawer(null)}
@@ -365,7 +345,12 @@ export default function SupplierDetailView({
 					title={`Delete ${supplier.business}?`}
 					confirmLabel="Delete supplier"
 					onCancel={() => setRemoving(null)}
-					onConfirm={() => {
+					onConfirm={async () => {
+						const result = await deleteSupplierAction(supplierId);
+						if (!result.ok) {
+							toast.error(result.message);
+							return;
+						}
 						toast.success(`${supplier.business} deleted.`);
 						router.push("/suppliers");
 					}}
@@ -378,7 +363,7 @@ export default function SupplierDetailView({
 			)}
 			{removingSku && (
 				<ConfirmDialog
-					title={`Stop buying ${materialOf(removingSku).name.toLowerCase()} from ${supplier.business}?`}
+					title={`Stop buying ${materialOf(catalog, removingSku).name.toLowerCase()} from ${supplier.business}?`}
 					confirmLabel="Stop buying here"
 					onCancel={() => setRemoving(null)}
 					onConfirm={() => stopBuying(removingSku)}

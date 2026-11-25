@@ -18,8 +18,14 @@ import {
 	type Part,
 	type Shortfall,
 } from "@/lib/inventory";
-import { addPurchaseOrders, usePurchaseOrders } from "@/lib/purchaseOrderStore";
-import { draftsFromGroups, skusOnOrder, type PurchaseOrder } from "@/lib/purchaseOrders";
+import { createPurchaseOrdersAction } from "@/app/(dashboard)/purchase-orders/actions";
+import { savePartAction, setPartArchivedAction } from "@/app/(dashboard)/inventory/actions";
+import {
+	draftsFromGroups,
+	orderInput,
+	skusOnOrder,
+	type PurchaseOrder,
+} from "@/lib/purchaseOrders";
 import { plural, type SupplierCatalog } from "@/lib/suppliers";
 import InventoryTable, { INVENTORY_TABLE_ID, toPartRows } from "./inventoryTable";
 import InventoryTableSkeleton from "./inventoryTableSkeleton";
@@ -83,25 +89,23 @@ function ShortfallCallout({
 
 /** Title actions, the shortfall callout, the parts table and its drawers: all read and change the same parts. */
 export default function InventoryPageContent({
-	initialInventory,
-	initialOrders,
+	inventory,
+	orders,
 	catalog,
 	today,
 	userName,
 }: {
-	initialInventory: Inventory;
-	initialOrders: PurchaseOrder[];
+	inventory: Inventory;
+	orders: PurchaseOrder[];
 	catalog: SupplierCatalog;
 	today: string;
 	userName: string;
 }) {
 	const router = useRouter();
-	const orders = usePurchaseOrders(initialOrders);
-	const [parts, setParts] = useState(initialInventory.parts);
 	const [drawer, setDrawer] = useState<Drawer>(null);
 	const [archiving, setArchiving] = useState<Part | null>(null);
 
-	const inventory: Inventory = { parts, demand: initialInventory.demand };
+	const { parts } = inventory;
 	const shortfalls = shortfallsOf(inventory);
 	const rows = toPartRows(inventory, catalog, today);
 	const editing = drawer?.kind === "edit" ? parts.find((p) => p.sku === drawer.sku) : undefined;
@@ -109,51 +113,57 @@ export default function InventoryPageContent({
 	/** Parts already on an order that hasn't fully arrived, so they aren't suggested twice. */
 	const onOrder = skusOnOrder(orders);
 
-	const save = (part: Part) => {
-		const before = parts.find((p) => p.sku === part.sku);
-		setParts((list) =>
-			before ? list.map((p) => (p.sku === part.sku ? part : p)) : [...list, part],
-		);
+	const save = async (part: Part) => {
+		const result = await savePartAction(part);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setDrawer(null);
-		if (!before) {
+		if (result.data.created) {
 			toast.success(
 				`${part.name} (${part.sku}) added. It can now be used in furniture types and quotes.`,
 			);
-		} else if (before.unitCost !== part.unitCost) {
+		} else if (result.data.costChanged) {
 			toast.success(`${part.name} updated. Accounting has been notified of the cost change.`);
 		} else {
 			toast.success(`${part.name} updated.`);
 		}
 	};
 
-	const archive = (part: Part) => {
-		const index = parts.findIndex((p) => p.sku === part.sku);
-		setParts((list) => list.filter((p) => p.sku !== part.sku));
+	const archive = async (part: Part) => {
+		const result = await setPartArchivedAction(part.sku, true);
 		setArchiving(null);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		toast.success(`${part.name} archived.`, {
 			action: {
 				label: "Undo",
-				onClick: () =>
-					setParts((list) =>
-						list.some((p) => p.sku === part.sku)
-							? list
-							: [...list.slice(0, index), part, ...list.slice(index)],
-					),
+				onClick: async () => {
+					const undo = await setPartArchivedAction(part.sku, false);
+					if (!undo.ok) toast.error(undo.message);
+				},
 			},
 		});
 	};
 
-	const createDrafts = (groups: OrderGroup[]) => {
+	const createDrafts = async (groups: OrderGroup[]) => {
 		const drafts = draftsFromGroups(groups, {
 			inventory,
 			taken: new Set(orders.map((po) => po.number)),
 			raisedBy: userName,
 			today,
 		});
-		addPurchaseOrders(drafts);
+		const result = await createPurchaseOrdersAction(drafts.map((po) => orderInput(po)));
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		setDrawer(null);
 		toast.success(
-			`${plural(drafts.length, "draft purchase order")} created. Check them and send from Purchase orders.`,
+			`${plural(result.data.length, "draft purchase order")} created. Check them and send from Purchase orders.`,
 			{ action: { label: "Open", onClick: () => router.push("/purchase-orders") } },
 		);
 	};

@@ -1,9 +1,7 @@
 import dayjs from "dayjs";
 import PurchaseOrdersPageView from "@/components/pages/purchaseOrders";
-import { getInventory } from "@/lib/inventory";
-import { getPurchaseOrders } from "@/lib/purchaseOrders";
+import { getInventory, getPurchaseOrders, getSupplierCatalog } from "@/lib/data/procurement";
 import { requireRouteAccess } from "@/lib/session";
-import { getSupplierCatalog } from "@/lib/suppliers";
 
 export default async function PurchaseOrdersPage() {
 	const user = await requireRouteAccess("/purchase-orders");

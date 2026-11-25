@@ -30,7 +30,7 @@ function Confidence({ value }: { value: number }) {
 			<span aria-hidden="true" className="relative h-1.5 w-14 shrink-0 rounded-full bg-line">
 				<span
 					className={cn(
-						"absolute inset-y-0 start-0 rounded-full",
+						"absolute inset-y-0 inset-s-0 rounded-full",
 						low ? "bg-warning-fg" : "bg-success-fg",
 					)}
 					style={{ width: `${value}%` }}

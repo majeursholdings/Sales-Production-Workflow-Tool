@@ -43,7 +43,7 @@ export function toPORows(orders: PurchaseOrder[], catalog: SupplierCatalog): POR
 		.map((po) => {
 			const supplierName =
 				catalog.suppliers.find((s) => s.id === po.supplierId)?.business ??
-				"Unknown supplier";
+				(po.supplierName || "Unknown supplier");
 			return {
 				...po,
 				id: po.number,

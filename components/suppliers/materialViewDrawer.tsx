@@ -43,7 +43,7 @@ export default function MaterialViewDrawer({
 	onStopBuying: () => void;
 	onClose: () => void;
 }) {
-	const material = materialOf(link.sku);
+	const material = materialOf(catalog, link.sku);
 	const cmp = compareOffer(catalog, supplier.id, link.sku);
 	const preferred = preferredSupplierId(catalog, link.sku) === supplier.id;
 

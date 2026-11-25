@@ -24,7 +24,7 @@ import {
 	type Inventory,
 	type Part,
 } from "@/lib/inventory";
-import { addPurchaseOrders, usePurchaseOrders } from "@/lib/purchaseOrderStore";
+import { createPurchaseOrdersAction } from "@/app/(dashboard)/purchase-orders/actions";
 import {
 	APPROVERS_BOTH,
 	DELIVER_TO,
@@ -32,7 +32,6 @@ import {
 	addWorkingDays,
 	money,
 	needsApproval,
-	poNumber,
 	skusOnOrder,
 	unitQty,
 	type PurchaseOrder,
@@ -68,14 +67,14 @@ type LineRow = {
 
 /** Pick a supplier, set what to order from them, then save a draft or send it. */
 export default function NewPurchaseOrderContent({
-	initialOrders,
+	orders,
 	inventory,
 	catalog,
 	today,
 	userName,
 	initialSupplierId,
 }: {
-	initialOrders: PurchaseOrder[];
+	orders: PurchaseOrder[];
 	inventory: Inventory;
 	catalog: SupplierCatalog;
 	today: string;
@@ -85,7 +84,6 @@ export default function NewPurchaseOrderContent({
 }) {
 	const router = useRouter();
 	const formId = useId();
-	const orders = usePurchaseOrders(initialOrders);
 	const shortfalls = shortfallsOf(inventory);
 	const suggested = suggestOrders(inventory, catalog);
 	const onOrder = skusOnOrder(orders);
@@ -156,7 +154,7 @@ export default function NewPurchaseOrderContent({
 
 	const rows: LineRow[] = lineSkus.map((sku) => {
 		const part = inventory.parts.find((p) => p.sku === sku);
-		const material = materialOf(sku);
+		const material = materialOf(catalog, sku);
 		return {
 			id: sku,
 			sku,
@@ -331,30 +329,21 @@ export default function NewPurchaseOrderContent({
 		},
 	];
 
-	const save = (send: boolean) => (v: Values) => {
+	const save = (send: boolean) => async (v: Values) => {
 		if (!supplier || rows.length === 0) return;
-		const number = poNumber(new Set(orders.map((po) => po.number)));
-		const status = !send ? "draft" : approval ? "approval" : "sent";
 		const job = String(v.job ?? "");
-		addPurchaseOrders([
+		const result = await createPurchaseOrdersAction([
 			{
-				number,
-				date: today,
-				raisedBy: userName,
 				supplierId,
 				lines: rows.map((r) => ({
 					sku: r.sku,
 					name: r.name,
 					unit: r.unit,
 					ordered: qtyOf(r.sku),
-					received: 0,
 					unitCost: costOf(r.sku),
 				})),
-				status,
-				expected: status === "sent" ? dayjs(String(v.expected)).format("YYYY-MM-DD") : null,
-				deliveredOn: null,
-				quality: null,
-				approvalRequested: status === "approval" ? dayjs().format("D MMM, HH:mm") : null,
+				send,
+				expected: send ? dayjs(String(v.expected)).format("YYYY-MM-DD") : null,
 				jobCard: job || null,
 				client: jobs.find(([j]) => j === job)?.[1] ?? null,
 				deliverTo: String(v.deliverTo),
@@ -362,6 +351,11 @@ export default function NewPurchaseOrderContent({
 				note: String(v.note ?? "").trim(),
 			},
 		]);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
+		const [{ number, status }] = result.data;
 		toast.success(
 			status === "draft"
 				? `Draft ${number} saved. It isn't sent until you press Send.`
@@ -427,7 +421,7 @@ export default function NewPurchaseOrderContent({
 						{supplier && (
 							<p className="text-small text-fg-secondary">
 								Supplies{" "}
-								{supplier.materials.map((m) => materialOf(m.sku).name).join(", ") ||
+								{supplier.materials.map((m) => materialOf(catalog, m.sku).name).join(", ") ||
 									"nothing in inventory yet"}
 								.
 							</p>
@@ -476,7 +470,7 @@ export default function NewPurchaseOrderContent({
 									Add{" "}
 									{(
 										inventory.parts.find((p) => p.sku === m.sku)?.name ??
-										materialOf(m.sku).name
+										materialOf(catalog, m.sku).name
 									).toLowerCase()}
 								</Button>
 							))}
