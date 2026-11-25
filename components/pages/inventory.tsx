@@ -1,24 +1,20 @@
-import PageTitle from "@/components/layout/pageTitle";
+import InventoryPageContent from "@/components/inventory/inventoryPageContent";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
-import { Plus } from "lucide-react";
+import type { Inventory } from "@/lib/inventory";
+import type { SupplierCatalog } from "@/lib/suppliers";
 
-export default function InventoryPage() {
+export default function InventoryPage({
+	inventory,
+	catalog,
+	today,
+}: {
+	inventory: Inventory;
+	catalog: SupplierCatalog;
+	today: string;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Inventory & parts"
-				pageDescription="Parts in stock, what's running low and what's on order."
-				actions={
-					<>
-						<Button variant="secondary">Import price list</Button>
-						<Button variant="primary">
-							<Plus />
-							Add part
-						</Button>
-					</>
-				}
-			/>
+			<InventoryPageContent initialInventory={inventory} catalog={catalog} today={today} />
 		</PageWrapper>
 	);
 }
