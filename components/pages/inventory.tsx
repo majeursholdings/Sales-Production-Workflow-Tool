@@ -1,20 +1,31 @@
 import InventoryPageContent from "@/components/inventory/inventoryPageContent";
 import PageWrapper from "@/components/layout/pageWrapper";
 import type { Inventory } from "@/lib/inventory";
+import type { PurchaseOrder } from "@/lib/purchaseOrders";
 import type { SupplierCatalog } from "@/lib/suppliers";
 
 export default function InventoryPage({
 	inventory,
+	orders,
 	catalog,
 	today,
+	userName,
 }: {
 	inventory: Inventory;
+	orders: PurchaseOrder[];
 	catalog: SupplierCatalog;
 	today: string;
+	userName: string;
 }) {
 	return (
 		<PageWrapper>
-			<InventoryPageContent initialInventory={inventory} catalog={catalog} today={today} />
+			<InventoryPageContent
+				initialInventory={inventory}
+				initialOrders={orders}
+				catalog={catalog}
+				today={today}
+				userName={userName}
+			/>
 		</PageWrapper>
 	);
 }

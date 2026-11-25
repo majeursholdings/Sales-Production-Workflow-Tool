@@ -1,12 +1,30 @@
-import PageTitle from "@/components/layout/pageTitle";
+import CostRequestsPageContent from "@/components/costRequests/costRequestsPageContent";
 import PageWrapper from "@/components/layout/pageWrapper";
+import type { CostRequest } from "@/lib/costRequests";
+import type { Inventory } from "@/lib/inventory";
+import type { SupplierCatalog } from "@/lib/suppliers";
 
-export default function CostRequestsPage() {
+export default function CostRequestsPage({
+	requests,
+	inventory,
+	catalog,
+	now,
+	userName,
+}: {
+	requests: CostRequest[];
+	inventory: Inventory;
+	catalog: SupplierCatalog;
+	now: string;
+	userName: string;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Cost requests"
-				pageDescription="Parts that sales needs priced, and where procurement is with each one."
+			<CostRequestsPageContent
+				initialRequests={requests}
+				inventory={inventory}
+				catalog={catalog}
+				now={now}
+				userName={userName}
 			/>
 		</PageWrapper>
 	);

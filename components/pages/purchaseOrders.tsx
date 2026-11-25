@@ -1,22 +1,33 @@
-import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
-import { Button } from "@/components/common/buttons";
-import { Plus } from "lucide-react";
+import PurchaseOrdersPageContent from "@/components/purchaseOrders/purchaseOrdersPageContent";
+import type { Inventory } from "@/lib/inventory";
+import type { PurchaseOrder } from "@/lib/purchaseOrders";
+import type { SupplierCatalog } from "@/lib/suppliers";
 
-export default function PurchaseOrdersPage() {
+export default function PurchaseOrdersPage({
+	orders,
+	inventory,
+	catalog,
+	today,
+	userName,
+	canApprove,
+}: {
+	orders: PurchaseOrder[];
+	inventory: Inventory;
+	catalog: SupplierCatalog;
+	today: string;
+	userName: string;
+	canApprove: boolean;
+}) {
 	return (
 		<PageWrapper>
-			<PageTitle
-				pageTitle="Purchase orders"
-				pageDescription="Orders placed with suppliers, and their approval and delivery status."
-				actions={
-					<>
-						<Button variant="primary">
-							<Plus />
-							New purchase order
-						</Button>
-					</>
-				}
+			<PurchaseOrdersPageContent
+				initialOrders={orders}
+				inventory={inventory}
+				catalog={catalog}
+				today={today}
+				userName={userName}
+				canApprove={canApprove}
 			/>
 		</PageWrapper>
 	);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useState, useCallback, type MouseEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/common/buttons";
@@ -188,6 +188,13 @@ export interface DataTableProps<TRow extends { id: string }> {
 	onRowClick?: (row: TRow) => void;
 	/** Tighter cell padding, for a table inside a card (e.g. a dashboard preview). */
 	compact?: boolean;
+	/** Extra classes for a row, e.g. to highlight the one that's selected. */
+	rowClassName?: (row: TRow) => string | undefined;
+	/**
+	 * A full-width row under a row (e.g. a fix-it form for a flagged line).
+	 * Return null for rows without one.
+	 */
+	renderRowDetail?: (row: TRow) => ReactNode;
 }
 
 export function DataTable<TRow extends { id: string }>(props: DataTableProps<TRow>) {
@@ -234,6 +241,8 @@ function DataTableContent<TRow extends { id: string }>({
 	error,
 	emptyMessage,
 	emptyState,
+	rowClassName,
+	renderRowDetail,
 }: DataTableProps<TRow>) {
 	const page = Math.max(1, rawPage);
 	// Index of the first row on this page, for the "#" column
@@ -365,57 +374,75 @@ function DataTableContent<TRow extends { id: string }>({
 								</td>
 							</tr>
 						) : (
-							rows.map((row, i) => (
-								<tr
-									key={row.id}
-									onClick={onRowClick ? () => onRowClick(row) : undefined}
-									className={onRowClick ? "cursor-pointer" : undefined}
-								>
-									{selectable && (
-										<td className="w-10" onClick={stopRowClick}>
-											<input
-												type="checkbox"
-												checked={selected.has(row.id)}
-												onChange={() => toggleRow(row.id)}
-												aria-label="Select row"
-												className="size-4 cursor-pointer accent-accent"
-											/>
-										</td>
-									)}
-									{showIndex && (
-										<td className="w-10 tabular">{offset + i + 1}</td>
-									)}
-									{columns.map((col) => (
-										<td key={col.key} className={col.className}>
-											{col.cell
-												? col.cell(row)
-												: String(
-														(row as Record<string, unknown>)[col.key] ??
-															"",
-													)}
-										</td>
-									))}
-									{/* ── Actions cell ─────────────────────────────────────── */}
-									{hasActions && (
-										<td
-											className="text-end whitespace-nowrap"
-											onClick={stopRowClick}
+							rows.map((row, i) => {
+								const detail = renderRowDetail?.(row);
+								const extra = rowClassName?.(row);
+								return (
+									<Fragment key={row.id}>
+										<tr
+											onClick={onRowClick ? () => onRowClick(row) : undefined}
+											className={cn(onRowClick && "cursor-pointer", extra)}
 										>
-											<RowActionsMenu
-												row={row}
-												viewAction={viewAction}
-												editAction={editAction}
-												deleteAction={deleteAction}
-												linkAction={linkAction}
-												rowActions={rowActions}
-												onOpenSheet={() => openPanel("sheet", row)}
-												onOpenEdit={() => openPanel("edit", row)}
-												onOpenDelete={() => openPanel("delete", row)}
-											/>
-										</td>
-									)}
-								</tr>
-							))
+											{selectable && (
+												<td className="w-10" onClick={stopRowClick}>
+													<input
+														type="checkbox"
+														checked={selected.has(row.id)}
+														onChange={() => toggleRow(row.id)}
+														aria-label="Select row"
+														className="size-4 cursor-pointer accent-accent"
+													/>
+												</td>
+											)}
+											{showIndex && (
+												<td className="w-10 tabular">{offset + i + 1}</td>
+											)}
+											{columns.map((col) => (
+												<td key={col.key} className={col.className}>
+													{col.cell
+														? col.cell(row)
+														: String(
+																(row as Record<string, unknown>)[
+																	col.key
+																] ?? "",
+															)}
+												</td>
+											))}
+											{/* ── Actions cell ─────────────────────────────────────── */}
+											{hasActions && (
+												<td
+													className="text-end whitespace-nowrap"
+													onClick={stopRowClick}
+												>
+													<RowActionsMenu
+														row={row}
+														viewAction={viewAction}
+														editAction={editAction}
+														deleteAction={deleteAction}
+														linkAction={linkAction}
+														rowActions={rowActions}
+														onOpenSheet={() => openPanel("sheet", row)}
+														onOpenEdit={() => openPanel("edit", row)}
+														onOpenDelete={() =>
+															openPanel("delete", row)
+														}
+													/>
+												</td>
+											)}
+										</tr>
+										{detail && (
+											<tr className={extra}>
+												<td
+													colSpan={colCount}
+													className="border-t-0! pt-0!"
+												>
+													{detail}
+												</td>
+											</tr>
+										)}
+									</Fragment>
+								);
+							})
 						)}
 					</tbody>
 				</Table>

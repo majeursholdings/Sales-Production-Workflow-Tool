@@ -18,6 +18,8 @@ import {
 	type Part,
 	type Shortfall,
 } from "@/lib/inventory";
+import { addPurchaseOrders, usePurchaseOrders } from "@/lib/purchaseOrderStore";
+import { draftsFromGroups, skusOnOrder, type PurchaseOrder } from "@/lib/purchaseOrders";
 import { plural, type SupplierCatalog } from "@/lib/suppliers";
 import InventoryTable, { INVENTORY_TABLE_ID, toPartRows } from "./inventoryTable";
 import InventoryTableSkeleton from "./inventoryTableSkeleton";
@@ -82,14 +84,19 @@ function ShortfallCallout({
 /** Title actions, the shortfall callout, the parts table and its drawers: all read and change the same parts. */
 export default function InventoryPageContent({
 	initialInventory,
+	initialOrders,
 	catalog,
 	today,
+	userName,
 }: {
 	initialInventory: Inventory;
+	initialOrders: PurchaseOrder[];
 	catalog: SupplierCatalog;
 	today: string;
+	userName: string;
 }) {
 	const router = useRouter();
+	const orders = usePurchaseOrders(initialOrders);
 	const [parts, setParts] = useState(initialInventory.parts);
 	const [drawer, setDrawer] = useState<Drawer>(null);
 	const [archiving, setArchiving] = useState<Part | null>(null);
@@ -99,6 +106,8 @@ export default function InventoryPageContent({
 	const rows = toPartRows(inventory, catalog, today);
 	const editing = drawer?.kind === "edit" ? parts.find((p) => p.sku === drawer.sku) : undefined;
 	const takenSkus = new Set(parts.map((p) => p.sku));
+	/** Parts already on an order that hasn't fully arrived, so they aren't suggested twice. */
+	const onOrder = skusOnOrder(orders);
 
 	const save = (part: Part) => {
 		const before = parts.find((p) => p.sku === part.sku);
@@ -135,9 +144,16 @@ export default function InventoryPageContent({
 	};
 
 	const createDrafts = (groups: OrderGroup[]) => {
+		const drafts = draftsFromGroups(groups, {
+			inventory,
+			taken: new Set(orders.map((po) => po.number)),
+			raisedBy: userName,
+			today,
+		});
+		addPurchaseOrders(drafts);
 		setDrawer(null);
 		toast.success(
-			`${plural(groups.length, "draft purchase order")} created. Check them and send from Purchase orders.`,
+			`${plural(drafts.length, "draft purchase order")} created. Check them and send from Purchase orders.`,
 			{ action: { label: "Open", onClick: () => router.push("/purchase-orders") } },
 		);
 	};
@@ -208,7 +224,9 @@ export default function InventoryPageContent({
 
 			{drawer?.kind === "raise" && (
 				<RaiseOrdersDrawer
-					groups={suggestOrders(inventory, catalog)}
+					groups={suggestOrders(inventory, catalog)
+						.map((g) => ({ ...g, lines: g.lines.filter((l) => !onOrder.has(l.sku)) }))
+						.filter((g) => g.lines.length > 0)}
 					onCreate={createDrafts}
 					onClose={() => setDrawer(null)}
 				/>
