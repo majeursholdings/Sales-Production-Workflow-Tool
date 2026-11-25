@@ -29,6 +29,8 @@ export type FieldType =
 export type SelectOption = {
 	label: string;
 	value: string;
+	/** For radio options: a line of help under the label. */
+	description?: string;
 };
 
 export type FormFieldConfig = {
@@ -81,6 +83,10 @@ export type FormFieldConfig = {
 	showPreview?: boolean;
 	clearable?: boolean; // for select — an × in the field clears the choice
 	trailingSlot?: ReactNode; // e.g. a "Forgot password?" link next to a checkbox
+	/** Keep the label for screen readers but don't show it — e.g. a quantity field inside a table cell. */
+	hideLabel?: boolean;
+	/** For select / combobox / radio: runs after the value changes, e.g. to fill in related fields. */
+	onValueChange?: (value: string) => void;
 	/** For a "file" field: take images as well as documents (e.g. a floor plan as a photo or a PDF). */
 	acceptImages?: boolean;
 	/** For a "file" field: take a CSV file (with `accept: CSV_ACCEPT`), e.g. for an import the server reads. */

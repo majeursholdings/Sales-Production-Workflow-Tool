@@ -227,7 +227,10 @@ export const FormField = <T extends FieldValues = FieldValues>({
 		return (
 			<div className={cn("flex min-w-0 flex-1 flex-col gap-2", field.className)}>
 				{field.label && (
-					<label htmlFor={fieldId} className="text-body font-bold">
+					<label
+						htmlFor={fieldId}
+						className={cn("text-body font-bold", field.hideLabel && "sr-only")}
+					>
 						{field.label}
 						{field.validation?.required && !hideRequiredMark && (
 							<span aria-hidden="true" className="ml-1 text-danger-fg">
@@ -256,13 +259,34 @@ export const FormField = <T extends FieldValues = FieldValues>({
 		case "datetime":
 			return wrapper(<DateTimeInput field={field} control={control} error={error} />);
 		case "select":
-			return wrapper(<SelectInput field={field} control={control} error={error} />);
+			return wrapper(
+				<SelectInput
+					field={field}
+					control={control}
+					error={error}
+					onValueChange={field.onValueChange}
+				/>,
+			);
 		case "combobox":
-			return wrapper(<ComboboxSelectInput field={field} control={control} error={error} />);
+			return wrapper(
+				<ComboboxSelectInput
+					field={field}
+					control={control}
+					error={error}
+					onValueChange={field.onValueChange}
+				/>,
+			);
 		case "multiselect":
 			return wrapper(<MultiSelectInput field={field} control={control} error={error} />);
 		case "radio":
-			return wrapper(<RadioInput field={field} control={control} error={error} />);
+			return wrapper(
+				<RadioInput
+					field={field}
+					control={control}
+					error={error}
+					onValueChange={field.onValueChange}
+				/>,
+			);
 		case "textarea":
 			return wrapper(
 				<TextareaInput field={field} register={register} control={control} error={error} />,
@@ -725,6 +749,7 @@ const ComboboxControl = <T extends FieldValues = FieldValues>({
 	field,
 	control,
 	error,
+	onValueChange,
 	options,
 }: ControllerProps<T> & { options: SelectOption[] }) => (
 	<Controller
@@ -737,7 +762,10 @@ const ComboboxControl = <T extends FieldValues = FieldValues>({
 				field={field}
 				options={options}
 				value={ctrl.value}
-				onChange={ctrl.onChange}
+				onChange={(val) => {
+					ctrl.onChange(val);
+					onValueChange?.(val);
+				}}
 				onBlur={ctrl.onBlur}
 				inputRef={ctrl.ref}
 				error={error}
@@ -896,6 +924,7 @@ export const RadioInput = <T extends FieldValues = FieldValues>({
 	field,
 	control,
 	error,
+	onValueChange,
 }: ControllerProps<T>) => (
 	<Controller
 		name={field.name as Path<T>}
@@ -914,7 +943,8 @@ export const RadioInput = <T extends FieldValues = FieldValues>({
 					<label
 						key={opt.value}
 						className={cn(
-							"flex items-center gap-2 text-body select-none",
+							"flex gap-2 text-body select-none",
+							opt.description ? "items-start" : "items-center",
 							field.disabled
 								? "cursor-not-allowed text-fg-tertiary"
 								: "cursor-pointer",
@@ -926,11 +956,26 @@ export const RadioInput = <T extends FieldValues = FieldValues>({
 							value={opt.value}
 							checked={ctrl.value === opt.value}
 							disabled={field.disabled}
-							onChange={() => ctrl.onChange(opt.value)}
+							onChange={() => {
+								ctrl.onChange(opt.value);
+								onValueChange?.(opt.value);
+							}}
 							onBlur={ctrl.onBlur}
-							className="size-4 cursor-[inherit] accent-accent"
+							className={cn(
+								"size-4 shrink-0 cursor-[inherit] accent-accent",
+								opt.description && "mt-1",
+							)}
 						/>
-						{opt.label}
+						{opt.description ? (
+							<span className="flex flex-col">
+								{opt.label}
+								<span className="text-small text-fg-secondary">
+									{opt.description}
+								</span>
+							</span>
+						) : (
+							opt.label
+						)}
 					</label>
 				))}
 			</div>
@@ -983,6 +1028,7 @@ export const CheckboxInput = <T extends FieldValues = FieldValues>({
 						htmlFor={field.id ?? field.name}
 						className={cn(
 							"text-body select-none",
+							field.hideLabel && "sr-only",
 							field.disabled
 								? "cursor-not-allowed text-fg-tertiary"
 								: "cursor-pointer",
