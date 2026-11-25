@@ -59,34 +59,3 @@ export async function getFinanceOverview(): Promise<OverviewItem[]> {
 		},
 	];
 }
-
-// ─── Detail pages ────────────────────────────────────────────────────────────
-// One record per supplier. Sample records only (all
-// illustrative); an id with no record returns null so the page can 404.
-
-export type DetailOverview = {
-	title: string;
-	description: string;
-	badge?: { label: string; variant?: "neutral" | "info" | "success" | "warning" | "danger" };
-	overview: OverviewItem[];
-};
-
-const SUPPLIERS: Record<string, DetailOverview> = {
-	"ogun-timber-co": {
-		title: "Ogun Timber Co.",
-		description: "Timber supplier. Procurement rates each material it supplies.",
-		overview: [
-			{ label: "Overall rating", value: "4.6 / 5", note: "Average of 3 rated materials" },
-			{ label: "Preferred supplier for", value: "2", note: "Walnut slab, Oak plank" },
-			{ label: "Deliveries", value: "92% on time", note: "11 deliveries" },
-			{ label: "Paid this year", value: "₦6,420,000.00", note: "1 open purchase order" },
-		],
-	},
-};
-
-export async function getSupplierDetail(id: string) {
-	return SUPPLIERS[id] ?? null;
-}
-
-/** Ids with a sample record, so the detail routes can be prerendered. */
-export const sampleSupplierIds = Object.keys(SUPPLIERS);

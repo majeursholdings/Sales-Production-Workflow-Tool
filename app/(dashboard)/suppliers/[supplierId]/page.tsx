@@ -1,6 +1,8 @@
+import dayjs from "dayjs";
 import { notFound } from "next/navigation";
-import DetailOverviewPage from "@/components/pages/detailOverview";
-import { getSupplierDetail, sampleSupplierIds } from "@/lib/overviews";
+import PageWrapper from "@/components/layout/pageWrapper";
+import SupplierDetailView from "@/components/suppliers/supplierDetailView";
+import { getSupplierCatalog, sampleSupplierIds } from "@/lib/suppliers";
 import { requireRouteAccess } from "@/lib/session";
 
 export function generateStaticParams() {
@@ -8,11 +10,20 @@ export function generateStaticParams() {
 }
 
 export default async function SupplierPage({ params }: PageProps<"/suppliers/[supplierId]">) {
-	await requireRouteAccess("/suppliers");
+	const user = await requireRouteAccess("/suppliers");
 	const { supplierId } = await params;
-	const detail = await getSupplierDetail(supplierId);
-	if (!detail) notFound();
+	const catalog = await getSupplierCatalog();
+	if (!catalog.suppliers.some((s) => s.id === supplierId)) notFound();
 	return (
-		<DetailOverviewPage parent={{ label: "Suppliers", href: "/suppliers" }} detail={detail} />
+		<PageWrapper>
+			<SupplierDetailView
+				// a different supplier is a fresh page, with its own edits
+				key={supplierId}
+				initialCatalog={catalog}
+				supplierId={supplierId}
+				today={dayjs().format("YYYY-MM-DD")}
+				viewerName={user.name}
+			/>
+		</PageWrapper>
 	);
 }
