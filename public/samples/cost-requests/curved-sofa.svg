@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+<defs>
+<linearGradient id="brassR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3c47e"/><stop offset=".55" stop-color="#b8893b"/><stop offset="1" stop-color="#8e6526"/></linearGradient>
+<clipPath id="backR"><path d="M52 206 C52 118 118 92 200 92 C282 92 348 118 348 206 Z"/></clipPath>
+</defs>
+<rect width="400" height="300" fill="#e9e1d6"/>
+<rect x="252" y="34" width="84" height="56" rx="2" fill="#d9ccbb" stroke="#c6b6a2" stroke-width="2"/>
+<path d="M262 80 L284 58 L300 72 L314 60 L326 80 Z" fill="#c6b6a2"/>
+<rect y="236" width="400" height="64" fill="#d6c7b4"/>
+<rect y="234" width="400" height="3" fill="#cbb9a3"/>
+<ellipse cx="200" cy="250" rx="150" ry="9" fill="#21180f" opacity=".14"/>
+<path d="M52 206 C52 118 118 92 200 92 C282 92 348 118 348 206 Z" fill="#ece4d6" stroke="#d3c6b2" stroke-width="2"/>
+<g clip-path="url(#backR)" stroke="#d5c8b4" stroke-width="2.5"><path d="M88 90 V210 M116 90 V210 M144 90 V210 M172 90 V210 M200 90 V210 M228 90 V210 M256 90 V210 M284 90 V210 M312 90 V210"/></g>
+<path d="M42 210 C40 176 52 160 72 160 C86 160 92 172 92 186 L92 216 Z" fill="#e6dccc" stroke="#d3c6b2" stroke-width="2"/>
+<path d="M358 210 C360 176 348 160 328 160 C314 160 308 172 308 186 L308 216 Z" fill="#e6dccc" stroke="#d3c6b2" stroke-width="2"/>
+<rect x="84" y="170" width="232" height="34" rx="16" fill="#f2ebe0" stroke="#d3c6b2" stroke-width="2"/>
+<path d="M162 172 V202 M238 172 V202" stroke="#ddd1bf" stroke-width="2"/>
+<rect x="46" y="202" width="308" height="24" rx="8" fill="#e6dccc" stroke="#d3c6b2" stroke-width="2"/>
+<rect x="70" y="226" width="260" height="14" rx="3" fill="url(#brassR)"/>
+<rect x="70" y="226" width="260" height="3" fill="#f1dca6" opacity=".7"/>
+<path d="M30 236 L36 200 L52 200 L58 236 Z" fill="#b9a089"/>
+<path d="M44 200 C30 170 22 150 30 128 M44 200 C46 166 54 140 66 124 M44 200 C40 176 46 156 40 140" stroke="#6f7d58" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

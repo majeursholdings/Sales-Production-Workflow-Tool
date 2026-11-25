@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+<defs><linearGradient id="brassP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8cd8a"/><stop offset="1" stop-color="#a87a2f"/></linearGradient></defs>
+<rect width="400" height="300" fill="#e6e1da"/>
+<rect y="246" width="400" height="54" fill="#cfc2b2"/>
+<path d="M110 250 L104 280 M290 250 L296 280" stroke="#a87a2f" stroke-width="6" stroke-linecap="round"/>
+<path d="M96 254 L96 90 Q96 50 140 50 L260 50 Q304 50 304 90 L304 254 Z" fill="#ece4d6" stroke="#d3c6b2" stroke-width="2"/>
+<rect x="150" y="74" width="100" height="30" rx="2" fill="url(#brassP)" stroke="#8e6526" stroke-width="1"/>
+<path d="M168 89 H232 M178 96 H222" stroke="#6f4f1c" stroke-width="2" stroke-linecap="round"/>
+<circle cx="155" cy="79" r="2" fill="#6f4f1c"/><circle cx="245" cy="79" r="2" fill="#6f4f1c"/><circle cx="155" cy="99" r="2" fill="#6f4f1c"/><circle cx="245" cy="99" r="2" fill="#6f4f1c"/>
+</svg>
