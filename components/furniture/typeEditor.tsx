@@ -98,7 +98,7 @@ export default function TypeEditor({
 	access: FurnitureAccess;
 	onDeleted: () => void;
 }) {
-	const { canEditDetails, canEditParts, showCost } = access;
+	const { canEditDetails, canEditParts, canEditCosts, canDelete, showCost } = access;
 	// Edits stay local until saved; the saved template comes back from the server as `template`.
 	const [draft, setDraft] = useState<Draft>(() => startOf(template));
 	const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(() => new Map());
@@ -533,7 +533,7 @@ export default function TypeEditor({
 						>
 							<MenuItem onSelect={() => setDrawer("labour")}>Labour hours</MenuItem>
 							<MenuItem onSelect={() => setDrawer("machine")}>Machine time</MenuItem>
-							{canEditDetails && showCost && (
+							{canEditCosts && (
 								<MenuItem onSelect={() => setDrawer("other")}>Other cost</MenuItem>
 							)}
 						</Menu>
@@ -580,7 +580,7 @@ export default function TypeEditor({
 											<strong className="tabular">
 												{formatNaira(x.amount)}
 											</strong>
-											{canEditDetails && (
+											{canEditCosts && (
 												<IconButton
 													danger
 													aria-label={`Remove ${x.name}`}
@@ -649,7 +649,7 @@ export default function TypeEditor({
 
 			{canEditParts && (
 				<div className="flex flex-wrap items-center justify-end gap-3">
-					{canEditDetails && (
+					{canDelete && (
 						<Button
 							variant="ghost"
 							className="me-auto hover:bg-danger-subtle hover:text-danger-fg"

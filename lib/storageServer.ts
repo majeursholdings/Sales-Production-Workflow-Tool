@@ -12,7 +12,7 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 export function canUploadToFolder(role: AppRole, folder: StorageFolder): boolean {
 	switch (folder) {
 		case "furniture":
-			return hasPermission(role, "templates.edit") && hasPermission(role, "quotes.view_prices");
+			return hasPermission(role, "templates.edit");
 		case "parts":
 			return hasPermission(role, "materials.edit");
 		case "machines":

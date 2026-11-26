@@ -15,11 +15,7 @@ import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { IconButton, Table } from "@/components/tables";
 import { formatNaira } from "@/lib/currency";
-import {
-	MAX_PHOTOS_PER_UPLOAD,
-	MAX_PHOTO_BYTES,
-	resolvePhotoType,
-} from "@/lib/storage";
+import { MAX_PHOTOS_PER_UPLOAD, MAX_PHOTO_BYTES, resolvePhotoType } from "@/lib/storage";
 import { uploadStorageFiles } from "@/lib/storageClient";
 import {
 	costTemplate,
@@ -49,12 +45,15 @@ export default function NewFurnitureTypeForm({
 	inventory,
 	rates,
 	canAddCategory,
+	showCost,
 }: {
 	categories: FurnitureCategory[];
 	inventory: InventoryPart[];
 	rates: CostingRates;
 	/** Pricing & margins editors can add a category here. */
 	canAddCategory: boolean;
+	/** Unit costs and prices. Hidden from production. */
+	showCost: boolean;
 }) {
 	const router = useRouter();
 	const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
@@ -310,7 +309,11 @@ export default function NewFurnitureTypeForm({
 									category={category?.name ?? ""}
 									src={photos[0]?.previewUrl}
 									size="lg"
-									label={photos[0] ? "Cover photo preview" : "Placeholder cover photo"}
+									label={
+										photos[0]
+											? "Cover photo preview"
+											: "Placeholder cover photo"
+									}
 								/>
 								<input
 									ref={photoInputRef}
@@ -344,7 +347,11 @@ export default function NewFurnitureTypeForm({
 												category={category?.name ?? ""}
 												src={p.previewUrl}
 												size="sm"
-												label={index === 0 ? "Cover photo" : `Photo ${index + 1}`}
+												label={
+													index === 0
+														? "Cover photo"
+														: `Photo ${index + 1}`
+												}
 											/>
 											{index === 0 && (
 												<span className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-md bg-inverse/75 text-center text-[10px] leading-tight text-fg-inverse">
@@ -430,9 +437,11 @@ export default function NewFurnitureTypeForm({
 														.join(" · ")}
 												</span>
 											</span>
-											<span className="text-small text-fg-secondary tabular">
-												{formatNaira(p.unitCost)}
-											</span>
+											{showCost && (
+												<span className="text-small text-fg-secondary tabular">
+													{formatNaira(p.unitCost)}
+												</span>
+											)}
 										</button>
 									))}
 									<div role="separator" className="my-1 h-px bg-line" />
@@ -454,12 +463,16 @@ export default function NewFurnitureTypeForm({
 										<th scope="col">Part</th>
 										<th scope="col">Spec</th>
 										<th scope="col">Qty per piece</th>
-										<th scope="col" className="text-end">
-											Unit cost
-										</th>
-										<th scope="col" className="text-end">
-											Line cost
-										</th>
+										{showCost && (
+											<>
+												<th scope="col" className="text-end">
+													Unit cost
+												</th>
+												<th scope="col" className="text-end">
+													Line cost
+												</th>
+											</>
+										)}
 										<th scope="col" className="w-10">
 											<span className="sr-only">Remove</span>
 										</th>
@@ -499,12 +512,16 @@ export default function NewFurnitureTypeForm({
 														unit={`${item.unit}s`}
 													/>
 												</td>
-												<td className="text-end tabular">
-													{formatNaira(item.unitCost)}
-												</td>
-												<td className="text-end font-bold text-fg tabular">
-													{formatNaira(item.unitCost * p.qty)}
-												</td>
+												{showCost && (
+													<>
+														<td className="text-end tabular">
+															{formatNaira(item.unitCost)}
+														</td>
+														<td className="text-end font-bold text-fg tabular">
+															{formatNaira(item.unitCost * p.qty)}
+														</td>
+													</>
+												)}
 												<td>
 													<IconButton
 														danger
@@ -554,38 +571,43 @@ export default function NewFurnitureTypeForm({
 				</div>
 
 				<aside aria-label="Summary" className="flex min-w-0 flex-col gap-6">
-					<Card className="gap-3" aria-labelledby="price-title">
-						<h2 id="price-title">Cost and price per piece</h2>
-						<dl className="flex flex-col gap-3 text-body">
-							<div className="flex justify-between gap-3">
-								<dt className="text-fg-secondary">Parts cost</dt>
-								<dd className="tabular">{formatNaira(cost.parts)}</dd>
-							</div>
-							<div className="flex justify-between gap-3">
-								<dt className="text-fg-secondary">Markup ({percent(markup)})</dt>
-								<dd className="tabular">{formatNaira(cost.parts * markup)}</dd>
-							</div>
-							<div className="flex items-baseline justify-between gap-3 border-t border-line pt-3 font-bold">
-								<dt>Price before VAT</dt>
-								<dd className="font-display text-h2 tabular">
-									{formatNaira(cost.parts * (1 + markup))}
-								</dd>
-							</div>
-						</dl>
-						<p className="text-small text-fg-tertiary">
-							Labour, machine time and other costs are added on the type&apos;s page
-							once it&apos;s saved; contingency (
-							{percent(rates.contingency)}) is added there too. Customer care can raise the markup on a quote up
-							to the {percent(cap)} cap. Trade discounts apply on top.
-						</p>
-					</Card>
+					{showCost && (
+						<Card className="gap-3" aria-labelledby="price-title">
+							<h2 id="price-title">Cost and price per piece</h2>
+							<dl className="flex flex-col gap-3 text-body">
+								<div className="flex justify-between gap-3">
+									<dt className="text-fg-secondary">Parts cost</dt>
+									<dd className="tabular">{formatNaira(cost.parts)}</dd>
+								</div>
+								<div className="flex justify-between gap-3">
+									<dt className="text-fg-secondary">
+										Markup ({percent(markup)})
+									</dt>
+									<dd className="tabular">{formatNaira(cost.parts * markup)}</dd>
+								</div>
+								<div className="flex items-baseline justify-between gap-3 border-t border-line pt-3 font-bold">
+									<dt>Price before VAT</dt>
+									<dd className="font-display text-h2 tabular">
+										{formatNaira(cost.parts * (1 + markup))}
+									</dd>
+								</div>
+							</dl>
+							<p className="text-small text-fg-tertiary">
+								Labour, machine time and other costs are added on the type&apos;s
+								page once it&apos;s saved; contingency ({percent(rates.contingency)}
+								) is added there too. Customer care can raise the markup on a quote
+								up to the {percent(cap)} cap. Trade discounts apply on top.
+							</p>
+						</Card>
+					)}
 
 					<Card className="gap-3" aria-labelledby="who-title">
 						<h2 id="who-title">Who can see it</h2>
 						<dl className="flex flex-col gap-2 text-body">
 							<Who label="Customer care, sales" value="Quote it, see costs" />
-							<Who label="Production" value="Parts, hours and notes, no costs" />
-							<Who label="Accounting, procurement" value="Everything, view only" />
+							<Who label="Production" value="Add, edit and delete, no costs" />
+							<Who label="Procurement" value="Add and edit, with costs" />
+							<Who label="Accounting" value="Everything, view only" />
 							<Who label="MD/GM" value="Everything" />
 						</dl>
 					</Card>

@@ -96,10 +96,14 @@ export const NO_RATES: CostingRates = {
 // ─── Role access ─────────────────────────────────────────────────────────────
 
 export type FurnitureAccess = {
-	/** Name, category, description, new types, other costs. */
+	/** Name, category, description, photos, publishing and new types. */
 	canEditDetails: boolean;
 	/** Standard parts, quantities, hours and build notes. */
 	canEditParts: boolean;
+	/** Other costs per piece. Needs prices, so not production. */
+	canEditCosts: boolean;
+	/** Delete a furniture type (`templates.delete`). */
+	canDelete: boolean;
 	/** Unit costs, line costs and prices. Hidden from production. */
 	showCost: boolean;
 	/** Can add a markup category while creating a type (Pricing & margins editors). */
@@ -107,30 +111,27 @@ export type FurnitureAccess = {
 	banner?: string;
 };
 
-/** Follows the database: `templates.edit` changes templates, `quotes.view_prices` sees costs. */
+/**
+ * Follows the database: `templates.edit` adds and changes templates, `templates.delete`
+ * removes them, `quotes.view_prices` sees (and so edits) costs.
+ */
 export function furnitureAccess(role: AppRole): FurnitureAccess {
 	const edit = hasPermission(role, "templates.edit");
 	const showCost = hasPermission(role, "quotes.view_prices");
-	const canAddCategory = hasPermission(role, "pricing_rules.edit");
-	if (edit && showCost) {
-		return { canEditDetails: true, canEditParts: true, showCost, canAddCategory };
-	}
-	if (edit) {
-		return {
-			canEditDetails: false,
-			canEditParts: true,
-			showCost: false,
-			canAddCategory: false,
-			banner: "You can change standard parts, quantities, hours and build notes. Costs and prices are hidden for production.",
-		};
-	}
-	return {
-		canEditDetails: false,
-		canEditParts: false,
+	const access: FurnitureAccess = {
+		canEditDetails: edit,
+		canEditParts: edit,
+		canEditCosts: edit && showCost,
+		canDelete: hasPermission(role, "templates.delete"),
 		showCost,
-		canAddCategory: false,
-		banner: "View only. Ask production or the MD/GM to change a template.",
+		canAddCategory: hasPermission(role, "pricing_rules.edit"),
 	};
+	if (!edit) {
+		access.banner = "View only. Ask production, procurement or the MD/GM to change a template.";
+	} else if (!showCost) {
+		access.banner = "Costs and prices are hidden for production.";
+	}
+	return access;
 }
 
 // ─── Grouping ────────────────────────────────────────────────────────────────

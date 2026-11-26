@@ -75,7 +75,7 @@ export default function FurnitureTypesView({
 					<p className="text-body text-fg-secondary">
 						{access.canEditDetails
 							? "Add the first type: its standard parts, hours and costs fill in when someone adds it to a quote."
-							: "Furniture types appear here once the MD or GM adds them."}
+							: "Furniture types appear here once production, procurement or the MD/GM adds them."}
 					</p>
 					{access.canEditDetails && (
 						<LinkButton href="/furniture-types/new" variant="primary">

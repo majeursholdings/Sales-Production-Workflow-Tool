@@ -11,7 +11,7 @@ export default async function FurnitureTypesPage() {
 	const access = furnitureAccess(user.roleKey);
 	const [catalog, otherCosts] = await Promise.all([
 		getFurnitureCatalog(),
-		access.canEditDetails ? getOtherCostOptions() : Promise.resolve([]),
+		access.canEditCosts ? getOtherCostOptions() : Promise.resolve([]),
 	]);
 	return <FurnitureTypesPageView catalog={catalog} otherCosts={otherCosts} access={access} />;
 }

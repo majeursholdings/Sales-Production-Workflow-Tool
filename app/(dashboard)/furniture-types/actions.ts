@@ -68,8 +68,7 @@ const friendly = (message: string) =>
 
 /**
  * Creates or updates a furniture type and its whole template. Production (no prices)
- * may change parts, hours and build notes only; their name, category, description,
- * photos and other costs stay as saved.
+ * can change everything except other costs, which stay as saved (none on a new type).
  */
 export async function saveFurnitureTypeAction(
 	raw: FurnitureTypeInput,
@@ -82,7 +81,7 @@ export async function saveFurnitureTypeAction(
 		return fail("Add at least one part before publishing.");
 	}
 
-	const detailsEditor = hasPermission(actor.roleKey, "quotes.view_prices");
+	const costEditor = hasPermission(actor.roleKey, "quotes.view_prices");
 	const input = { ...parsed.data };
 	const supabase = await createClient();
 
@@ -101,12 +100,7 @@ export async function saveFurnitureTypeAction(
 		before = { name: data.name, category_id: data.category_id, status: data.status };
 		beforePhotos = (data.photo_urls as string[] | null) ?? [];
 
-		if (!detailsEditor) {
-			input.name = data.name;
-			input.categoryId = data.category_id;
-			input.description = data.description;
-			input.status = data.status;
-			input.photos = data.photo_urls ?? [];
+		if (!costEditor) {
 			input.extras = [...(data.furniture_type_extras ?? [])]
 				.sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
 				.map((e) => ({
@@ -116,8 +110,8 @@ export async function saveFurnitureTypeAction(
 					costItemId: e.cost_item_id,
 				}));
 		}
-	} else if (!detailsEditor) {
-		return fail("Only the MD or GM can create furniture types.");
+	} else if (!costEditor) {
+		input.extras = [];
 	}
 
 	const { data: id, error } = await supabase.rpc("save_furniture_type", {
@@ -147,7 +141,7 @@ export async function saveFurnitureTypeAction(
 	});
 	if (error) return fail(friendly(error.message));
 
-	if (detailsEditor && beforePhotos.length > 0) {
+	if (beforePhotos.length > 0) {
 		const kept = new Set(input.photos);
 		const removed = beforePhotos.filter((url) => !kept.has(url));
 		await removeStorageUrls(supabase, removed, "furniture");
@@ -174,8 +168,8 @@ export async function saveFurnitureTypeAction(
 }
 
 export async function deleteFurnitureTypeAction(id: string): Promise<ActionResult> {
-	const actor = await userWith("templates.edit");
-	if (!actor || !hasPermission(actor.roleKey, "quotes.view_prices")) return fail(NO_ACCESS);
+	const actor = await userWith("templates.delete");
+	if (!actor) return fail("You don't have permission to delete furniture types.");
 
 	const supabase = await createClient();
 	const { data, error } = await supabase

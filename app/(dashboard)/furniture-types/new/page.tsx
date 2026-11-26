@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/session";
 export const metadata: Metadata = { title: "New furniture type" };
 
 export default async function NewFurnitureTypePage() {
-	// Template editors who also see prices (MD/GM) create furniture types
+	// Template editors (MD/GM, procurement, production) create furniture types
 	const user = await requirePermission("templates.edit");
 	const access = furnitureAccess(user.roleKey);
 	if (!access.canEditDetails) redirect("/furniture-types");
@@ -20,6 +20,7 @@ export default async function NewFurnitureTypePage() {
 			inventory={inventory}
 			rates={rates}
 			canAddCategory={access.canAddCategory}
+			showCost={access.showCost}
 		/>
 	);
 }
