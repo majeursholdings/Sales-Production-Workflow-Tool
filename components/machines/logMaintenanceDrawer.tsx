@@ -2,9 +2,11 @@
 
 import dayjs from "dayjs";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
+import type { SavedFile } from "@/components/forms/fileInput";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
 import {
@@ -14,6 +16,8 @@ import {
 	type MaintenanceRecord,
 	type MaintenanceType,
 } from "@/lib/machines";
+import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/storage";
+import { resolveUploadedPhotos } from "@/lib/storageClient";
 
 type Values = {
 	type: MaintenanceType;
@@ -22,12 +26,13 @@ type Values = {
 	cost: string;
 	nextService: string;
 	notes: string;
+	photos: unknown;
 	working: boolean;
 };
 
 export type MaintenanceDraft = Pick<
 	MaintenanceRecord,
-	"type" | "date" | "doneBy" | "cost" | "notes"
+	"type" | "date" | "doneBy" | "cost" | "notes" | "photos"
 > & {
 	/** The next service date; only when logging, not when editing a record. */
 	nextService?: string;
@@ -37,7 +42,7 @@ export type MaintenanceDraft = Pick<
 
 const isoDay = (value: string) => dayjs(value).format("YYYY-MM-DD");
 
-/** Log maintenance for a machine, or edit an earlier record. Photos aren't attached yet: upload isn't connected. */
+/** Log maintenance for a machine, or edit an earlier record, with optional photos. */
 export default function LogMaintenanceDrawer({
 	machine,
 	record,
@@ -56,8 +61,17 @@ export default function LogMaintenanceDrawer({
 }) {
 	const editing = !!record;
 	const outOfService = machine.condition === "out_of_service";
+	const initialPhotos: SavedFile[] = (record?.photos ?? []).map((url, i) => ({
+		id: `${record?.id ?? "saved"}-${i}`,
+		url,
+		name: `Photo ${i + 1}`,
+		kind: "image",
+	}));
 
-	const methods = useForm<Values>({ mode: "onTouched" });
+	const methods = useForm<Values>({
+		mode: "onTouched",
+		defaultValues: { photos: initialPhotos },
+	});
 
 	const fields: FormFieldConfig[] = [
 		{
@@ -120,6 +134,16 @@ export default function LogMaintenanceDrawer({
 			defaultValue: record?.notes ?? "",
 			rows: 4,
 		},
+		{
+			name: "photos",
+			type: "image",
+			label: "Photos (optional)",
+			description: `Up to ${MAX_PHOTOS_PER_UPLOAD} photos — receipts, worn parts, or completed work (10 MB each)`,
+			multiple: true,
+			maxFiles: MAX_PHOTOS_PER_UPLOAD,
+			maxSizeMB: 10,
+			showPreview: true,
+		},
 		...(!editing && outOfService
 			? ([
 					{
@@ -144,29 +168,33 @@ export default function LogMaintenanceDrawer({
 				rowPairs={[["date", "doneBy"]]}
 				hideRequiredMarks
 				requireValidToSubmit={false}
-				onSubmit={(v) =>
-					onSave({
+				onSubmit={async (v) => {
+					const uploaded = await resolveUploadedPhotos("machines", v.photos);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					await onSave({
 						type: v.type,
 						date: isoDay(v.date),
 						doneBy: v.doneBy.trim(),
 						cost: Number(v.cost) || 0,
 						notes: v.notes?.trim() ?? "",
+						photos: uploaded.urls,
 						...(editing
 							? {}
 							: {
 									nextService: isoDay(v.nextService),
 									backInService: outOfService ? v.working : undefined,
 								}),
-					})
-				}
+					});
+				}}
 				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
-						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
-							Photo upload isn&apos;t connected yet.
-						</span>
+						<span className="flex-1" />
 						<Button onClick={onClose}>Cancel</Button>
 						<Button type="submit" variant="primary" disabled={isLoading}>
-							{editing ? "Save changes" : "Save to history"}
+							{isLoading ? "Saving…" : editing ? "Save changes" : "Save to history"}
 						</Button>
 					</div>
 				)}

@@ -1,14 +1,17 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
+import type { SavedFile } from "@/components/forms/fileInput";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { MACHINE_STATUS, everyLabel, type Machine, type MachineCondition } from "@/lib/machines";
+import { resolveUploadedPhotos } from "@/lib/storageClient";
 
-/** What the add / edit form collects. The rest of a machine (history, hours, photo) isn't edited here. */
+/** What the add / edit form collects. The rest of a machine (history, hours) isn't edited here. */
 export type MachineDetails = Pick<
 	Machine,
 	| "name"
@@ -19,9 +22,10 @@ export type MachineDetails = Pick<
 	| "hourlyCost"
 	| "notes"
 	| "condition"
->;
+> & { photoUrl: string };
 
 type Values = {
+	photo: unknown;
 	name: string;
 	serialNumber: string;
 	location: string;
@@ -50,9 +54,23 @@ export default function MachineDrawer({
 	onSave: (details: MachineDetails) => void | Promise<void>;
 	onClose: () => void;
 }) {
-	const methods = useForm<Values>({ mode: "onTouched" });
+	const initialPhoto: SavedFile[] = machine?.photoUrl
+		? [{ id: machine.id, url: machine.photoUrl, name: `${machine.name} photo`, kind: "image" }]
+		: [];
+	const methods = useForm<Values>({
+		mode: "onTouched",
+		defaultValues: { photo: initialPhoto },
+	});
 
 	const fields: FormFieldConfig[] = [
+		{
+			name: "photo",
+			type: "image",
+			label: machine?.photoUrl ? "Photo (replace or remove)" : "Photo (optional)",
+			description: "JPG, PNG, WebP or HEIC, up to 10 MB",
+			maxSizeMB: 10,
+			showPreview: true,
+		},
 		{
 			name: "name",
 			type: "text",
@@ -135,7 +153,11 @@ export default function MachineDrawer({
 	return (
 		<Drawer
 			title={machine ? `Edit ${machine.name}` : "Add machine"}
-			description="Photo upload isn't connected yet, so machines show an icon for now."
+			description={
+				machine
+					? `${machine.serialNumber} · ${machine.location}`
+					: "Add workshop details and an optional photo so everyone can spot the machine."
+			}
 			onClose={onClose}
 		>
 			<MainForm<Values>
@@ -146,8 +168,13 @@ export default function MachineDrawer({
 					["bought", "every"],
 				]}
 				hideRequiredMarks
-				onSubmit={(v) =>
-					onSave({
+				onSubmit={async (v) => {
+					const uploaded = await resolveUploadedPhotos("machines", v.photo);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					await onSave({
 						condition: machine ? v.condition : "working",
 						name: v.name.trim(),
 						serialNumber: v.serialNumber.trim(),
@@ -157,8 +184,9 @@ export default function MachineDrawer({
 						// Production can't see or set the cost: keep what's there
 						hourlyCost: seesCost ? Number(v.hourlyCost) : (machine?.hourlyCost ?? 0),
 						notes: v.notes?.trim() ?? "",
-					})
-				}
+						photoUrl: uploaded.urls[0] ?? "",
+					});
+				}}
 				renderFooter={({ canSubmit, isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
 						<span className="flex-1" />

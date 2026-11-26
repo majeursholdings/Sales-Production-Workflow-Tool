@@ -38,7 +38,7 @@ export const machineColumns = (seesCost: boolean): ColumnDef<MachineRow>[] => [
 		header: "Machine",
 		cell: (m) => (
 			<span className="flex items-center gap-3">
-				<MachinePhoto icon={m.icon} />
+				<MachinePhoto icon={m.icon} src={m.photoUrl} />
 				<span className="flex min-w-0 flex-col">
 					<Link
 						href={`/machines/${m.id}`}

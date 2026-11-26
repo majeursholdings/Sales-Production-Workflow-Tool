@@ -14,6 +14,7 @@ import { getInventory } from "@/lib/data/procurement";
 import { PART_CATEGORIES, suggestSku } from "@/lib/inventory";
 import { hasPermission } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/session";
+import { isValidStorageUrl } from "@/lib/storage";
 import { createClient } from "@/utils/supabase/server";
 
 const NO_ACCESS = "You don't have permission to review cost requests.";
@@ -74,7 +75,20 @@ const requestSchema = z.object({
 	markupCategory: z.string().trim().default(""),
 	notes: z.string().trim().default(""),
 	images: z
-		.array(z.object({ src: z.string().trim().min(1), alt: z.string().trim().default("") }))
+		.array(
+			z.object({
+				src: z
+					.string()
+					.trim()
+					.min(1)
+					.refine(
+						(u) => isValidStorageUrl(u, "cost-requests"),
+						"Invalid cost request photo URL.",
+					),
+				alt: z.string().trim().default(""),
+			}),
+		)
+		.max(6)
 		.default([]),
 	parts: z.array(partSchema).min(1, "The parts list is empty"),
 });
@@ -181,6 +195,67 @@ export async function postCostRequestMessageAction(
 		author_name: user.name,
 		body: parsed.data,
 	});
+	if (error) return fail(error.message);
+
+	revalidateRequests();
+	return { ok: true };
+}
+
+const addImagesSchema = z
+	.array(
+		z.object({
+			src: z
+				.string()
+				.trim()
+				.min(1)
+				.refine(
+					(u) => isValidStorageUrl(u, "cost-requests"),
+					"Invalid cost request photo URL.",
+				),
+			alt: z.string().trim().max(200).default(""),
+		}),
+	)
+	.min(1, "Pick at least one photo.")
+	.max(6);
+
+/** Attaches additional reference photos to an open cost request. */
+export async function addCostRequestImagesAction(
+	id: string,
+	raw: z.input<typeof addImagesSchema>,
+): Promise<ActionResult> {
+	const user = await getCurrentUser();
+	const parsed = addImagesSchema.safeParse(raw);
+	if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid photos.");
+
+	const supabase = await createClient();
+	const { data: request, error: readError } = await supabase
+		.from("cost_requests")
+		.select("status, requested_by")
+		.eq("id", id)
+		.maybeSingle();
+	if (readError) return fail(readError.message);
+	if (!request) return fail("Cost request not found.");
+	if (request.status !== "open") return fail(NOT_OPEN);
+	const isRequester = request.requested_by === user.id;
+	if (!isRequester && !hasPermission(user.roleKey, "materials.edit")) return fail(NO_ACCESS);
+
+	const { data: existing, error: posError } = await supabase
+		.from("cost_request_images")
+		.select("position")
+		.eq("request_id", id)
+		.order("position", { ascending: false })
+		.limit(1);
+	if (posError) return fail(posError.message);
+	const start = Number(existing?.[0]?.position ?? -1) + 1;
+
+	const { error } = await supabase.from("cost_request_images").insert(
+		parsed.data.map((img, i) => ({
+			request_id: id,
+			position: start + i,
+			src: img.src,
+			alt: img.alt || `Reference photo ${start + i + 1}`,
+		})),
+	);
 	if (error) return fail(error.message);
 
 	revalidateRequests();

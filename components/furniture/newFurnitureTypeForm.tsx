@@ -1,19 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { saveFurnitureTypeAction } from "@/app/(dashboard)/furniture-types/actions";
 import { Button, LinkButton } from "@/components/common/buttons";
 import { Card, CardHeader, CardTitle } from "@/components/common/card";
+import { IMAGE_ACCEPT } from "@/components/forms/fileRules";
 import { Input, Select, Textarea } from "@/components/forms/input";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { IconButton, Table } from "@/components/tables";
 import { formatNaira } from "@/lib/currency";
+import {
+	MAX_PHOTOS_PER_UPLOAD,
+	MAX_PHOTO_BYTES,
+	resolvePhotoType,
+} from "@/lib/storage";
+import { uploadStorageFiles } from "@/lib/storageClient";
 import {
 	costTemplate,
 	percent,
@@ -52,10 +59,56 @@ export default function NewFurnitureTypeForm({
 	const router = useRouter();
 	const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
 	const [parts, setParts] = useState<TemplatePart[]>([]);
+	const [photos, setPhotos] = useState<{ previewUrl: string; file: File }[]>([]);
+	const photosRef = useRef(photos);
+	const photoInputRef = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
 	const [searching, setSearching] = useState(false);
 	const [addingCategory, setAddingCategory] = useState(false);
 	const [saving, startSaving] = useTransition();
+
+	useEffect(() => {
+		photosRef.current = photos;
+	}, [photos]);
+
+	useEffect(
+		() => () => {
+			for (const item of photosRef.current) URL.revokeObjectURL(item.previewUrl);
+		},
+		[],
+	);
+
+	const pickPhotos = (files: FileList | null) => {
+		if (!files?.length) return;
+		const remaining = MAX_PHOTOS_PER_UPLOAD - photos.length;
+		if (remaining <= 0) {
+			toast.error(`You can attach up to ${MAX_PHOTOS_PER_UPLOAD} photos.`);
+			return;
+		}
+		const added: { previewUrl: string; file: File }[] = [];
+		for (const file of Array.from(files).slice(0, remaining)) {
+			if (file.size > MAX_PHOTO_BYTES) {
+				toast.error(`${file.name} is larger than 10 MB.`);
+				continue;
+			}
+			if (!resolvePhotoType(file)) {
+				toast.error(`${file.name} isn't a supported image.`);
+				continue;
+			}
+			added.push({ previewUrl: URL.createObjectURL(file), file });
+		}
+		if (files.length > remaining) {
+			toast.info(
+				`Kept the first ${remaining} photo${remaining === 1 ? "" : "s"} (max ${MAX_PHOTOS_PER_UPLOAD}).`,
+			);
+		}
+		if (added.length > 0) setPhotos((list) => [...list, ...added]);
+	};
+
+	const removePhoto = (previewUrl: string) => {
+		URL.revokeObjectURL(previewUrl);
+		setPhotos((list) => list.filter((p) => p.previewUrl !== previewUrl));
+	};
 
 	const form = useForm<Values>({
 		defaultValues: {
@@ -100,6 +153,18 @@ export default function NewFurnitureTypeForm({
 			}
 			startSaving(async () => {
 				const name = values.name.trim();
+				let uploadedUrls: string[] = [];
+				if (photos.length > 0) {
+					const uploaded = await uploadStorageFiles(
+						"furniture",
+						photos.map((p) => p.file),
+					);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					uploadedUrls = uploaded.urls;
+				}
 				const result = await saveFurnitureTypeAction({
 					id: null,
 					name,
@@ -110,7 +175,7 @@ export default function NewFurnitureTypeForm({
 					standardSize: values.standardSize,
 					cratePieces: Math.max(1, Math.round(Number(values.cratePieces) || 1)),
 					status,
-					photos: [],
+					photos: uploadedUrls,
 					parts,
 					labour: [],
 					machines: [],
@@ -243,18 +308,65 @@ export default function NewFurnitureTypeForm({
 							<div className="flex flex-wrap items-center gap-3">
 								<TypePhoto
 									category={category?.name ?? ""}
+									src={photos[0]?.previewUrl}
 									size="lg"
-									label="Placeholder cover photo"
+									label={photos[0] ? "Cover photo preview" : "Placeholder cover photo"}
 								/>
-								<Button disabled title="Photo upload isn't connected yet">
+								<input
+									ref={photoInputRef}
+									type="file"
+									accept={IMAGE_ACCEPT}
+									multiple
+									className="hidden"
+									onChange={(e) => {
+										pickPhotos(e.target.files);
+										e.target.value = "";
+									}}
+								/>
+								<Button
+									disabled={saving || photos.length >= MAX_PHOTOS_PER_UPLOAD}
+									title={
+										photos.length >= MAX_PHOTOS_PER_UPLOAD
+											? `Maximum ${MAX_PHOTOS_PER_UPLOAD} photos`
+											: undefined
+									}
+									onClick={() => photoInputRef.current?.click()}
+								>
 									<Plus />
 									Add photos
 								</Button>
 							</div>
+							{photos.length > 0 && (
+								<ul className="flex flex-wrap gap-2" aria-label="Selected photos">
+									{photos.map((p, index) => (
+										<li key={p.previewUrl} className="relative">
+											<TypePhoto
+												category={category?.name ?? ""}
+												src={p.previewUrl}
+												size="sm"
+												label={index === 0 ? "Cover photo" : `Photo ${index + 1}`}
+											/>
+											{index === 0 && (
+												<span className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-md bg-inverse/75 text-center text-[10px] leading-tight text-fg-inverse">
+													Cover
+												</span>
+											)}
+											<button
+												type="button"
+												aria-label={`Remove ${index === 0 ? "cover photo" : `photo ${index + 1}`}`}
+												title="Remove photo"
+												onClick={() => removePhoto(p.previewUrl)}
+												className="absolute -top-1.5 -right-1.5 grid size-5 cursor-pointer place-items-center rounded-full border border-line bg-surface text-fg-secondary shadow-xs hover:bg-danger-subtle hover:text-danger-fg"
+											>
+												<X className="size-3" aria-hidden="true" />
+											</button>
+										</li>
+									))}
+								</ul>
+							)}
 							<small className="text-small text-fg-tertiary">
-								Up to 6. The first is the cover, shown when picking items on a
-								quote, on job cards and in Furniture types. Photo upload isn&apos;t
-								connected yet.
+								Up to {MAX_PHOTOS_PER_UPLOAD}. The first is the cover, shown when
+								picking items on a quote, on job cards and in Furniture types.
 							</small>
 						</div>
 					</Card>

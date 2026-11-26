@@ -5,6 +5,8 @@ import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
 import { categoryIdFor, type FurnitureCategory } from "@/lib/furnitureTypes";
 import { hasPermission } from "@/lib/roles";
+import { isValidStorageUrl } from "@/lib/storage";
+import { removeStorageUrls } from "@/lib/storageServer";
 import { createClient } from "@/utils/supabase/server";
 
 const NO_ACCESS = "You don't have permission to change furniture types.";
@@ -25,7 +27,17 @@ const typeSchema = z.object({
 	standardSize: z.string().trim().default(""),
 	cratePieces: z.number().int().positive().default(1),
 	status: z.enum(["draft", "published"]),
-	photos: z.array(z.string()).max(6).default([]),
+	photos: z
+		.array(
+			z
+				.string()
+				.refine(
+					(u) => isValidStorageUrl(u, "furniture"),
+					"Invalid furniture photo URL.",
+				),
+		)
+		.max(6)
+		.default([]),
 	parts: z.array(
 		z.object({ sku: z.string().min(1), qty: z.number().positive("Quantities must be more than 0") }),
 	),
@@ -75,6 +87,7 @@ export async function saveFurnitureTypeAction(
 	const supabase = await createClient();
 
 	let before: Record<string, unknown> | null = null;
+	let beforePhotos: string[] = [];
 	if (input.id) {
 		const { data, error } = await supabase
 			.from("furniture_types")
@@ -86,6 +99,7 @@ export async function saveFurnitureTypeAction(
 		if (error) return fail(error.message);
 		if (!data) return fail("That furniture type no longer exists.");
 		before = { name: data.name, category_id: data.category_id, status: data.status };
+		beforePhotos = (data.photo_urls as string[] | null) ?? [];
 
 		if (!detailsEditor) {
 			input.name = data.name;
@@ -133,6 +147,12 @@ export async function saveFurnitureTypeAction(
 	});
 	if (error) return fail(friendly(error.message));
 
+	if (detailsEditor && beforePhotos.length > 0) {
+		const kept = new Set(input.photos);
+		const removed = beforePhotos.filter((url) => !kept.has(url));
+		await removeStorageUrls(supabase, removed, "furniture");
+	}
+
 	await supabase.from("audit_logs").insert({
 		actor_id: actor.id,
 		action: input.id ? "furniture_type.updated" : "furniture_type.created",
@@ -162,9 +182,11 @@ export async function deleteFurnitureTypeAction(id: string): Promise<ActionResul
 		.from("furniture_types")
 		.delete()
 		.eq("id", id)
-		.select("name");
+		.select("name, photo_urls");
 	if (error) return fail(error.message);
 	if (!data?.length) return fail("That furniture type no longer exists.");
+
+	await removeStorageUrls(supabase, (data[0].photo_urls as string[] | null) ?? [], "furniture");
 
 	await supabase.from("audit_logs").insert({
 		actor_id: actor.id,

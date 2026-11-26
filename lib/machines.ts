@@ -62,6 +62,7 @@ export type MaintenanceRecord = {
 	/** Parts and labour in naira. 0 when it cost nothing. */
 	cost: number;
 	photoCount: number;
+	photos: string[];
 };
 
 export type Machine = {
@@ -85,6 +86,7 @@ export type Machine = {
 	/** The latest job card time logged on it, or null when it hasn't been used yet. */
 	lastUsed: { when: string; job: string } | null;
 	icon: MachineIcon;
+	photoUrl?: string;
 	/** Newest first. */
 	history: MaintenanceRecord[];
 };

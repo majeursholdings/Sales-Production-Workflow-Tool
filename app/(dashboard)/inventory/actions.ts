@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
 import { PART_CATEGORIES } from "@/lib/inventory";
+import { isValidStorageUrl } from "@/lib/storage";
+import { removeStorageUrls } from "@/lib/storageServer";
 import { createClient } from "@/utils/supabase/server";
 
 const NO_ACCESS = "You don't have permission to change inventory.";
@@ -19,6 +21,11 @@ const partSchema = z.object({
 	reorderLevel: z.number().nonnegative(),
 	supplierId: z.string().trim().default(""),
 	notes: z.string().trim().default(""),
+	photoUrl: z
+		.string()
+		.trim()
+		.optional()
+		.refine((u) => !u || isValidStorageUrl(u, "parts"), "Invalid part photo URL."),
 });
 
 function revalidateInventory() {
@@ -40,12 +47,13 @@ export async function savePartAction(
 	const supabase = await createClient();
 	const { data: before, error: readError } = await supabase
 		.from("parts")
-		.select("unit_cost")
+		.select("unit_cost, photo_url")
 		.eq("sku", p.sku)
 		.maybeSingle();
 	if (readError) return fail(readError.message);
 
 	const costChanged = !before || Number(before.unit_cost) !== p.unitCost;
+	const nextPhotoUrl = p.photoUrl !== undefined ? p.photoUrl || null : (before?.photo_url ?? null);
 	const columns = {
 		name: p.name,
 		category: p.category,
@@ -56,6 +64,7 @@ export async function savePartAction(
 		reorder_level: p.reorderLevel,
 		supplier_id: p.supplierId || null,
 		notes: p.notes,
+		photo_url: nextPhotoUrl,
 		...(costChanged && {
 			cost_updated_on: new Date().toISOString().slice(0, 10),
 			cost_updated_by: actor.name,
@@ -66,6 +75,10 @@ export async function savePartAction(
 		? await supabase.from("parts").update(columns).eq("sku", p.sku)
 		: await supabase.from("parts").insert({ sku: p.sku, ...columns });
 	if (error) return fail(error.message);
+
+	if (before?.photo_url && before.photo_url !== nextPhotoUrl) {
+		await removeStorageUrls(supabase, [before.photo_url as string], "parts");
+	}
 
 	if (before && costChanged) {
 		await supabase.from("audit_logs").insert({

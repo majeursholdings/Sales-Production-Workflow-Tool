@@ -70,6 +70,7 @@ export type RedoEvent = {
 	/** Which step it was found at. "Delivery" means the client rejected it. */
 	foundAt: string;
 	date: string;
+	photos: string[];
 };
 
 export type JobStep = {
@@ -140,6 +141,8 @@ export type JobCard = {
 	blockedNote?: string;
 	/** What the client rejected, when the delivery was rejected. */
 	rejectedNote?: string;
+	/** Photos captured when recording delivery (accepted or rejected). */
+	deliveryPhotos: string[];
 	/** Delivery accepted: the card is closed and takes no more time. */
 	closed: boolean;
 };
@@ -380,7 +383,14 @@ export function logTime(card: JobCard, draft: LogDraft): JobCard {
 /** The step goes back to Redo; steps after it that were done reopen. */
 export function sendBack(
 	card: JobCard,
-	draft: { step: number; reason: string; hours: number; foundAt: string; date: string },
+	draft: {
+		step: number;
+		reason: string;
+		hours: number;
+		foundAt: string;
+		date: string;
+		photos?: string[];
+	},
 ): JobCard {
 	const event: RedoEvent = {
 		id: newId(),
@@ -388,6 +398,7 @@ export function sendBack(
 		hours: draft.hours,
 		foundAt: draft.foundAt,
 		date: draft.date,
+		photos: draft.photos ?? [],
 	};
 	return {
 		...card,
@@ -404,6 +415,7 @@ export type DeliveryDraft = {
 	date: string;
 	by: string;
 	notes: string;
+	photos?: string[];
 	what?: string;
 	reason?: string;
 	/** The step the rejected work goes back to; it and every step after reopen. */
@@ -411,11 +423,13 @@ export type DeliveryDraft = {
 };
 
 export function recordDelivery(card: JobCard, draft: DeliveryDraft): JobCard {
+	const nextDeliveryPhotos = [...card.deliveryPhotos, ...(draft.photos ?? [])];
 	if (draft.outcome === "accepted") {
 		return {
 			...card,
 			closed: true,
 			delivery: { state: "delivered", note: `Delivered ${shortDate(draft.date)}` },
+			deliveryPhotos: nextDeliveryPhotos,
 			steps: card.steps.map((s) => ({ ...s, status: "done" })),
 		};
 	}
@@ -427,6 +441,7 @@ export function recordDelivery(card: JobCard, draft: DeliveryDraft): JobCard {
 		hours: 4,
 		foundAt: "Delivery",
 		date: draft.date,
+		photos: draft.photos ?? [],
 	};
 	return {
 		...card,
@@ -434,6 +449,7 @@ export function recordDelivery(card: JobCard, draft: DeliveryDraft): JobCard {
 			state: "rejected",
 			note: `Rejected ${shortDate(draft.date)}: ${draft.what ?? "see notes"}`,
 		},
+		deliveryPhotos: nextDeliveryPhotos,
 		rejectedNote: `${draft.what ?? "Part of the delivery"} was rejected at delivery on ${shortDate(draft.date)} (${(draft.reason ?? "see notes").toLowerCase()}). ${STEP_NAMES[backTo]} and the steps after it are reopened.`,
 		steps: card.steps.map((s, i) =>
 			i < backTo

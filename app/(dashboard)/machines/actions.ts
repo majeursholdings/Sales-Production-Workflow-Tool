@@ -6,6 +6,8 @@ import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
 import { MAINTENANCE_TYPES, slugOf } from "@/lib/machines";
 import { isOwnerAppRole } from "@/lib/roles";
+import { isValidStorageUrl } from "@/lib/storage";
+import { removeStorageUrls } from "@/lib/storageServer";
 import { createClient } from "@/utils/supabase/server";
 
 const NO_ACCESS = "You don't have permission to change machines.";
@@ -18,6 +20,11 @@ async function machineEditor() {
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
 
+const machinePhotoUrl = z
+	.string()
+	.trim()
+	.refine((u) => !u || isValidStorageUrl(u, "machines"), "Invalid machine photo URL.");
+
 const detailsSchema = z.object({
 	name: z.string().trim().min(1, "Machine name is required"),
 	serialNumber: z.string().trim().min(1, "Serial number is required"),
@@ -26,6 +33,7 @@ const detailsSchema = z.object({
 	serviceEveryMonths: z.number().int().min(1).max(24),
 	hourlyCost: z.number().nonnegative(),
 	notes: z.string().trim().default(""),
+	photoUrl: machinePhotoUrl.default(""),
 });
 
 const updateSchema = detailsSchema.extend({
@@ -38,6 +46,14 @@ const maintenanceSchema = z.object({
 	doneBy: z.string().trim().min(1, "Say who did it"),
 	cost: z.number().nonnegative("Cost can't be below ₦0"),
 	notes: z.string().trim().default(""),
+	photos: z
+		.array(
+			z
+				.string()
+				.refine((u) => isValidStorageUrl(u, "machines"), "Invalid maintenance photo URL."),
+		)
+		.max(6)
+		.default([]),
 	nextService: isoDate.optional(),
 	backInService: z.boolean().optional(),
 });
@@ -74,6 +90,7 @@ export async function createMachineAction(
 		// Production doesn't see or set what machine time costs
 		hourly_cost: actor.roleKey === "production" ? 0 : d.hourlyCost,
 		notes: d.notes,
+		photo_url: d.photoUrl,
 		condition: "working",
 		next_service: dayjs().add(d.serviceEveryMonths, "month").format("YYYY-MM-DD"),
 		created_by: actor.id,
@@ -105,7 +122,7 @@ export async function updateMachineAction(
 	const supabase = await createClient();
 	const { data: before, error: readError } = await supabase
 		.from("machines")
-		.select("condition, next_service, hourly_cost")
+		.select("condition, next_service, hourly_cost, photo_url")
 		.eq("id", id)
 		.eq("is_archived", false)
 		.maybeSingle();
@@ -129,11 +146,16 @@ export async function updateMachineAction(
 			service_every_months: d.serviceEveryMonths,
 			...(actor.roleKey === "production" ? {} : { hourly_cost: d.hourlyCost }),
 			notes: d.notes,
+			photo_url: d.photoUrl,
 			condition: d.condition,
 			next_service: nextService,
 		})
 		.eq("id", id);
 	if (error) return fail(error.message);
+
+	if (before.photo_url && before.photo_url !== d.photoUrl) {
+		await removeStorageUrls(supabase, [before.photo_url as string], "machines");
+	}
 
 	const costChanged =
 		actor.roleKey !== "production" && Number(before.hourly_cost) !== d.hourlyCost;
@@ -212,6 +234,8 @@ export async function logMaintenanceAction(
 		logged_by: actor.name,
 		logged_by_id: actor.id,
 		cost: d.cost,
+		photo_urls: d.photos,
+		photo_count: d.photos.length,
 	});
 	if (error) return fail(error.message);
 
@@ -251,14 +275,39 @@ export async function updateMaintenanceAction(
 	const d = parsed.data;
 
 	const supabase = await createClient();
+	const { data: before, error: readError } = await supabase
+		.from("machine_maintenance")
+		.select("photo_urls")
+		.eq("id", recordId)
+		.eq("machine_id", machineId)
+		.maybeSingle();
+	if (readError) return fail(readError.message);
+	if (!before) return fail("That record no longer exists.");
+
 	const { data, error } = await supabase
 		.from("machine_maintenance")
-		.update({ done_on: d.date, type: d.type, notes: d.notes, done_by: d.doneBy, cost: d.cost })
+		.update({
+			done_on: d.date,
+			type: d.type,
+			notes: d.notes,
+			done_by: d.doneBy,
+			cost: d.cost,
+			photo_urls: d.photos,
+			photo_count: d.photos.length,
+		})
 		.eq("id", recordId)
 		.eq("machine_id", machineId)
 		.select("id");
 	if (error) return fail(error.message);
 	if (!data?.length) return fail("That record no longer exists.");
+
+	const beforePhotos = (before.photo_urls as string[] | null) ?? [];
+	const kept = new Set(d.photos);
+	await removeStorageUrls(
+		supabase,
+		beforePhotos.filter((url) => !kept.has(url)),
+		"machines",
+	);
 
 	revalidateMachines(machineId);
 	return { ok: true };
@@ -278,9 +327,11 @@ export async function deleteMaintenanceAction(
 		.delete()
 		.eq("id", recordId)
 		.eq("machine_id", machineId)
-		.select("type, done_on, cost");
+		.select("type, done_on, cost, photo_urls");
 	if (error) return fail(error.message);
 	if (!data?.length) return fail("That record no longer exists.");
+
+	await removeStorageUrls(supabase, (data[0].photo_urls as string[] | null) ?? [], "machines");
 
 	await supabase.from("audit_logs").insert({
 		actor_id: actor.id,

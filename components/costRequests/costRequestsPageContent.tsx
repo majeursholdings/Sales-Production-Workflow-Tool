@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
+	addCostRequestImagesAction,
 	approveCostRequestAction,
 	declineCostRequestAction,
 	postCostRequestMessageAction,
@@ -145,6 +146,22 @@ export default function CostRequestsPageContent({
 		});
 	};
 
+	const addImages = (images: { src: string; alt: string }[]) =>
+		new Promise<boolean>((resolve) => {
+			if (!current) return resolve(false);
+			startTransition(async () => {
+				const result = await addCostRequestImagesAction(current.id, images);
+				if (!result.ok) {
+					toast.error(result.message);
+					return resolve(false);
+				}
+				toast.success(
+					`Added ${images.length} reference ${images.length === 1 ? "photo" : "photos"}.`,
+				);
+				resolve(true);
+			});
+		});
+
 	return (
 		<>
 			<PageTitle {...costRequestsTitle} />
@@ -176,6 +193,7 @@ export default function CostRequestsPageContent({
 						onAsk={ask}
 						onDecline={decline}
 						onReopen={reopen}
+						onAddImages={addImages}
 					/>
 				) : (
 					<p className="flex-[999_1_640px] rounded-lg border border-line bg-surface p-10 text-center text-body text-fg-secondary">

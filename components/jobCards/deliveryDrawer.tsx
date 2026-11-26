@@ -2,6 +2,7 @@
 
 import dayjs from "dayjs";
 import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
@@ -14,6 +15,8 @@ import {
 	type DeliveryDraft,
 	type JobCard,
 } from "@/lib/jobCards";
+import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/storage";
+import { resolveUploadedPhotos } from "@/lib/storageClient";
 
 type Values = {
 	outcome: "accepted" | "rejected";
@@ -23,6 +26,7 @@ type Values = {
 	reason: string;
 	backTo: string;
 	notes: string;
+	photos: unknown;
 };
 
 /** Record how a delivery went: accepted (the card closes) or rejected (steps reopen). */
@@ -114,6 +118,18 @@ export default function DeliveryDrawer({
 			defaultValue: "",
 			rows: 3,
 		},
+		{
+			name: "photos",
+			type: "image",
+			label: "Photos (optional)",
+			description: rejected
+				? `Up to ${MAX_PHOTOS_PER_UPLOAD} photos of the issue found at delivery (10 MB each)`
+				: `Up to ${MAX_PHOTOS_PER_UPLOAD} signed delivery or installation photos (10 MB each)`,
+			multiple: true,
+			maxFiles: MAX_PHOTOS_PER_UPLOAD,
+			maxSizeMB: 10,
+			showPreview: true,
+		},
 	];
 
 	return (
@@ -128,25 +144,33 @@ export default function DeliveryDrawer({
 				rowPairs={[["date", "by"]]}
 				hideRequiredMarks
 				requireValidToSubmit={false}
-				onSubmit={(v) =>
-					onSave({
+				onSubmit={async (v) => {
+					const uploaded = await resolveUploadedPhotos("job-cards", v.photos);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					await onSave({
 						outcome: v.outcome,
 						date: dayjs(v.date).format("YYYY-MM-DD"),
 						by: v.by.trim(),
 						notes: v.notes?.trim() ?? "",
+						photos: uploaded.urls,
 						...(v.outcome === "rejected"
 							? { what: v.what.trim(), reason: v.reason, backTo: Number(v.backTo) }
 							: {}),
-					})
-				}
+					});
+				}}
 				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
-						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
-							Photo upload isn&apos;t connected yet.
-						</span>
+						<span className="flex-1" />
 						<Button onClick={onClose}>Cancel</Button>
 						<Button type="submit" variant="primary" disabled={isLoading}>
-							{rejected ? "Record rejection" : "Record delivery"}
+							{isLoading
+								? "Saving…"
+								: rejected
+									? "Record rejection"
+									: "Record delivery"}
 						</Button>
 					</div>
 				)}

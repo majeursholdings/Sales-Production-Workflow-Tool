@@ -12,17 +12,33 @@ const ICONS: Record<MachineIcon, LucideIcon> = {
 	edge: Ruler,
 };
 
-/** Stand-in for a machine's photo until photo upload is connected. */
+/** A machine's photo, or a stand-in icon when it has none. */
 export default function MachinePhoto({
 	icon,
+	src,
 	size = "sm",
 	label,
 }: {
 	icon: MachineIcon;
+	src?: string;
 	size?: "sm" | "lg";
 	/** Alt text for a photo that stands alone. Leave off beside the machine's name. */
 	label?: string;
 }) {
+	if (src) {
+		return (
+			// eslint-disable-next-line @next/next/no-img-element -- served from authenticated /api/storage route
+			<img
+				src={src}
+				alt={label ?? ""}
+				aria-hidden={label ? undefined : true}
+				className={cn(
+					"shrink-0 border border-line object-cover",
+					size === "lg" ? "aspect-4/3 w-full rounded-lg" : "size-11 rounded-md",
+				)}
+			/>
+		);
+	}
 	const Icon = ICONS[icon];
 	return (
 		<span

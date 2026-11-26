@@ -17,6 +17,7 @@ import {
 	type JobCard,
 } from "@/lib/jobCards";
 import { getCompanySettings } from "@/lib/data/companySettings";
+import { isValidStorageUrl } from "@/lib/storage";
 import { createClient } from "@/utils/supabase/server";
 
 const NO_ACCESS = "You don't have permission to change job cards.";
@@ -287,6 +288,13 @@ export async function logTimeAction(number: string, raw: TimeLog): Promise<Actio
 
 // ─── Redos ───────────────────────────────────────────────────────────────────
 
+const jobCardPhotos = z
+	.array(
+		z.string().refine((u) => isValidStorageUrl(u, "job-cards"), "Invalid job card photo URL."),
+	)
+	.max(6)
+	.default([]);
+
 const redoSchema = z.object({
 	step: z
 		.number()
@@ -302,6 +310,7 @@ const redoSchema = z.object({
 			"Pick the step it was found at",
 		),
 	date: isoDate,
+	photos: jobCardPhotos,
 });
 
 export type RedoRecord = z.input<typeof redoSchema>;
@@ -328,6 +337,7 @@ export async function recordRedoAction(number: string, raw: RedoRecord): Promise
 		hours: d.hours,
 		found_at: d.foundAt,
 		happened_on: d.date,
+		photo_urls: d.photos,
 		recorded_by: actor.id,
 	});
 	if (error) return fail(error.message);
@@ -355,12 +365,14 @@ const deliverySchema = z.discriminatedUnion("outcome", [
 		date: isoDate,
 		by: z.string().trim().min(1),
 		notes: z.string().trim().default(""),
+		photos: jobCardPhotos,
 	}),
 	z.object({
 		outcome: z.literal("rejected"),
 		date: isoDate,
 		by: z.string().trim().min(1),
 		notes: z.string().trim().default(""),
+		photos: jobCardPhotos,
 		what: z.string().trim().min(1, "Say what was rejected"),
 		reason: z.string().trim().min(1),
 		backTo: z
@@ -398,6 +410,7 @@ export async function recordDeliveryAction(
 			hours: event.hours,
 			found_at: event.foundAt,
 			happened_on: event.date,
+			photo_urls: d.photos,
 			recorded_by: actor.id,
 		});
 		if (error) return fail(error.message);
@@ -410,6 +423,7 @@ export async function recordDeliveryAction(
 			closed_on: after.closed ? d.date : null,
 			delivery_state: after.delivery.state,
 			delivery_note: after.delivery.note,
+			delivery_photo_urls: after.deliveryPhotos,
 			rejected_note: after.rejectedNote ?? null,
 		})
 		.eq("number", number);

@@ -11,7 +11,7 @@ import {
 import { createClient } from "@/utils/supabase/server";
 
 const MACHINE_COLUMNS =
-	"id, name, serial_number, location, bought, hourly_cost, service_every_months, notes, condition, next_service, machine_maintenance(id, done_on, type, notes, done_by, logged_by, cost, photo_count)";
+	"id, name, serial_number, location, bought, hourly_cost, service_every_months, notes, condition, next_service, photo_url, machine_maintenance(id, done_on, type, notes, done_by, logged_by, cost, photo_count, photo_urls)";
 
 type MachineRow = {
 	id: string;
@@ -24,6 +24,7 @@ type MachineRow = {
 	notes: string;
 	condition: MachineCondition;
 	next_service: string | null;
+	photo_url: string | null;
 	machine_maintenance: {
 		id: string;
 		done_on: string;
@@ -33,6 +34,7 @@ type MachineRow = {
 		logged_by: string;
 		cost: number | string;
 		photo_count: number;
+		photo_urls: string[] | null;
 	}[];
 };
 
@@ -118,16 +120,20 @@ async function loadUsage(machineId?: string): Promise<Map<string, Usage>> {
 	return usage;
 }
 
-const toRecord = (r: MachineRow["machine_maintenance"][number]): MaintenanceRecord => ({
-	id: r.id,
-	date: r.done_on,
-	type: r.type,
-	notes: r.notes,
-	doneBy: r.done_by,
-	loggedBy: r.logged_by,
-	cost: Number(r.cost),
-	photoCount: r.photo_count,
-});
+const toRecord = (r: MachineRow["machine_maintenance"][number]): MaintenanceRecord => {
+	const photos = r.photo_urls ?? [];
+	return {
+		id: r.id,
+		date: r.done_on,
+		type: r.type,
+		notes: r.notes,
+		doneBy: r.done_by,
+		loggedBy: r.logged_by,
+		cost: Number(r.cost),
+		photoCount: photos.length || r.photo_count,
+		photos,
+	};
+};
 
 function toMachine(row: MachineRow, usage: Usage | undefined): Machine {
 	return {
@@ -148,6 +154,7 @@ function toMachine(row: MachineRow, usage: Usage | undefined): Machine {
 			? { when: whenLabel(usage.last.date, usage.last.createdAt), job: usage.last.job }
 			: null,
 		icon: iconFor(row.name),
+		photoUrl: row.photo_url || undefined,
 		history: sortHistory(row.machine_maintenance.map(toRecord)),
 	};
 }

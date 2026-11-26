@@ -2,6 +2,7 @@
 
 import dayjs from "dayjs";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
@@ -15,6 +16,8 @@ import {
 	parseHours,
 	type JobCard,
 } from "@/lib/jobCards";
+import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/storage";
+import { resolveUploadedPhotos } from "@/lib/storageClient";
 
 type Values = {
 	step: string;
@@ -24,6 +27,7 @@ type Values = {
 	foundBy: string;
 	date: string;
 	notes: string;
+	photos: unknown;
 };
 
 export type RedoDraft = {
@@ -32,6 +36,7 @@ export type RedoDraft = {
 	reason: string;
 	hours: number;
 	date: string;
+	photos: string[];
 };
 
 /** Work found wrong in the workshop, before delivery. The step goes back to Redo. */
@@ -119,6 +124,16 @@ export default function RedoDrawer({
 			defaultValue: "",
 			rows: 3,
 		},
+		{
+			name: "photos",
+			type: "image",
+			label: "Photos (optional)",
+			description: `Up to ${MAX_PHOTOS_PER_UPLOAD} photos showing what needs to be redone (10 MB each)`,
+			multiple: true,
+			maxFiles: MAX_PHOTOS_PER_UPLOAD,
+			maxSizeMB: 10,
+			showPreview: true,
+		},
 	];
 
 	return (
@@ -142,23 +157,27 @@ export default function RedoDrawer({
 				]}
 				hideRequiredMarks
 				requireValidToSubmit={false}
-				onSubmit={(v) =>
-					onSave({
+				onSubmit={async (v) => {
+					const uploaded = await resolveUploadedPhotos("job-cards", v.photos);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					await onSave({
 						step: Number(v.step),
 						foundAt: v.foundAt,
 						reason: v.notes?.trim() ? `${v.reason}: ${v.notes.trim()}` : v.reason,
 						hours: parseHours(v.hours),
 						date: dayjs(v.date).format("YYYY-MM-DD"),
-					})
-				}
+						photos: uploaded.urls,
+					});
+				}}
 				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
-						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
-							Photo upload isn&apos;t connected yet.
-						</span>
+						<span className="flex-1" />
 						<Button onClick={onClose}>Cancel</Button>
 						<Button type="submit" variant="primary" disabled={isLoading}>
-							Record redo
+							{isLoading ? "Saving…" : "Record redo"}
 						</Button>
 					</div>
 				)}

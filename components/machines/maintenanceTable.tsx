@@ -35,10 +35,32 @@ export const maintenanceColumns = ({
 			<span className="flex flex-col items-start gap-1">
 				<Chip>{r.type}</Chip>
 				<span className="text-small text-fg-secondary">{r.notes}</span>
-				{r.photoCount > 0 && (
-					<span className="text-small text-fg-tertiary">
-						{r.photoCount} {r.photoCount === 1 ? "photo" : "photos"}
+				{r.photos.length > 0 ? (
+					<span className="mt-1 flex flex-wrap gap-1.5">
+						{r.photos.map((url, idx) => (
+							<a
+								key={url}
+								href={url}
+								target="_blank"
+								rel="noreferrer"
+								title={`Open photo ${idx + 1}`}
+								className="block overflow-hidden rounded-sm border border-line"
+							>
+								{/* eslint-disable-next-line @next/next/no-img-element -- served from authenticated /api/storage route */}
+								<img
+									src={url}
+									alt={`${r.type} photo ${idx + 1}`}
+									className="size-10 object-cover"
+								/>
+							</a>
+						))}
 					</span>
+				) : (
+					r.photoCount > 0 && (
+						<span className="text-small text-fg-tertiary">
+							{r.photoCount} {r.photoCount === 1 ? "photo" : "photos"}
+						</span>
+					)
 				)}
 			</span>
 		),

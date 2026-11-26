@@ -15,12 +15,12 @@ import {
 import { createClient } from "@/utils/supabase/server";
 
 const JOB_CARD_COLUMNS = `number, quote_number, client_name, items_summary, icon, due, address,
-	delivery_state, delivery_note, delivery_booked_for, note, rejected_note, closed,
+	delivery_state, delivery_note, delivery_booked_for, delivery_photo_urls, note, rejected_note, closed,
 	job_card_items(name, kind, spec, qty, sort_order),
 	job_card_parts(sku, qty, reserved, picked, parts(name, spec, unit)),
 	job_card_steps(step_index, status, planned_hours, job_card_step_machines(machine_id, hours, machines(name))),
 	job_card_time_entries(id, step_index, who, worked_on, hours, redo_note, created_at, job_card_time_entry_machines(machine_id, hours, machines(name))),
-	job_card_redos(id, step_index, reason, hours, found_at, happened_on, created_at)`;
+	job_card_redos(id, step_index, reason, hours, found_at, happened_on, photo_urls, created_at)`;
 
 type MachineHoursRow = {
 	machine_id: string;
@@ -39,6 +39,7 @@ type JobCardRow = {
 	delivery_state: DeliveryState;
 	delivery_note: string;
 	delivery_booked_for: string | null;
+	delivery_photo_urls: string[] | null;
 	note: string;
 	rejected_note: string | null;
 	closed: boolean;
@@ -79,6 +80,7 @@ type JobCardRow = {
 		hours: number | string;
 		found_at: string;
 		happened_on: string;
+		photo_urls: string[] | null;
 		created_at: string;
 	}[];
 };
@@ -157,6 +159,7 @@ function toJobCard(row: JobCardRow, onOrder: Set<string>): JobCard {
 					hours: Number(r.hours),
 					foundAt: r.found_at,
 					date: r.happened_on,
+					photos: r.photo_urls ?? [],
 				})),
 		};
 	});
@@ -198,6 +201,7 @@ function toJobCard(row: JobCardRow, onOrder: Set<string>): JobCard {
 				? `Waiting on ${listWords(short.map((p) => p.name.toLowerCase()))} from procurement before cutting can start.`
 				: undefined,
 		rejectedNote: row.rejected_note ?? undefined,
+		deliveryPhotos: row.delivery_photo_urls ?? [],
 		closed: row.closed,
 	};
 }

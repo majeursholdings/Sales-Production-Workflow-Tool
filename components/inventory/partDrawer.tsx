@@ -1,8 +1,9 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import { FormField } from "@/components/forms";
@@ -16,6 +17,7 @@ import {
 	type Part,
 	type PartCategory,
 } from "@/lib/inventory";
+import { uploadStorageFiles } from "@/lib/storageClient";
 import type { SupplierCatalog } from "@/lib/suppliers";
 import PartThumb from "./partThumb";
 
@@ -60,11 +62,12 @@ export default function PartDrawer({
 	/** SKUs already in use, so a new one is unique. */
 	takenSkus: Set<string>;
 	today: string;
-	onSave: (part: Part) => void;
+	onSave: (part: Part) => void | Promise<void>;
 	onArchive?: () => void;
 	onClose: () => void;
 }) {
 	const formId = useId();
+	const [submitting, setSubmitting] = useState(false);
 	const {
 		control,
 		register,
@@ -107,7 +110,7 @@ export default function PartDrawer({
 		/>
 	);
 
-	const submit = (v: Values) => {
+	const submit = async (v: Values) => {
 		const sku = part?.sku ?? (v.sku.trim().toUpperCase() || suggestedSku);
 		if (!part && takenSkus.has(sku)) {
 			setError("sku", { message: `${sku} is already used by another part` });
@@ -116,24 +119,37 @@ export default function PartDrawer({
 		const unitCost = Number(v.cost);
 		const costChanged = !part || part.unitCost !== unitCost;
 		const file = pickedPhoto(v.photo);
-		onSave({
-			id: sku,
-			sku,
-			name: v.name.trim(),
-			category: v.category,
-			unit: v.unit,
-			spec: v.spec.trim(),
-			unitCost,
-			costUpdatedOn: costChanged ? today : part.costUpdatedOn,
-			costUpdatedBy: costChanged ? "you" : part.costUpdatedBy,
-			inStock: Number(v.inStock),
-			reserved: part?.reserved ?? 0,
-			reorderLevel: Number(v.reorderLevel),
-			supplierId: v.supplierId,
-			notes: v.notes?.trim() ?? "",
-			// an object URL made here, on submit, stands in for the upload
-			photoUrl: file ? URL.createObjectURL(file) : part?.photoUrl,
-		});
+		setSubmitting(true);
+		try {
+			let photoUrl = part?.photoUrl;
+			if (file) {
+				const uploaded = await uploadStorageFiles("parts", [file]);
+				if (!uploaded.ok) {
+					toast.error(uploaded.message);
+					return;
+				}
+				photoUrl = uploaded.urls[0];
+			}
+			await onSave({
+				id: sku,
+				sku,
+				name: v.name.trim(),
+				category: v.category,
+				unit: v.unit,
+				spec: v.spec.trim(),
+				unitCost,
+				costUpdatedOn: costChanged ? today : part.costUpdatedOn,
+				costUpdatedBy: costChanged ? "you" : part.costUpdatedBy,
+				inStock: Number(v.inStock),
+				reserved: part?.reserved ?? 0,
+				reorderLevel: Number(v.reorderLevel),
+				supplierId: v.supplierId,
+				notes: v.notes?.trim() ?? "",
+				photoUrl,
+			});
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	const photoField: FormFieldConfig = {
@@ -172,9 +188,9 @@ export default function PartDrawer({
 						type="submit"
 						form={formId}
 						variant="primary"
-						disabled={!part && !hasNewPhoto}
+						disabled={submitting || (!part && !hasNewPhoto)}
 					>
-						{part ? "Save changes" : "Add part"}
+						{submitting ? "Saving…" : part ? "Save changes" : "Add part"}
 					</Button>
 				</>
 			}

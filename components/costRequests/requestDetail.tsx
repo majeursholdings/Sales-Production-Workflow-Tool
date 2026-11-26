@@ -1,15 +1,18 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Ban, Check, CircleAlert } from "lucide-react";
+import { Ban, Check, CircleAlert, Plus } from "lucide-react";
 import { useForm, type FieldValues, type UseFormReturn } from "react-hook-form";
+import { toast } from "sonner";
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/buttons";
 import { Avatar, Card } from "@/components/common/card";
 import { ConfirmDialog } from "@/components/common/modal";
 import { FormField } from "@/components/forms";
+import { IMAGE_ACCEPT } from "@/components/forms/fileRules";
 import type { FormFieldConfig } from "@/components/forms/types";
+import { cn } from "@/lib/cn";
 import {
 	DECLINE_REASONS,
 	REQUEST_STATUS,
@@ -23,6 +26,8 @@ import {
 	type DeclineReason,
 	type Review,
 } from "@/lib/costRequests";
+import { MAX_PHOTOS_PER_UPLOAD, MAX_PHOTO_BYTES, resolvePhotoType } from "@/lib/storage";
+import { uploadStorageFiles } from "@/lib/storageClient";
 import type { SupplierCatalog } from "@/lib/suppliers";
 import PartsTable, { type RenderField } from "./partsTable";
 import RequestPhoto from "./requestPhoto";
@@ -82,6 +87,7 @@ export default function RequestDetail({
 	onAsk,
 	onDecline,
 	onReopen,
+	onAddImages,
 }: {
 	request: CostRequest;
 	review: Review;
@@ -99,11 +105,15 @@ export default function RequestDetail({
 	/** Resolves true once the request is marked can't source. */
 	onDecline: (reason: DeclineReason, alternative: string) => Promise<boolean>;
 	onReopen: () => void;
+	onAddImages: (images: { src: string; alt: string }[]) => Promise<boolean>;
 }) {
 	const id = useId();
 	const quick = quickQuestions(review);
 	const [asking, setAsking] = useState(false);
 	const [declining, setDeclining] = useState(false);
+	const [activeImage, setActiveImage] = useState(0);
+	const [uploading, setUploading] = useState(false);
+	const photoInputRef = useRef<HTMLInputElement>(null);
 
 	const askForm = useForm<AskValues>({ mode: "onTouched", defaultValues: { question: "" } });
 	const declineForm = useForm<DeclineValues>({
@@ -117,7 +127,41 @@ export default function RequestDetail({
 	const status = statusOf(request);
 	const open = request.status === "open";
 	const by = firstName(request.requestedBy);
-	const image = request.images[0];
+	const safeIndex = Math.min(activeImage, Math.max(0, request.images.length - 1));
+	const image = request.images[safeIndex];
+
+	const uploadMorePhotos = async (files: FileList | null) => {
+		if (!files?.length) return;
+		const valid: File[] = [];
+		for (const file of Array.from(files).slice(0, MAX_PHOTOS_PER_UPLOAD)) {
+			if (file.size > MAX_PHOTO_BYTES) {
+				toast.error(`${file.name} is larger than 10 MB.`);
+				continue;
+			}
+			if (!resolvePhotoType(file)) {
+				toast.error(`${file.name} isn't a supported image.`);
+				continue;
+			}
+			valid.push(file);
+		}
+		if (valid.length === 0) return;
+		setUploading(true);
+		try {
+			const uploaded = await uploadStorageFiles("cost-requests", valid);
+			if (!uploaded.ok) {
+				toast.error(uploaded.message);
+				return;
+			}
+			await onAddImages(
+				uploaded.urls.map((src, i) => ({
+					src,
+					alt: valid[i]?.name.replace(/\.[^.]+$/, "") || `Reference photo`,
+				})),
+			);
+		} finally {
+			setUploading(false);
+		}
+	};
 
 	const downloadAll = () => {
 		for (const img of request.images) {
@@ -155,19 +199,68 @@ export default function RequestDetail({
 					{image && (
 						<RequestPhoto
 							image={image}
-							rows={review.rows}
+							rows={safeIndex === 0 ? review.rows : []}
 							focus={focus}
 							onFocus={onFocus}
 						/>
 					)}
-					<div className="flex flex-wrap items-baseline gap-2">
+					{request.images.length > 1 && (
+						<ul className="flex flex-wrap gap-2" aria-label="Reference photos">
+							{request.images.map((img, i) => (
+								<li key={img.src}>
+									<button
+										type="button"
+										onClick={() => setActiveImage(i)}
+										aria-current={i === safeIndex ? "true" : undefined}
+										className={cn(
+											"block cursor-pointer overflow-hidden rounded-md border-2",
+											i === safeIndex ? "border-accent" : "border-line",
+										)}
+									>
+										{/* eslint-disable-next-line @next/next/no-img-element -- served from authenticated /api/storage route */}
+										<img
+											src={img.src}
+											alt={img.alt || `Reference photo ${i + 1}`}
+											className="size-12 object-cover"
+										/>
+									</button>
+								</li>
+							))}
+						</ul>
+					)}
+					<div className="flex flex-wrap items-center gap-2">
 						<span className="flex-1 text-small text-fg-secondary">
 							{request.images.length} image{request.images.length === 1 ? "" : "s"}{" "}
 							from {by}
 						</span>
-						<Button variant="ghost" size="sm" onClick={downloadAll}>
-							Download all
-						</Button>
+						{open && (
+							<>
+								<input
+									ref={photoInputRef}
+									type="file"
+									accept={IMAGE_ACCEPT}
+									multiple
+									className="hidden"
+									onChange={(e) => {
+										uploadMorePhotos(e.target.files);
+										e.target.value = "";
+									}}
+								/>
+								<Button
+									size="sm"
+									disabled={pending || uploading}
+									onClick={() => photoInputRef.current?.click()}
+								>
+									<Plus />
+									{uploading ? "Uploading…" : "Add photos"}
+								</Button>
+							</>
+						)}
+						{request.images.length > 0 && (
+							<Button variant="ghost" size="sm" onClick={downloadAll}>
+								Download all
+							</Button>
+						)}
 					</div>
 					<dl className="grid grid-cols-2 gap-3 text-body">
 						<div>

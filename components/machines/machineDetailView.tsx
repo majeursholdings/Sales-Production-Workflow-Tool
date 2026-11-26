@@ -178,12 +178,15 @@ export default function MachineDetailView({
 					<Card>
 						<MachinePhoto
 							icon={machine.icon}
+							src={machine.photoUrl}
 							size="lg"
-							label={`Photo of the ${machine.name.toLowerCase()} (placeholder)`}
+							label={`Photo of the ${machine.name.toLowerCase()}`}
 						/>
-						<p className="text-small text-fg-tertiary">
-							Photo upload isn&apos;t connected yet, so an icon stands in for it.
-						</p>
+						{!machine.photoUrl && (
+							<p className="text-small text-fg-tertiary">
+								No photo yet. Add one from Edit details.
+							</p>
+						)}
 					</Card>
 					<Card aria-labelledby="machine-details-title">
 						<h2 id="machine-details-title">Details</h2>

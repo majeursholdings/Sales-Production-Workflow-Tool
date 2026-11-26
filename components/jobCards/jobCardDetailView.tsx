@@ -169,12 +169,19 @@ export default function JobCardDetailView({
 			recordDeliveryAction(
 				card.id,
 				draft.outcome === "accepted"
-					? { outcome: "accepted", date: draft.date, by: draft.by, notes: draft.notes }
+					? {
+							outcome: "accepted",
+							date: draft.date,
+							by: draft.by,
+							notes: draft.notes,
+							photos: draft.photos ?? [],
+						}
 					: {
 							outcome: "rejected",
 							date: draft.date,
 							by: draft.by,
 							notes: draft.notes,
+							photos: draft.photos ?? [],
 							what: draft.what ?? "",
 							reason: draft.reason ?? "Other",
 							backTo: draft.backTo ?? 0,
@@ -637,6 +644,27 @@ export default function JobCardDetailView({
 													{shortDate(r.date)} · found at{" "}
 													{r.foundAt.toLowerCase()}
 												</span>
+												{r.photos.length > 0 && (
+													<span className="mt-1.5 flex flex-wrap gap-1.5">
+														{r.photos.map((url, idx) => (
+															<a
+																key={url}
+																href={url}
+																target="_blank"
+																rel="noreferrer"
+																title={`Open redo photo ${idx + 1}`}
+																className="block overflow-hidden rounded-sm border border-line"
+															>
+																{/* eslint-disable-next-line @next/next/no-img-element -- served from authenticated /api/storage route */}
+																<img
+																	src={url}
+																	alt={`Redo photo ${idx + 1}`}
+																	className="size-10 object-cover"
+																/>
+															</a>
+														))}
+													</span>
+												)}
 											</span>
 											<span className="text-small font-bold whitespace-nowrap text-fg tabular">
 												+{fmtHours(r.hours)} est.
@@ -662,6 +690,32 @@ export default function JobCardDetailView({
 							<strong className="text-fg">Note from customer care:</strong>{" "}
 							{card.note || "None."}
 						</p>
+						{card.deliveryPhotos.length > 0 && (
+							<div className="flex flex-col gap-2 border-t border-line pt-3">
+								<span className="text-small font-bold text-fg">
+									Delivery photos ({card.deliveryPhotos.length})
+								</span>
+								<div className="flex flex-wrap gap-2">
+									{card.deliveryPhotos.map((url, idx) => (
+										<a
+											key={url}
+											href={url}
+											target="_blank"
+											rel="noreferrer"
+											title={`Open delivery photo ${idx + 1}`}
+											className="block overflow-hidden rounded-md border border-line"
+										>
+											{/* eslint-disable-next-line @next/next/no-img-element -- served from authenticated /api/storage route */}
+											<img
+												src={url}
+												alt={`Delivery photo ${idx + 1}`}
+												className="size-14 object-cover"
+											/>
+										</a>
+									))}
+								</div>
+							</div>
+						)}
 					</Card>
 				</aside>
 			</div>

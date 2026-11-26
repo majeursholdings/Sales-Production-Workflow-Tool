@@ -1,18 +1,25 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import Link from "next/link";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/common/badge";
 import { toast } from "sonner";
 import { Button, buttonClasses } from "@/components/common/buttons";
 import { Card, CardHeader, CardTitle } from "@/components/common/card";
 import { ConfirmDialog } from "@/components/common/modal";
+import { IMAGE_ACCEPT } from "@/components/forms/fileRules";
 import { Input, Select, Textarea } from "@/components/forms/input";
 import { IconButton, Table } from "@/components/tables";
 import { Menu, MenuItem } from "@/components/tables/menu";
 import { formatNaira } from "@/lib/currency";
+import {
+	MAX_PHOTOS_PER_UPLOAD,
+	MAX_PHOTO_BYTES,
+	resolvePhotoType,
+} from "@/lib/storage";
+import { uploadStorageFiles } from "@/lib/storageClient";
 import {
 	deleteFurnitureTypeAction,
 	saveFurnitureTypeAction,
@@ -94,10 +101,65 @@ export default function TypeEditor({
 	const { canEditDetails, canEditParts, showCost } = access;
 	// Edits stay local until saved; the saved template comes back from the server as `template`.
 	const [draft, setDraft] = useState<Draft>(() => startOf(template));
+	const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(() => new Map());
+	const pendingRef = useRef(pendingFiles);
+	const photoInputRef = useRef<HTMLInputElement>(null);
 	const [removing, setRemoving] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState(false);
 	const [drawer, setDrawer] = useState<"part" | "other" | "cover" | HoursKind | null>(null);
 	const [saving, startSaving] = useTransition();
+
+	useEffect(() => {
+		pendingRef.current = pendingFiles;
+	}, [pendingFiles]);
+
+	useEffect(
+		() => () => {
+			for (const url of pendingRef.current.keys()) URL.revokeObjectURL(url);
+		},
+		[],
+	);
+
+	const pickPhotos = (files: FileList | null) => {
+		if (!files?.length) return;
+		const remaining = MAX_PHOTOS_PER_UPLOAD - draft.photos.length;
+		if (remaining <= 0) {
+			toast.error(`You can attach up to ${MAX_PHOTOS_PER_UPLOAD} photos.`);
+			return;
+		}
+		const addedUrls: string[] = [];
+		const nextPending = new Map(pendingFiles);
+		for (const file of Array.from(files).slice(0, remaining)) {
+			if (file.size > MAX_PHOTO_BYTES) {
+				toast.error(`${file.name} is larger than 10 MB.`);
+				continue;
+			}
+			if (!resolvePhotoType(file)) {
+				toast.error(`${file.name} isn't a supported image.`);
+				continue;
+			}
+			const previewUrl = URL.createObjectURL(file);
+			addedUrls.push(previewUrl);
+			nextPending.set(previewUrl, file);
+		}
+		if (files.length > remaining) {
+			toast.info(`Kept the first ${remaining} photo${remaining === 1 ? "" : "s"} (max ${MAX_PHOTOS_PER_UPLOAD}).`);
+		}
+		if (addedUrls.length > 0) {
+			setPendingFiles(nextPending);
+			setDraft((d) => ({ ...d, photos: [...d.photos, ...addedUrls] }));
+		}
+	};
+
+	const removePhoto = (url: string) => {
+		if (pendingFiles.has(url)) {
+			URL.revokeObjectURL(url);
+			const next = new Map(pendingFiles);
+			next.delete(url);
+			setPendingFiles(next);
+		}
+		setDraft((d) => ({ ...d, photos: d.photos.filter((p) => p !== url) }));
+	};
 
 	const form = useForm<Details>({
 		defaultValues: {
@@ -132,6 +194,26 @@ export default function TypeEditor({
 		form.handleSubmit((values) =>
 			startSaving(async () => {
 				const label = values.name.trim() || type.name;
+				let finalPhotos = draft.photos;
+				const queuedEntries = draft.photos
+					.map((url, index) => ({ url, index, file: pendingFiles.get(url) }))
+					.filter((entry): entry is { url: string; index: number; file: File } => !!entry.file);
+
+				if (queuedEntries.length > 0) {
+					const uploaded = await uploadStorageFiles(
+						"furniture",
+						queuedEntries.map((e) => e.file),
+					);
+					if (!uploaded.ok) {
+						toast.error(uploaded.message);
+						return;
+					}
+					const replacements = new Map(
+						queuedEntries.map((entry, i) => [entry.url, uploaded.urls[i]]),
+					);
+					finalPhotos = draft.photos.map((url) => replacements.get(url) ?? url);
+				}
+
 				const result = await saveFurnitureTypeAction({
 					id: type.id,
 					name: label,
@@ -142,7 +224,7 @@ export default function TypeEditor({
 					standardSize: template.standardSize,
 					cratePieces: template.cratePieces,
 					status,
-					photos: draft.photos,
+					photos: finalPhotos,
 					parts: draft.parts,
 					labour: draft.labour.map(({ name, hours }) => ({ name, hours })),
 					machines: draft.machines.map(({ name, hours }) => ({ name, hours })),
@@ -152,6 +234,9 @@ export default function TypeEditor({
 					toast.error(result.message);
 					return;
 				}
+				for (const url of pendingFiles.keys()) URL.revokeObjectURL(url);
+				setPendingFiles(new Map());
+				setDraft((d) => ({ ...d, photos: finalPhotos }));
 				form.reset(values);
 				toast.success(
 					status === "published" && type.status === "draft"
@@ -166,6 +251,8 @@ export default function TypeEditor({
 		)();
 
 	const discard = () => {
+		for (const url of pendingFiles.keys()) URL.revokeObjectURL(url);
+		setPendingFiles(new Map());
 		setDraft(startOf(template));
 		form.reset();
 	};
@@ -208,7 +295,27 @@ export default function TypeEditor({
 						</span>
 						{canEditDetails && (
 							<div className="flex flex-wrap gap-2">
-								<Button size="sm" disabled title="Photo upload isn't connected yet">
+								<input
+									ref={photoInputRef}
+									type="file"
+									accept={IMAGE_ACCEPT}
+									multiple
+									className="hidden"
+									onChange={(e) => {
+										pickPhotos(e.target.files);
+										e.target.value = "";
+									}}
+								/>
+								<Button
+									size="sm"
+									disabled={saving || draft.photos.length >= MAX_PHOTOS_PER_UPLOAD}
+									title={
+										draft.photos.length >= MAX_PHOTOS_PER_UPLOAD
+											? `Maximum ${MAX_PHOTOS_PER_UPLOAD} photos`
+											: undefined
+									}
+									onClick={() => photoInputRef.current?.click()}
+								>
 									<Plus />
 									Add photos
 								</Button>
@@ -229,6 +336,37 @@ export default function TypeEditor({
 						)}
 					</div>
 				</div>
+
+				{draft.photos.length > 0 && (
+					<ul className="flex flex-wrap gap-2" aria-label="Furniture type photos">
+						{draft.photos.map((src, index) => (
+							<li key={src} className="relative">
+								<TypePhoto
+									category={categoryName}
+									src={src}
+									size="sm"
+									label={photoLabel(index)}
+								/>
+								{index === 0 && (
+									<span className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-md bg-inverse/75 text-center text-[10px] leading-tight text-fg-inverse">
+										Cover
+									</span>
+								)}
+								{canEditDetails && (
+									<button
+										type="button"
+										aria-label={`Remove ${photoLabel(index).toLowerCase()}`}
+										title="Remove photo"
+										onClick={() => removePhoto(src)}
+										className="absolute -top-1.5 -right-1.5 grid size-5 cursor-pointer place-items-center rounded-full border border-line bg-surface text-fg-secondary shadow-xs hover:bg-danger-subtle hover:text-danger-fg"
+									>
+										<X className="size-3" aria-hidden="true" />
+									</button>
+								)}
+							</li>
+						))}
+					</ul>
+				)}
 
 				{canEditDetails ? (
 					<>
