@@ -5,8 +5,9 @@ import { emptyDraft, type QuoteDraft } from "./quoteBuilder";
 
 /**
  * The quote being built, kept in memory so it carries across the three steps
- * (Client → Items & parts → Review & send). It lives until the page is reloaded.
- * TODO: save drafts through the backend so they survive a reload.
+ * (Client → Items & parts → Review & send). It lives until the page is reloaded;
+ * "Save draft" stores it as a draft quote in the database (see saveBuilderQuoteAction),
+ * and later saves update that quote.
  */
 let draft: QuoteDraft = emptyDraft();
 const listeners = new Set<() => void>();

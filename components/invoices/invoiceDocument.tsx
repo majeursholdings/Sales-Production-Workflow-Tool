@@ -1,22 +1,26 @@
 import Image from "next/image";
 import { Table } from "@/components/tables";
+import type { BankDetails } from "@/lib/companySettings";
 import { formatNaira } from "@/lib/currency";
-import { issuedLabel, type InvoiceDetail, type InvoicePayment } from "@/lib/invoices";
-import { VAT_RATE } from "@/lib/quotes";
+import { issuedLabel, type InvoiceDetail } from "@/lib/invoices";
 
 /** The invoice as the client sees it: letterhead, who it's for, the items, the totals and what's still due. */
 export default function InvoiceDocument({
 	detail,
-	payments,
 	balance,
+	bank,
+	footer,
 }: {
 	detail: InvoiceDetail;
-	payments: InvoicePayment[];
 	balance: number;
+	/** From Settings → Bank & terms. */
+	bank: BankDetails;
+	footer: string;
 }) {
-	const { invoice, billTo, lines } = detail;
-	const sub = lines.reduce((sum, l) => sum + l.qty * l.unit, 0);
-	const vat = sub * VAT_RATE;
+	const { invoice, billTo, lines, subtotal: sub, vatRate } = detail;
+	const { payments } = invoice;
+	// VAT is whatever takes the frozen subtotal to the frozen total, so the figures always add up
+	const vat = invoice.total - sub;
 
 	return (
 		<article
@@ -70,7 +74,21 @@ export default function InvoiceDocument({
 						Payment
 					</span>
 					<span className="text-small text-fg-secondary">
-						Bank transfer · [BANK DETAILS FROM ACCOUNTING SETTINGS]
+						{bank.ngnBank && bank.ngnAccountNumber ? (
+							<>
+								Bank transfer · {bank.ngnBank} · {bank.ngnAccountNumber}
+								{bank.ngnAccountName && ` · ${bank.ngnAccountName}`}
+								{bank.usdBank && bank.usdAccountNumber && (
+									<>
+										<br />
+										USD: {bank.usdBank} · {bank.usdAccountNumber}
+										{bank.swift && ` · SWIFT ${bank.swift}`}
+									</>
+								)}
+							</>
+						) : (
+							"Bank details aren't set yet. Add them in Settings → Bank & terms."
+						)}
 						<br />
 						Use the invoice number as the reference.
 					</span>
@@ -93,8 +111,8 @@ export default function InvoiceDocument({
 					</tr>
 				</thead>
 				<tbody>
-					{lines.map((l) => (
-						<tr key={`${l.name}-${l.desc}`}>
+					{lines.map((l, i) => (
+						<tr key={i}>
 							<td className="align-top">
 								<span className="flex flex-col">
 									<span className="font-bold text-fg">{l.name}</span>
@@ -116,14 +134,14 @@ export default function InvoiceDocument({
 			<div className="flex justify-end">
 				<dl className="flex w-85 max-w-full flex-col gap-2">
 					<Row label="Subtotal" value={formatNaira(sub)} />
-					<Row label={`VAT (${VAT_RATE * 100}%)`} value={formatNaira(vat)} />
+					<Row label={`VAT (${+(vatRate * 100).toFixed(2)}%)`} value={formatNaira(vat)} />
 					<div className="flex justify-between gap-3 border-t border-line pt-2 font-bold">
 						<dt>Total</dt>
 						<dd className="tabular">{formatNaira(invoice.total)}</dd>
 					</div>
 					{payments.map((p) => (
 						<Row
-							key={`${p.label}-${p.date}`}
+							key={p.id}
 							label={p.label}
 							value={`− ${formatNaira(p.amount)}`}
 							tone="paid"
@@ -137,8 +155,8 @@ export default function InvoiceDocument({
 			</div>
 
 			<footer className="border-t border-line pt-5 text-small text-fg-secondary">
-				The balance is due before delivery. Delivery is scheduled once production is
-				complete.
+				{footer ||
+					"The balance is due before delivery. Delivery is scheduled once production is complete."}
 			</footer>
 		</article>
 	);

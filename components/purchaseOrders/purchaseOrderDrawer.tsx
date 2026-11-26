@@ -1,5 +1,6 @@
 "use client";
 
+import { formatNaira } from "@/lib/currency";
 import { useId, useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -83,6 +84,7 @@ export default function PurchaseOrderDrawer({
 	supplier,
 	today,
 	canApprove,
+	approvalLimit,
 	onSend,
 	onApprove,
 	onRecordDelivery,
@@ -94,6 +96,7 @@ export default function PurchaseOrderDrawer({
 	today: string;
 	/** MD and GM can approve orders over the limit. */
 	canApprove: boolean;
+	approvalLimit: number;
 	onSend: () => void;
 	onApprove: () => void;
 	onRecordDelivery: (
@@ -248,8 +251,8 @@ export default function PurchaseOrderDrawer({
 					role="status"
 					className="rounded-md border border-warning-line bg-warning-subtle p-3 text-body text-fg"
 				>
-					<strong>Waiting for approval.</strong> Over ₦1,000,000, so {APPROVERS} must
-					approve before it&apos;s sent.
+					<strong>Waiting for approval.</strong> Over {formatNaira(approvalLimit)}, so{" "}
+					{APPROVERS} must approve before it&apos;s sent.
 					{po.approvalRequested && ` Requested ${po.approvalRequested}.`}
 				</p>
 			)}

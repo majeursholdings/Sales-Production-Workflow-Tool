@@ -57,9 +57,19 @@ export type Resolution =
 			supplierId: string;
 			leadDays: number;
 			addToInventory: boolean;
+			/** Inventory category and unit, when it's added to inventory. */
+			category?: string;
+			unit?: string;
 	  };
 
-export type RequestMessage = { by: string; text: string; at: string };
+export type RequestMessage = {
+	id: string;
+	by: string;
+	/** Author's user id; null when the account was removed. */
+	byId: string | null;
+	text: string;
+	at: string;
+};
 
 export type CostRequest = {
 	id: string;
@@ -71,6 +81,8 @@ export type CostRequest = {
 	client: string;
 	quote: string;
 	requestedBy: string;
+	/** Requester's user id; null when the account was removed. */
+	requestedById: string | null;
 	/** ISO date-time. */
 	requestedAt: string;
 	/** ISO date. */
@@ -87,8 +99,11 @@ export type CostRequest = {
 	/** Part id → how it was settled. */
 	resolutions: Record<string, Resolution>;
 	questions: RequestMessage[];
+	/** Why it can't be sourced, as shown, e.g. "no supplier can make it". */
 	declineReason: string | null;
 	alternative: string | null;
+	/** Approved with "also save as a new furniture type" ticked. */
+	saveAsType: boolean;
 	approvedBy: string | null;
 	/** Cost per piece when approved. */
 	approvedCost: number | null;
@@ -120,6 +135,15 @@ export const DECLINE_REASONS = [
 	},
 ] as const;
 
+export type DeclineReason = (typeof DECLINE_REASONS)[number]["value"];
+
+/** "no supplier can make it", or "can't be made by Mon, 9 Nov" for a deadline. */
+export function declineLabel(reason: string, neededBy: string) {
+	const r = DECLINE_REASONS.find((x) => x.value === reason);
+	if (!r) return reason;
+	return r.value === "deadline" ? `${r.short} ${neededLabel(neededBy)}` : r.short;
+}
+
 export const firstName = (name: string) => name.split(" ")[0];
 export const initials = (name: string) =>
 	name
@@ -146,7 +170,7 @@ export function ageLabel(iso: string, now: string) {
 export function statusOf(r: CostRequest): RequestStatus {
 	if (r.status !== "open") return r.status;
 	const last = r.questions.at(-1);
-	return last && last.by !== r.requestedBy ? "waiting" : "review";
+	return last && last.byId !== r.requestedById ? "waiting" : "review";
 }
 
 // ─── Review: what each part costs and what's still to settle ─────────────────
@@ -279,7 +303,7 @@ export function reviewOf(r: CostRequest, inventory: Inventory): Review {
 // ─── Form values ─────────────────────────────────────────────────────────────
 // Procurement's choices for flagged parts live in one react-hook-form form,
 // one set of fields per request and part: `<request>:<part>:fix` and, for a
-// one-off price, `:cost`, `:supplier`, `:lead` and `:addInv`.
+// one-off price, `:cost`, `:supplier`, `:lead`, `:addInv`, `:category` and `:unit`.
 
 export type FixValues = Record<string, string | boolean | undefined>;
 
@@ -300,6 +324,8 @@ export function fixDefaults(requests: CostRequest[], fallbackSupplierId: string)
 					],
 					[fixKey(r.id, p.id, "lead"), String(p.suggestion?.leadDays ?? 5)],
 					[fixKey(r.id, p.id, "addInv"), true],
+					[fixKey(r.id, p.id, "category"), ""],
+					[fixKey(r.id, p.id, "unit"), "piece"],
 				]),
 		),
 	);
@@ -319,262 +345,9 @@ export function resolutionsFrom(values: FixValues, r: CostRequest): Record<strin
 				supplierId: String(values[fixKey(r.id, p.id, "supplier")] ?? ""),
 				leadDays: Number(values[fixKey(r.id, p.id, "lead")]) || 0,
 				addToInventory: !!values[fixKey(r.id, p.id, "addInv")],
+				category: String(values[fixKey(r.id, p.id, "category")] ?? ""),
+				unit: String(values[fixKey(r.id, p.id, "unit")] ?? "piece"),
 			};
 	}
 	return out;
-}
-
-// ─── Sample data ─────────────────────────────────────────────────────────────
-// TODO: replace with the cost_requests table once the parts agent writes to
-// it. The requests are the design's sample (all illustrative), and the photos
-// are the design's mock-ups in public/samples. The page only reads requests
-// through getCostRequests, so swapping in real data is a one-file change.
-
-const base = {
-	status: "open" as const,
-	resolutions: {},
-	questions: [],
-	declineReason: null,
-	alternative: null,
-	approvedBy: null,
-	approvedCost: null,
-};
-
-const REQUESTS: CostRequest[] = [
-	{
-		...base,
-		id: "CR-0014",
-		title: "Curved channel-tufted sofa",
-		target: "New piece",
-		newPiece: true,
-		client: "Adaeze Okafor",
-		quote: "MAJ-QT-20261107-1432",
-		requestedBy: "Chiamaka Eze",
-		requestedAt: "2026-11-07T11:20:00",
-		neededBy: "2026-11-09",
-		size: "260 × 95 × 78 cm",
-		quantity: 1,
-		markupPercent: 35,
-		markupCategory: "Sofas",
-		notes: "Curved sofa like the photo, channel-tufted back, sitting on a brass base. Client wants oat bouclé.",
-		images: [
-			{
-				src: "/samples/cost-requests/curved-sofa.svg",
-				alt: "Client's photo: a curved sofa with a channel-tufted back in oat bouclé, on a brass base",
-			},
-		],
-		parts: [
-			{
-				id: "wal",
-				name: "Walnut hardwood",
-				sku: "TMB-WAL-24",
-				use: "Frame",
-				qty: 14,
-				unitCost: 18500,
-				confidence: 94,
-				kind: "stock",
-				pin: [20, 60],
-			},
-			{
-				id: "bcl",
-				name: "Bouclé fabric, oat",
-				sku: "UPH-BCL-OAT",
-				use: "Upholstery",
-				qty: 18,
-				unitCost: 9800,
-				confidence: 88,
-				kind: "stock",
-				pin: [50, 40],
-			},
-			{
-				id: "foam",
-				name: "High-density foam 40D",
-				sku: "UPH-FOAM-40",
-				use: "Seat and back",
-				qty: 4,
-				unitCost: 32000,
-				confidence: 90,
-				kind: "stock",
-				pin: [64, 62],
-			},
-			{
-				id: "spr",
-				name: "Pocket spring unit",
-				sku: "SEA-PKT-3S",
-				use: "Seat",
-				qty: 1,
-				unitCost: 45000,
-				confidence: 64,
-				kind: "stock",
-				pin: [36, 63],
-				doubt: "Springs aren't visible in the photo. The agent assumed them from the seat depth; it could be a foam-only seat.",
-			},
-			{
-				id: "base",
-				name: "Curved brass plinth base",
-				sku: null,
-				use: "Base",
-				qty: 1,
-				unitCost: 0,
-				confidence: 91,
-				kind: "missing",
-				pin: [50, 77.5],
-				askedToAdd: true,
-				suggestion: {
-					unitCost: 96000,
-					supplierId: "ladipo-hardware-traders",
-					leadDays: 12,
-				},
-				substitutes: [
-					{
-						id: "a",
-						name: "Brass inlay strip, 6 m",
-						sku: "HDW-INL-8MM",
-						qty: 6,
-						unitCost: 4500,
-						why: "Wrapped round a walnut plinth. Closest to the photo.",
-					},
-					{
-						id: "b",
-						name: "Tapered brass legs, 6",
-						sku: "HDW-LEG-BR6",
-						qty: 6,
-						unitCost: 6500,
-						why: "Legs instead of a solid base. Changes the look.",
-					},
-				],
-			},
-			{
-				id: "lab",
-				name: "Production labour",
-				sku: "LAB-WS",
-				use: "Workshop · estimated",
-				qty: 1,
-				unitCost: 150000,
-				confidence: 86,
-				kind: "stock",
-				note: "3-seater rate plus 25%",
-				pin: null,
-			},
-		],
-	},
-	{
-		...base,
-		id: "CR-0013",
-		title: "Engraved brass name plate",
-		target: "Addition to lounge chair × 12",
-		newPiece: false,
-		client: "Harbourview Suites",
-		quote: "MAJ-QT-20261104-1620",
-		requestedBy: "Emeka Obi",
-		requestedAt: "2026-11-06T14:05:00",
-		neededBy: "2026-11-10",
-		size: "20 × 6 cm",
-		quantity: 12,
-		markupPercent: 28,
-		markupCategory: "Chairs",
-		notes: "One per lounge chair, hotel logo supplied as vector.",
-		images: [
-			{
-				src: "/samples/cost-requests/brass-name-plate.svg",
-				alt: "Mock-up: the back of a lounge chair with an engraved brass name plate at the top",
-			},
-		],
-		parts: [
-			{
-				id: "plate",
-				name: "Engraved brass plate, 20 × 6 cm",
-				sku: null,
-				use: "Plate",
-				qty: 1,
-				unitCost: 0,
-				confidence: 93,
-				kind: "missing",
-				pin: [50, 30],
-				askedToAdd: true,
-				suggestion: { unitCost: 7000, supplierId: "ladipo-hardware-traders", leadDays: 8 },
-				substitutes: [],
-			},
-			{
-				id: "nail",
-				name: "Brass nailhead trim",
-				sku: "HDW-NAIL-BR",
-				use: "Fixings",
-				qty: 4,
-				unitCost: 450,
-				confidence: 88,
-				kind: "stock",
-				note: "410 available",
-				pin: [62, 33],
-			},
-			{
-				id: "lab",
-				name: "Production labour",
-				sku: "LAB-WS",
-				use: "Fitting · estimated",
-				qty: 1,
-				unitCost: 700,
-				confidence: 90,
-				kind: "stock",
-				note: "Workshop rate",
-				pin: null,
-			},
-		],
-	},
-	{
-		...base,
-		id: "CR-0011",
-		title: "Green marble table top",
-		target: "Addition to side table",
-		newPiece: false,
-		client: "Fatima Bello",
-		quote: "MAJ-QT-20261105-1300",
-		requestedBy: "Chiamaka Eze",
-		requestedAt: "2026-11-04T09:30:00",
-		neededBy: "2026-11-05",
-		size: "90 cm round, 2 cm",
-		quantity: 1,
-		markupPercent: 30,
-		markupCategory: "Tables",
-		notes: "Side table top swap from walnut to marble.",
-		images: [
-			{
-				src: "/samples/cost-requests/green-marble-top.svg",
-				alt: "Photo: a round green marble top on a walnut side table",
-			},
-		],
-		parts: [
-			{
-				id: "top",
-				name: "Green marble top, 90 cm round",
-				sku: null,
-				use: "Top",
-				qty: 1,
-				unitCost: 185000,
-				confidence: 96,
-				kind: "priced",
-				note: "Priced by procurement",
-				pin: [50, 36],
-			},
-			{
-				id: "lab",
-				name: "Production labour",
-				sku: "LAB-WS",
-				use: "Workshop · estimated",
-				qty: 1,
-				unitCost: 27000,
-				confidence: 88,
-				kind: "stock",
-				note: "Workshop rate",
-				pin: null,
-			},
-		],
-		status: "approved",
-		approvedBy: "Ifeanyi Nwosu",
-		approvedCost: 212000,
-	},
-];
-
-export async function getCostRequests(): Promise<CostRequest[]> {
-	return REQUESTS;
 }

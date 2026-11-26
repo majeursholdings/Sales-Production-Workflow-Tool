@@ -8,6 +8,7 @@ import {
 	ExportMenu,
 	IconLink,
 	StatusBadge,
+	TableState,
 	TableToolbar,
 	exportRows,
 	useTableRows,
@@ -114,6 +115,15 @@ export default function InvoicesTable({ invoices }: { invoices: InvoiceRow[] }) 
 			rows={rows}
 			pagination={pagination}
 			emptyMessage="No invoices match your search. Try a client, invoice or quote number."
+			emptyState={
+				invoices.length === 0 ? (
+					<TableState
+						kind="empty"
+						title="No invoices yet"
+						description="An invoice is created when Accounting records the deposit on a sent quote."
+					/>
+				) : undefined
+			}
 			toolbar={
 				<TableToolbar
 					search={{ placeholder: "Client, invoice or quote number" }}

@@ -11,6 +11,7 @@ export default function PurchaseOrdersPage({
 	today,
 	userName,
 	canApprove,
+	approvalLimit,
 }: {
 	orders: PurchaseOrder[];
 	inventory: Inventory;
@@ -18,6 +19,7 @@ export default function PurchaseOrdersPage({
 	today: string;
 	userName: string;
 	canApprove: boolean;
+	approvalLimit: number;
 }) {
 	return (
 		<PageWrapper>
@@ -28,6 +30,7 @@ export default function PurchaseOrdersPage({
 				today={today}
 				userName={userName}
 				canApprove={canApprove}
+				approvalLimit={approvalLimit}
 			/>
 		</PageWrapper>
 	);

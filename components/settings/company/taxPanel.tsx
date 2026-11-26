@@ -2,14 +2,13 @@
 
 import dayjs from "dayjs";
 import { useForm, useWatch } from "react-hook-form";
-import { toast } from "sonner";
 import MainForm from "@/components/forms";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { ROUNDING_OPTIONS, type CompanySettings, type DollarRate } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
+import { saveDollarRateAction, saveTaxAction } from "@/app/(dashboard)/(settings)/settings/actions";
 import { formatNaira } from "@/lib/currency";
 import { pct, percentOf, percentRule, wholeRule } from "./rules";
-import { RecentChanges, SaveRow, SettingsCard, lockFields } from "./settingsCard";
+import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
 type TaxValues = {
 	vat: string;
@@ -24,19 +23,22 @@ const naira = (n: number) => `₦${Math.round(n).toLocaleString("en-NG")}`;
 
 /** Tax & currency: VAT, deposit, quote validity, PO approval limit, and today's dollar rate. */
 export default function TaxPanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
+	canEditRate,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
+	/** Anyone who edits pricing rules (MD, GM, Accounting) sets the daily dollar rate. */
+	canEditRate: boolean;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const rateReadOnly = !canEditRate;
+	const taxSave = useSettingsSave();
+	const rateSave = useSettingsSave();
 	const { tax, dollar } = settings;
 
 	const taxForm = useForm<TaxValues>({
@@ -60,9 +62,13 @@ export default function TaxPanel({
 			: "Enter a percentage between 1 and 100.";
 
 	const rateSet = dayjs(dollar.setAt);
-	const setLabel = rateSet.isSame(dayjs(now), "day")
-		? `at ${rateSet.format("HH:mm")} today`
-		: `on ${rateSet.format("D MMM YYYY, HH:mm")}`;
+	const rateNote = !dollar.setAt
+		? "Not changed since setup."
+		: `Set by ${dollar.setBy || "someone no longer on the team"} ${
+				rateSet.isSame(dayjs(now), "day")
+					? `at ${rateSet.format("HH:mm")} today`
+					: `on ${rateSet.format("D MMM YYYY, HH:mm")}`
+			}.`;
 
 	const taxFields: FormFieldConfig[] = [
 		{
@@ -105,7 +111,7 @@ export default function TaxPanel({
 			type: "text",
 			label: "Today's rate (₦ per $1)",
 			inputMode: "decimal",
-			description: `Set by ${dollar.setBy} ${setLabel}.`,
+			description: rateNote,
 			validation: {
 				required: "Enter today's rate",
 				validate: (v: string) =>
@@ -134,61 +140,50 @@ export default function TaxPanel({
 					hideRequiredMarks
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
-						saveCompanySettings(
-							{
-								tax: {
-									vatPercent: percentOf(v.vat),
-									depositPercent: percentOf(v.deposit),
-									quoteValidityDays: Number(v.validity),
-									poApprovalLimit: Number(v.poLimit),
-								},
-							},
-							{
-								by: userName,
-								what: `Set VAT ${pct(percentOf(v.vat))}, deposit ${pct(percentOf(v.deposit))}, quotes valid ${v.validity} days, PO approval above ${naira(Number(v.poLimit))}`,
-							},
-						);
-						toast.success(
+						const next = {
+							vatPercent: percentOf(v.vat),
+							depositPercent: percentOf(v.deposit),
+							quoteValidityDays: Number(v.validity),
+							poApprovalLimit: Number(v.poLimit),
+						};
+						taxSave.save(
+							() => saveTaxAction(next),
 							"Saved. New quotes and purchase orders use this from now on.",
+							() =>
+								taxForm.reset({
+									vat: pct(next.vatPercent),
+									deposit: pct(next.depositPercent),
+									validity: String(next.quoteValidityDays),
+									poLimit: String(next.poApprovalLimit),
+								}),
 						);
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow />)}
+					renderFooter={() => (readOnly ? null : <SaveRow saving={taxSave.saving} />)}
 				/>
 			</SettingsCard>
 
 			<SettingsCard
-				readOnly={readOnly}
+				readOnly={rateReadOnly}
 				title="US dollar rate"
 				description="Quotes are built in naira. When a quote is sent in dollars, today's rate is locked onto it."
 			>
 				<MainForm<RateValues>
 					methods={rateForm}
-					fields={lockFields(rateFields, readOnly)}
+					fields={lockFields(rateFields, rateReadOnly)}
 					rowPairs={[["rate", "rounding"]]}
 					hideRequiredMarks
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
 						const rate = Number(v.rate.replace(/,/g, ""));
-						saveCompanySettings(
-							{
-								dollar: {
-									rate,
-									rounding: v.rounding,
-									setBy: userName,
-									setAt: new Date().toISOString(),
-								},
-							},
-							{
-								by: userName,
-								what: `Changed the dollar rate from ${formatNaira(dollar.rate)} to ${formatNaira(rate)}`,
-							},
-						);
-						rateForm.reset({ rate: rate.toFixed(2), rounding: v.rounding });
-						toast.success(
+						rateSave.save(
+							() => saveDollarRateAction({ rate, rounding: v.rounding }),
 							`Dollar rate set to ${formatNaira(rate)}. Quotes sent in USD from now lock it.`,
+							() => rateForm.reset({ rate: rate.toFixed(2), rounding: v.rounding }),
 						);
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow />)}
+					renderFooter={() =>
+						rateReadOnly ? null : <SaveRow saving={rateSave.saving} />
+					}
 				/>
 			</SettingsCard>
 

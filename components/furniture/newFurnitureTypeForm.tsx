@@ -1,27 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { saveFurnitureTypeAction } from "@/app/(dashboard)/furniture-types/actions";
 import { Button, LinkButton } from "@/components/common/buttons";
 import { Card, CardHeader, CardTitle } from "@/components/common/card";
-import { SegmentedControl } from "@/components/common/segmented-control";
-import { Input, Textarea } from "@/components/forms/input";
+import { Input, Select, Textarea } from "@/components/forms/input";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { IconButton, Table } from "@/components/tables";
 import { formatNaira } from "@/lib/currency";
 import {
-	CATEGORY_MARKUP,
-	FURNITURE_CATEGORIES,
 	costTemplate,
 	percent,
+	type CostingRates,
 	type FurnitureCategory,
+	type FurnitureTypeStatus,
 	type InventoryPart,
 	type TemplatePart,
 } from "@/lib/furnitureTypes";
+import AddCategoryDrawer from "./addCategoryDrawer";
 import QtyStepper from "./qtyStepper";
 import TypePhoto from "./typePhoto";
 
@@ -35,13 +37,25 @@ type Values = {
 };
 
 /** A new furniture type: basics, standard parts from inventory, and notes for production. */
-export default function NewFurnitureTypeForm({ inventory }: { inventory: InventoryPart[] }) {
-	// TODO: save through the backend once it exists; for now nothing is stored.
-	const [category, setCategory] = useState<FurnitureCategory>("Sofas");
+export default function NewFurnitureTypeForm({
+	categories,
+	inventory,
+	rates,
+	canAddCategory,
+}: {
+	categories: FurnitureCategory[];
+	inventory: InventoryPart[];
+	rates: CostingRates;
+	/** Pricing & margins editors can add a category here. */
+	canAddCategory: boolean;
+}) {
+	const router = useRouter();
+	const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
 	const [parts, setParts] = useState<TemplatePart[]>([]);
 	const [query, setQuery] = useState("");
 	const [searching, setSearching] = useState(false);
-	const [published, setPublished] = useState<string | null>(null);
+	const [addingCategory, setAddingCategory] = useState(false);
+	const [saving, startSaving] = useTransition();
 
 	const form = useForm<Values>({
 		defaultValues: {
@@ -54,9 +68,17 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 		},
 	});
 
-	const { markup, cap } = CATEGORY_MARKUP[category];
+	// A category added in the drawer arrives with the refreshed props
+	const category = categories.find((c) => c.id === categoryId) ?? categories[0];
+	const markup = category?.markup ?? 0;
+	const cap = category?.cap ?? 0;
 	const bySku = new Map(inventory.map((p) => [p.sku, p]));
-	const cost = costTemplate({ parts, labour: [], machines: [], extras: [] }, inventory, markup);
+	const cost = costTemplate(
+		{ parts, labour: [], machines: [], extras: [] },
+		inventory,
+		markup,
+		rates,
+	);
 
 	const needle = query.trim().toLowerCase();
 	const suggestions = inventory
@@ -70,18 +92,41 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 		setSearching(false);
 	};
 
-	const submit = (mode: "draft" | "publish") =>
+	const submit = (status: FurnitureTypeStatus) =>
 		form.handleSubmit((values) => {
-			const name = values.name.trim();
-			if (mode === "draft") {
-				setPublished(null);
-				toast.success("Draft saved. Only procurement and the MD/GM can see it.");
+			if (!category) {
+				toast.error("Pick a category first.");
 				return;
 			}
-			setPublished(name);
-			toast.success(
-				`${name} is published. Customer care and sales can add it to quotes now.`,
-			);
+			startSaving(async () => {
+				const name = values.name.trim();
+				const result = await saveFurnitureTypeAction({
+					id: null,
+					name,
+					categoryId: category.id,
+					description: values.description,
+					buildNotes: values.buildNotes,
+					leadTime: values.leadTime,
+					standardSize: values.standardSize,
+					cratePieces: Math.max(1, Math.round(Number(values.cratePieces) || 1)),
+					status,
+					photos: [],
+					parts,
+					labour: [],
+					machines: [],
+					extras: [],
+				});
+				if (!result.ok) {
+					toast.error(result.message);
+					return;
+				}
+				toast.success(
+					status === "draft"
+						? `${name} saved as a draft. Only template editors can see it.`
+						: `${name} is published. Customer care and sales can add it to quotes now.`,
+				);
+				router.push("/furniture-types");
+			});
 		});
 
 	const hasName = (useWatch({ control: form.control, name: "name" }) ?? "").trim().length > 0;
@@ -97,10 +142,12 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 				pageDescription="A template: its parts and quantities fill in when someone adds it to a quote. Customer care and sales can quote it once it's published."
 				actions={
 					<>
-						<Button onClick={submit("draft")}>Save draft</Button>
+						<Button disabled={saving || !category} onClick={submit("draft")}>
+							Save draft
+						</Button>
 						<Button
 							variant="primary"
-							disabled={parts.length === 0 || !hasName}
+							disabled={saving || !category || parts.length === 0 || !hasName}
 							title={
 								parts.length === 0
 									? "Add at least one part to publish"
@@ -108,26 +155,35 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 										? "Give the type a name to publish"
 										: undefined
 							}
-							onClick={submit("publish")}
+							onClick={submit("published")}
 						>
-							Publish type
+							{saving ? "Saving…" : "Publish type"}
 						</Button>
 					</>
 				}
 			/>
 
-			{published && (
+			{categories.length === 0 && (
 				<div
 					role="status"
-					className="flex flex-wrap items-center gap-3 rounded-md border border-success-line bg-success-subtle px-4 py-3 text-body text-fg"
+					className="flex flex-wrap items-center gap-3 rounded-md border border-warning-line bg-warning-subtle px-4 py-3 text-body text-fg"
 				>
 					<span className="min-w-0 flex-1">
-						<strong>{published}</strong> is published. Customer care and sales can add
-						it to quotes now.
+						Every furniture type belongs to a markup category, and there are none yet.{" "}
+						{canAddCategory
+							? "Add the first one to continue."
+							: "Ask the MD, GM or Accounting to add one in Pricing & margins."}
 					</span>
-					<LinkButton href="/furniture-types" size="sm">
-						View in Furniture types
-					</LinkButton>
+					{canAddCategory ? (
+						<Button size="sm" onClick={() => setAddingCategory(true)}>
+							<Plus />
+							Add category
+						</Button>
+					) : (
+						<LinkButton href="/furniture-types" size="sm">
+							Back to furniture types
+						</LinkButton>
+					)}
 				</div>
 			)}
 
@@ -149,20 +205,31 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 							/>
 						</div>
 
-						<div className="flex flex-col gap-2">
-							<span id="category-label" className="text-body font-bold">
-								Category
-							</span>
-							<SegmentedControl<FurnitureCategory>
+						<div className="flex flex-wrap items-end gap-3">
+							<Select
 								label="Category"
-								value={category}
-								onChange={setCategory}
-								options={FURNITURE_CATEGORIES.map((c) => ({ value: c, label: c }))}
-							/>
-							<small className="text-small text-fg-tertiary">
-								Sets the default markup ({percent(markup)}) and margin cap (
-								{percent(cap)}) from Pricing &amp; margins.
-							</small>
+								className="min-w-60 flex-1"
+								value={category?.id ?? ""}
+								onChange={(e) => setCategoryId(e.target.value)}
+								disabled={categories.length === 0}
+								hint={
+									category
+										? `Sets the default markup (${percent(markup)}) and margin cap (${percent(cap)}) from Pricing & margins.`
+										: "No categories yet."
+								}
+							>
+								{categories.map((c) => (
+									<option key={c.id} value={c.id}>
+										{c.name}
+									</option>
+								))}
+							</Select>
+							{canAddCategory && (
+								<Button className="mb-7" onClick={() => setAddingCategory(true)}>
+									<Plus />
+									New category
+								</Button>
+							)}
 						</div>
 
 						<Textarea
@@ -175,7 +242,7 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 							<span className="text-body font-bold">Photos</span>
 							<div className="flex flex-wrap items-center gap-3">
 								<TypePhoto
-									category={category}
+									category={category?.name ?? ""}
 									size="lg"
 									label="Placeholder cover photo"
 								/>
@@ -229,7 +296,9 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 								>
 									{suggestions.length === 0 && (
 										<p className="px-3 py-2 text-small text-fg-secondary">
-											No inventory parts match.
+											{inventory.length === 0
+												? "Inventory is empty."
+												: "No inventory parts match."}
 										</p>
 									)}
 									{suggestions.map((p) => (
@@ -244,7 +313,9 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 											<span className="flex min-w-0 flex-1 flex-col">
 												<strong>{p.name}</strong>
 												<span className="text-small text-fg-secondary">
-													{p.sku} · {p.spec} · {p.stock}
+													{[p.sku, p.spec, `${p.available} available`]
+														.filter(Boolean)
+														.join(" · ")}
 												</span>
 											</span>
 											<span className="text-small text-fg-secondary tabular">
@@ -391,7 +462,8 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 						</dl>
 						<p className="text-small text-fg-tertiary">
 							Labour, machine time and other costs are added on the type&apos;s page
-							once it&apos;s saved. Customer care can raise the markup on a quote up
+							once it&apos;s saved; contingency (
+							{percent(rates.contingency)}) is added there too. Customer care can raise the markup on a quote up
 							to the {percent(cap)} cap. Trade discounts apply on top.
 						</p>
 					</Card>
@@ -400,12 +472,23 @@ export default function NewFurnitureTypeForm({ inventory }: { inventory: Invento
 						<h2 id="who-title">Who can see it</h2>
 						<dl className="flex flex-col gap-2 text-body">
 							<Who label="Customer care, sales" value="Quote it, see costs" />
-							<Who label="Production" value="Parts and notes, no costs" />
-							<Who label="Accounting, MD/GM" value="Everything" />
+							<Who label="Production" value="Parts, hours and notes, no costs" />
+							<Who label="Accounting, procurement" value="Everything, view only" />
+							<Who label="MD/GM" value="Everything" />
 						</dl>
 					</Card>
 				</aside>
 			</div>
+
+			{addingCategory && (
+				<AddCategoryDrawer
+					onClose={() => setAddingCategory(false)}
+					onAdded={(added) => {
+						setCategoryId(added.id);
+						setAddingCategory(false);
+					}}
+				/>
+			)}
 		</PageWrapper>
 	);
 }

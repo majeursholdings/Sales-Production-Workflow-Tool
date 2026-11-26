@@ -148,7 +148,7 @@ export function toSupplierRows(catalog: SupplierCatalog): SupplierRow[] {
 		.sort((a, b) => b.rating - a.rating);
 }
 
-/** "Walnut hardwood: 2 suppliers. Preferred: Ogun Timber Co." under the toolbar while a material is picked. */
+/** "Walnut hardwood: 2 suppliers. Preferred: <supplier>." under the toolbar while a material is picked. */
 function MaterialNote({ catalog }: { catalog: SupplierCatalog }) {
 	const { getParam } = useTableParam(TABLE_ID);
 	const sku = getParam("material");

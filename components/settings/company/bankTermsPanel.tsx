@@ -1,14 +1,16 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
 import type { BankDetails, CompanySettings, DocumentTerms } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
+import {
+	saveBankDetailsAction,
+	saveDocumentTermsAction,
+} from "@/app/(dashboard)/(settings)/settings/actions";
 import { optionalAccountNumber } from "./rules";
-import { RecentChanges, SaveRow, SettingsCard, lockFields } from "./settingsCard";
+import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
 const bankFields: FormFieldConfig[] = [
 	{ name: "ngnBank", type: "text", label: "Naira account: bank", placeholder: "e.g. GTBank" },
@@ -67,19 +69,18 @@ const termsFields: FormFieldConfig[] = [
 
 /** Bank & terms: the accounts clients pay into and the terms printed on quotes and invoices. */
 export default function BankTermsPanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const bankSave = useSettingsSave();
+	const termsSave = useSettingsSave();
 	const bankForm = useForm<BankDetails>({ mode: "onTouched", defaultValues: settings.bank });
 	const termsForm = useForm<DocumentTerms>({ mode: "onTouched", defaultValues: settings.terms });
 
@@ -100,20 +101,21 @@ export default function BankTermsPanel({
 					hideRequiredMarks
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
-						saveCompanySettings(
-							{
-								bank: {
-									...v,
-									ngnAccountNumber: v.ngnAccountNumber.replace(/\s/g, ""),
-									usdAccountNumber: v.usdAccountNumber.replace(/\s/g, ""),
-									swift: v.swift.trim().toUpperCase(),
-								},
-							},
-							{ by: userName, what: "Updated bank details for payment" },
+						const next: BankDetails = {
+							ngnBank: v.ngnBank.trim(),
+							ngnAccountName: v.ngnAccountName.trim(),
+							ngnAccountNumber: v.ngnAccountNumber.replace(/\s/g, ""),
+							usdBank: v.usdBank.trim(),
+							usdAccountNumber: v.usdAccountNumber.replace(/\s/g, ""),
+							swift: v.swift.trim().toUpperCase(),
+						};
+						bankSave.save(
+							() => saveBankDetailsAction(next),
+							"Bank details saved. New quotes and invoices show them.",
+							() => bankForm.reset(next),
 						);
-						toast.success("Bank details saved. New quotes and invoices show them.");
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow />)}
+					renderFooter={() => (readOnly ? null : <SaveRow saving={bankSave.saving} />)}
 				/>
 			</SettingsCard>
 
@@ -124,18 +126,17 @@ export default function BankTermsPanel({
 					hideRequiredMarks
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
-						saveCompanySettings(
-							{
-								terms: {
-									quoteTerms: v.quoteTerms.trim(),
-									invoiceFooter: v.invoiceFooter.trim(),
-								},
-							},
-							{ by: userName, what: "Updated quote terms and invoice footer" },
+						const next: DocumentTerms = {
+							quoteTerms: v.quoteTerms.trim(),
+							invoiceFooter: v.invoiceFooter.trim(),
+						};
+						termsSave.save(
+							() => saveDocumentTermsAction(next),
+							"Terms saved. Quotes already sent keep the terms they had.",
+							() => termsForm.reset(next),
 						);
-						toast.success("Terms saved. Quotes already sent keep the terms they had.");
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow />)}
+					renderFooter={() => (readOnly ? null : <SaveRow saving={termsSave.saving} />)}
 				/>
 			</SettingsCard>
 

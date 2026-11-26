@@ -11,8 +11,8 @@ import {
 	type AgentRules,
 	type CompanySettings,
 } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
-import { RecentChanges, SaveRow, SettingsCard, lockFields } from "./settingsCard";
+import { saveAgentRulesAction } from "@/app/(dashboard)/(settings)/settings/actions";
+import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
 const checkboxLabel = (title: string, hint: string) => (
 	<span className="flex flex-col">
@@ -61,19 +61,17 @@ const fields: FormFieldConfig[] = [
 
 /** Custom design agent: when its parts list goes straight on the quote and when procurement checks it. */
 export default function AgentPanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const { saving, save } = useSettingsSave();
 	const form = useForm<AgentRules>({ defaultValues: settings.agent });
 	const rules = useWatch({ control: form.control }) as AgentRules;
 
@@ -96,25 +94,19 @@ export default function AgentPanel({
 					}
 					onSubmit={(v) => {
 						const next = { ...v, threshold: Number(v.threshold) };
-						saveCompanySettings(
-							{ agent: next },
-							{
-								by: userName,
-								what: next.directToQuote
-									? `Set the custom design agent to skip procurement at ${next.threshold}% sure`
-									: "Set every custom design to go to procurement first",
-							},
-						);
-						toast.success(
+						save(
+							() => saveAgentRulesAction(next),
 							next.directToQuote
 								? `Saved. New custom designs need the agent to be at least ${next.threshold}% sure of every part to skip procurement.`
 								: "Saved. Every new custom design goes to procurement first.",
+							() => form.reset(next),
 						);
 					}}
 					renderFooter={() =>
 						readOnly ? null : (
 							<SaveRow
 								label="Save rules"
+								saving={saving}
 								extra={
 									<Button
 										onClick={() => {

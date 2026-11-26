@@ -11,7 +11,7 @@ import type { AttentionItem } from "@/lib/dashboard";
 /** "Needs your attention": what's waiting on this person, each with the button that deals with it. */
 export default function AttentionCard({ items }: { items: AttentionItem[] }) {
 	const router = useRouter();
-	// TODO: record follow-ups on the quote once there's a backend; for now it only marks the row here.
+	// Marks the row as followed up for this visit; the message itself goes out through the menu.
 	const [followed, setFollowed] = useState<string[]>([]);
 
 	return (
@@ -20,6 +20,11 @@ export default function AttentionCard({ items }: { items: AttentionItem[] }) {
 				<h2 className="flex-1">Needs your attention</h2>
 				<span className="text-small text-fg-tertiary">{items.length} items</span>
 			</div>
+			{items.length === 0 && (
+				<p className="text-body text-fg-secondary">
+					Nothing needs your attention right now.
+				</p>
+			)}
 			<ul className="flex flex-col">
 				{items.map((item) => {
 					const done = followed.includes(item.id);

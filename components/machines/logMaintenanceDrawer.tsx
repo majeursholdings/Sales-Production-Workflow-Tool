@@ -51,7 +51,7 @@ export default function LogMaintenanceDrawer({
 	record?: MaintenanceRecord;
 	today: string;
 	userName: string;
-	onSave: (draft: MaintenanceDraft) => void;
+	onSave: (draft: MaintenanceDraft) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const editing = !!record;
@@ -159,13 +159,13 @@ export default function LogMaintenanceDrawer({
 								}),
 					})
 				}
-				renderFooter={() => (
+				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
 						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
 							Photo upload isn&apos;t connected yet.
 						</span>
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary">
+						<Button type="submit" variant="primary" disabled={isLoading}>
 							{editing ? "Save changes" : "Save to history"}
 						</Button>
 					</div>

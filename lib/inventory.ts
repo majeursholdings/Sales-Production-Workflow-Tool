@@ -160,9 +160,6 @@ export type OrderGroup = {
 	lines: OrderLine[];
 };
 
-/** Orders over this need MD or GM approval. */
-export const PO_APPROVAL_LIMIT = 1_000_000;
-
 /**
  * Parts short for job cards or at/below their reorder level, grouped by
  * main supplier: one draft order per supplier.

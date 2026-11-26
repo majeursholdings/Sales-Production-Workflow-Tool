@@ -7,7 +7,7 @@ import { Drawer } from "@/components/common/drawer";
 import { FormField } from "@/components/forms";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { DataTable, type ColumnDef } from "@/components/tables";
-import { PO_APPROVAL_LIMIT, costLabel, type OrderGroup, type OrderLine } from "@/lib/inventory";
+import { costLabel, type OrderGroup, type OrderLine } from "@/lib/inventory";
 import { plural } from "@/lib/suppliers";
 import PartThumb from "./partThumb";
 
@@ -25,10 +25,13 @@ const wholeNumber = (v: unknown) => {
 /** Suggested draft orders, one per supplier: untick a supplier or change quantities, then create the drafts. */
 export default function RaiseOrdersDrawer({
 	groups,
+	approvalLimit,
 	onCreate,
 	onClose,
 }: {
 	groups: OrderGroup[];
+	/** Orders over this go to the MD or GM first. */
+	approvalLimit: number;
 	/** The ticked groups with the quantities as set. */
 	onCreate: (groups: OrderGroup[]) => void;
 	onClose: () => void;
@@ -53,7 +56,7 @@ export default function RaiseOrdersDrawer({
 			lines: g.lines.map((l) => ({ ...l, qty: qtyOf(l.sku) })).filter((l) => l.qty > 0),
 		}))
 		.filter((g) => g.lines.length > 0);
-	const overLimit = picked.filter((g) => totalOf(g) > PO_APPROVAL_LIMIT);
+	const overLimit = picked.filter((g) => totalOf(g) > approvalLimit);
 
 	const field = (config: FormFieldConfig) => (
 		<FormField
@@ -202,7 +205,7 @@ export default function RaiseOrdersDrawer({
 
 				<p className="text-small text-fg-secondary">
 					Quantities include the reorder level. Change them here or on each draft before
-					sending. Orders over {costLabel(PO_APPROVAL_LIMIT)} need MD or GM approval.
+					sending. Orders over {costLabel(approvalLimit)} need MD or GM approval.
 				</p>
 				{overLimit.length > 0 && (
 					<p
@@ -210,8 +213,8 @@ export default function RaiseOrdersDrawer({
 						className="rounded-md border border-warning-line bg-warning-subtle p-3 text-small text-fg"
 					>
 						{overLimit.map((g) => g.supplier).join(" and ")}{" "}
-						{overLimit.length === 1 ? "is" : "are"} over {costLabel(PO_APPROVAL_LIMIT)}{" "}
-						and will go to MD or GM for approval.
+						{overLimit.length === 1 ? "is" : "are"} over {costLabel(approvalLimit)} and
+						will go to MD or GM for approval.
 					</p>
 				)}
 			</form>

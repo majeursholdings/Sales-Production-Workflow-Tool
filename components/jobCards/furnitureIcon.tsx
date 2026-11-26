@@ -1,4 +1,14 @@
-import { Armchair, Briefcase, Coffee, Sofa, UtensilsCrossed, type LucideIcon } from "lucide-react";
+import {
+	Armchair,
+	Archive,
+	BedDouble,
+	Briefcase,
+	Coffee,
+	Package,
+	Sofa,
+	UtensilsCrossed,
+	type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FurnitureKind } from "@/lib/jobCards";
 
@@ -9,6 +19,9 @@ const ICONS: Record<FurnitureKind, LucideIcon> = {
 	dining: UtensilsCrossed,
 	dchair: Armchair,
 	desk: Briefcase,
+	bed: BedDouble,
+	storage: Archive,
+	other: Package,
 };
 
 /** Stand-in for a furniture photo until photo upload is connected. */

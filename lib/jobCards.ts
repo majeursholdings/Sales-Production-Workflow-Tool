@@ -44,7 +44,11 @@ export const REJECTION_REASONS = [
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type MachineUse = { machine: string; hours: number };
+/** Hours on one machine. `machine` is its name, for showing. */
+export type MachineUse = { machineId: string; machine: string; hours: number };
+
+/** Someone in the Production team who can log time. */
+export type WorkshopPerson = { id: string; name: string };
 
 export type TimeEntry = {
 	id: string;
@@ -76,12 +80,27 @@ export type JobStep = {
 	redos: RedoEvent[];
 };
 
-export type FurnitureKind = "sofa" | "coffee" | "lounge" | "dining" | "dchair" | "desk";
+export type FurnitureKind =
+	"sofa" | "coffee" | "lounge" | "dining" | "dchair" | "desk" | "bed" | "storage" | "other";
+
+/** The icon an item gets from its name, e.g. "3-seater sofa" → sofa. */
+export function kindOf(name: string): FurnitureKind {
+	const n = name.toLowerCase();
+	if (/sofa|couch|sectional|settee/.test(n)) return "sofa";
+	if (/coffee|side table|console/.test(n)) return "coffee";
+	if (/dining chair|chair.*dining/.test(n)) return "dchair";
+	if (/dining|table/.test(n)) return "dining";
+	if (/lounge|armchair|chair|stool|ottoman/.test(n)) return "lounge";
+	if (/desk|reception|office/.test(n)) return "desk";
+	if (/bed|headboard/.test(n)) return "bed";
+	if (/wardrobe|cabinet|shelf|shelves|dresser|drawer|sideboard|tv/.test(n)) return "storage";
+	return "other";
+}
 
 export type BuildItem = { name: string; kind: FurnitureKind; spec: string; qty: number };
 
 export type PartStatus = "Picked" | "Reserved" | "Short" | "On order";
-export type Part = { name: string; spec: string; qty: string; status: PartStatus };
+export type Part = { sku: string; name: string; spec: string; qty: string; status: PartStatus };
 
 export const PART_TONE: Record<PartStatus, BadgeVariant> = {
 	Picked: "success",
@@ -100,7 +119,7 @@ export const DELIVERY_STATE: Record<DeliveryState, { label: string; tone: BadgeV
 };
 
 export type JobCard = {
-	/** The job card number, e.g. JC-20261117-0034. It is also what the URL uses. */
+	/** The job card number, e.g. JC-YYYYMMDD-0001. It is also what the URL uses. */
 	id: string;
 	client: string;
 	/** The quote it was created from, once its deposit was recorded. */
@@ -111,7 +130,7 @@ export type JobCard = {
 	/** ISO date. */
 	due: string;
 	address: string;
-	delivery: { state: DeliveryState; note: string };
+	delivery: { state: DeliveryState; note: string; bookedFor?: string };
 	/** From customer care. */
 	note: string;
 	build: BuildItem[];
@@ -140,25 +159,29 @@ export type StepFigures = {
 	actual: number;
 	redoHours: number;
 	machineActual: number;
-	machineUses: { machine: string; planned: number; actual: number }[];
+	machineUses: { machineId: string; machine: string; planned: number; actual: number }[];
 	machinePlanned: number;
 };
 
 export function stepFigures(step: JobStep): StepFigures {
-	const actualBy = new Map<string, number>();
+	const actualBy = new Map<string, { machine: string; hours: number }>();
 	for (const e of step.entries)
 		for (const m of e.machines)
-			actualBy.set(m.machine, (actualBy.get(m.machine) ?? 0) + m.hours);
+			actualBy.set(m.machineId, {
+				machine: m.machine,
+				hours: (actualBy.get(m.machineId)?.hours ?? 0) + m.hours,
+			});
 
 	const planned = step.plannedMachines.map((m) => ({
+		machineId: m.machineId,
 		machine: m.machine,
 		planned: m.hours,
-		actual: actualBy.get(m.machine) ?? 0,
+		actual: actualBy.get(m.machineId)?.hours ?? 0,
 	}));
 	// Machines used but not planned still show, with nothing planned
-	for (const [machine, actual] of actualBy)
-		if (!planned.some((p) => p.machine === machine))
-			planned.push({ machine, planned: 0, actual });
+	for (const [machineId, used] of actualBy)
+		if (!planned.some((p) => p.machineId === machineId))
+			planned.push({ machineId, machine: used.machine, planned: 0, actual: used.hours });
 
 	return {
 		actual: sum(step.entries.map((e) => e.hours)),
@@ -312,7 +335,8 @@ export function buildJobCardOverview(card: JobCard, today: string): OverviewItem
 }
 
 // ─── Changes ─────────────────────────────────────────────────────────────────
-// Each returns the updated card; nothing is saved until there's a backend.
+// Each returns the updated card. The server actions apply them to the saved
+// card to work out the new step statuses, so the rules live in one place.
 
 const newId = () => crypto.randomUUID();
 
@@ -419,341 +443,28 @@ export function recordDelivery(card: JobCard, draft: DeliveryDraft): JobCard {
 	};
 }
 
-// ─── Sample data ─────────────────────────────────────────────────────────────
-// TODO: replace with real job cards once there's a backend. The sample cards
-// from the design (all illustrative). The pages only read job cards through
-// getJobCards / getJobCard, so swapping in real data is a one-file change.
+// ─── Creating a job card ─────────────────────────────────────────────────────
 
-/** Everyone who can log time. TODO: read from the staff list. */
-export const WORKSHOP_PEOPLE = [
-	"Babatunde Afolabi",
-	"Emeka Nwachukwu",
-	"Yusuf Garba",
-	"Blessing Okoro",
-	"Kunle Adeyemi",
-	"Samuel Etim",
-	"Ibrahim Musa",
-	"Daniel Obi",
-	"Peter Udo",
-	"Tobi Adekunle",
-] as const;
+/** A quote with its deposit paid and no job card yet, to start one from. */
+export type QuoteOption = {
+	id: string;
+	number: string;
+	clientId: string | null;
+	client: string;
+	/** The client's location, as a starting delivery address. */
+	address: string;
+	items: { name: string; spec: string; qty: number }[];
+};
 
-const mu = (machine: string, hours: number): MachineUse => ({ machine, hours });
+/** A part in stock, for the picking list. */
+export type PartOption = { sku: string; name: string; unit: string; available: number };
 
-const entry = (
-	who: string,
-	date: string,
-	hours: number,
-	machines: MachineUse[] = [],
-	redoNote?: string,
-): TimeEntry => ({
-	id: `${who}-${date}-${hours}`.replace(/\s+/g, "-").toLowerCase(),
-	who,
-	date,
-	hours,
-	machines,
-	redoNote,
-});
-
-const redo = (reason: string, hours: number, foundAt: string, date: string): RedoEvent => ({
-	id: `${date}-${foundAt}`.replace(/\s+/g, "-").toLowerCase(),
-	reason,
-	hours,
-	foundAt,
-	date,
-});
-
-const step = (
-	status: StepStatus,
-	plannedHours: number,
-	entries: TimeEntry[] = [],
-	plannedMachines: MachineUse[] = [],
-	redos: RedoEvent[] = [],
-): JobStep => ({ status, plannedHours, plannedMachines, entries, redos });
-
-const SEWING = "Industrial sewing machine";
-const STAPLE = "Compressor and staple guns";
-
-const JOB_CARDS: JobCard[] = [
-	{
-		id: "JC-20261117-0034",
-		client: "Adaeze Okafor",
-		quote: "MAJ-QT-20261107-1432",
-		items: "3-seater sofa, coffee table",
-		icon: "sofa",
-		due: "2026-12-01",
-		address: "14 Admiralty Way, Lekki Phase 1, Lagos",
-		delivery: { state: "booked", note: "Booked for 30 Nov" },
-		note: "Bouclé from one dye lot only. Client is home after 3pm.",
-		closed: false,
-		build: [
-			{
-				name: "3-seater sofa",
-				kind: "sofa",
-				spec: "Walnut frame, oat bouclé, pocket-spring seat, tapered brass legs",
-				qty: 1,
-			},
-			{
-				name: "Coffee table",
-				kind: "coffee",
-				spec: "Walnut slab top 120 × 60 cm, brass inlay, hardwax oil",
-				qty: 1,
-			},
-		],
-		parts: [
-			{ name: "Walnut hardwood", spec: '2" × 4", kiln-dried', qty: "14", status: "Picked" },
-			{ name: "Walnut slab", spec: "120 × 60 × 4 cm", qty: "1", status: "Picked" },
-			{ name: "High-density foam 40D", spec: '6" sheet', qty: "3", status: "Picked" },
-			{ name: "Bouclé fabric, oat", spec: "Per yard", qty: "14 yd", status: "Picked" },
-			{ name: "Pocket spring unit", spec: "3-seat set", qty: "1", status: "Picked" },
-			{ name: "Tapered brass legs", spec: '6", set screw', qty: "4", status: "Reserved" },
-			{ name: "Brass inlay strip", spec: "8 mm", qty: "4 m", status: "Picked" },
-		],
-		steps: [
-			step(
-				"done",
-				13,
-				[
-					entry("Babatunde Afolabi", "2026-11-10", 6, [
-						mu("Table saw", 3),
-						mu("Planer and thicknesser", 2),
-					]),
-					entry("Emeka Nwachukwu", "2026-11-10", 4.5, [
-						mu("Table saw", 2),
-						mu("CNC router", 1),
-					]),
-					entry("Daniel Obi", "2026-11-11", 3),
-				],
-				[mu("Table saw", 5), mu("Planer and thicknesser", 3), mu("CNC router", 1)],
-			),
-			step(
-				"done",
-				15,
-				[
-					entry("Babatunde Afolabi", "2026-11-12", 7),
-					entry("Yusuf Garba", "2026-11-12", 5),
-					entry("Daniel Obi", "2026-11-13", 3),
-					entry(
-						"Yusuf Garba",
-						"2026-11-14",
-						3,
-						[],
-						"Left arm frame loose at the back rail; re-glued and clamped",
-					),
-				],
-				[],
-				[
-					redo(
-						"Joint or frame loose: left arm at the back rail. Found when upholstery started.",
-						3,
-						"Upholstery",
-						"2026-11-14",
-					),
-				],
-			),
-			step(
-				"active",
-				18,
-				[
-					entry("Blessing Okoro", "2026-11-15", 5, [mu(SEWING, 3), mu(STAPLE, 2)]),
-					entry("Kunle Adeyemi", "2026-11-18", 4, [mu(STAPLE, 1.5)]),
-				],
-				[mu(SEWING, 6), mu(STAPLE, 4)],
-			),
-			step("todo", 6),
-			step("todo", 1),
-			step("todo", 2),
-		],
-	},
-	{
-		id: "JC-20261105-0029",
-		client: "Harbourview Suites",
-		quote: "MAJ-QT-20261104-1620",
-		items: "Lounge chairs × 12",
-		icon: "lounge",
-		due: "2026-11-21",
-		address: "Harbourview Suites, Victoria Island, Lagos",
-		delivery: { state: "rejected", note: "Rejected 14 Nov: 2 of 12" },
-		note: "Engraved name plate on each chair back. Deliver through the service entrance.",
-		closed: false,
-		rejectedNote:
-			"2 of 12 chairs were rejected at delivery on 14 Nov (bouclé snagged in transit). Upholstery and the steps after it are reopened for those 2 chairs.",
-		build: [
-			{
-				name: "Lounge chair",
-				kind: "lounge",
-				spec: "Walnut frame, oat bouclé, tapered brass legs, engraved brass plate",
-				qty: 12,
-			},
-		],
-		parts: [
-			{ name: "Walnut hardwood", spec: '2" × 4", kiln-dried', qty: "84", status: "Picked" },
-			{ name: "High-density foam 40D", spec: '6" sheet', qty: "12", status: "Picked" },
-			{ name: "Bouclé fabric, oat", spec: "Per yard", qty: "66 yd", status: "Picked" },
-			{ name: "Tapered brass legs", spec: '6", set screw', qty: "48", status: "Picked" },
-		],
-		steps: [
-			step(
-				"done",
-				36,
-				[
-					entry("Babatunde Afolabi", "2026-11-06", 18, [
-						mu("Table saw", 8),
-						mu("Band saw", 4),
-					]),
-					entry("Emeka Nwachukwu", "2026-11-06", 16, [mu("Table saw", 6)]),
-				],
-				[mu("Table saw", 14), mu("Band saw", 4)],
-			),
-			step("done", 48, [
-				entry("Yusuf Garba", "2026-11-08", 26),
-				entry("Emeka Nwachukwu", "2026-11-08", 24),
-			]),
-			step(
-				"redo",
-				60,
-				[
-					entry("Blessing Okoro", "2026-11-11", 30, [mu(SEWING, 14), mu(STAPLE, 8)]),
-					entry("Kunle Adeyemi", "2026-11-12", 28, [mu(SEWING, 10), mu(STAPLE, 8)]),
-					entry(
-						"Kunle Adeyemi",
-						"2026-11-18",
-						4,
-						[mu(SEWING, 2)],
-						"Re-covering seat of chair 7",
-					),
-				],
-				[mu(SEWING, 24), mu(STAPLE, 16)],
-				[
-					redo(
-						"Delivery rejected: bouclé snagged on 2 chairs in transit. Re-cover seats.",
-						8,
-						"Delivery",
-						"2026-11-14",
-					),
-				],
-			),
-			step("redo", 12, [entry("Samuel Etim", "2026-11-13", 12)]),
-			step("redo", 3, [entry("Tobi Adekunle", "2026-11-13", 3)]),
-			step(
-				"redo",
-				4,
-				[entry("Musa Bello", "2026-11-14", 4)],
-				[],
-				[
-					redo(
-						"Delivery rejected: 2 of 12 chairs. Client signed for 10.",
-						4,
-						"Delivery",
-						"2026-11-14",
-					),
-				],
-			),
-		],
-	},
-	{
-		id: "JC-20261107-0031",
-		client: "Tunde Bakare",
-		quote: "MAJ-QT-20261106-1015",
-		items: "Dining table, 6 chairs",
-		icon: "dining",
-		due: "2026-11-28",
-		address: "7 Isaac John Street, GRA Ikeja, Lagos",
-		delivery: { state: "not_booked", note: "Not booked" },
-		note: "Chairs’ woven cord in natural, not black. Delivery after 4pm on weekdays.",
-		closed: false,
-		blockedNote:
-			"Waiting on walnut slab and paper cord from procurement before cutting can start.",
-		build: [
-			{
-				name: "Dining table, seats 8",
-				kind: "dining",
-				spec: "Solid walnut, 220 × 100 cm, hardwax oil",
-				qty: 1,
-			},
-			{
-				name: "Dining chair",
-				kind: "dchair",
-				spec: "Walnut frame, woven paper cord seat (natural)",
-				qty: 6,
-			},
-		],
-		parts: [
-			{ name: "Walnut slab", spec: "220 × 100 × 4 cm", qty: "1", status: "Short" },
-			{ name: "Walnut hardwood", spec: '2" × 4", kiln-dried', qty: "32", status: "Reserved" },
-			{ name: "Woven paper cord", spec: "Natural, per metre", qty: "36 m", status: "Short" },
-			{ name: "Hardwax oil finish", spec: "1 L tin", qty: "4", status: "Reserved" },
-		],
-		steps: [
-			step(
-				"blocked",
-				30,
-				[],
-				[mu("Table saw", 8), mu("Planer and thicknesser", 4), mu("Band saw", 6)],
-			),
-			step("todo", 34),
-			step("todo", 30),
-			step("todo", 10, [], [mu("Spray booth", 2)]),
-			step("todo", 2),
-			step("todo", 3),
-		],
-	},
-	{
-		id: "JC-20261030-0027",
-		client: "Moyo & Okeke Interiors",
-		quote: "MAJ-QT-20261021-0940",
-		items: "Reception desk",
-		icon: "desk",
-		due: "2026-11-12",
-		address: "22 Bourdillon Road, Ikoyi, Lagos",
-		delivery: { state: "delivered", note: "Collected 11 Nov" },
-		note: "Trade client; their installer collected from the workshop.",
-		closed: true,
-		build: [
-			{
-				name: "Reception desk",
-				kind: "desk",
-				spec: "Walnut veneer, 240 cm curved front, brass kick plate",
-				qty: 1,
-			},
-		],
-		parts: [
-			{ name: "Walnut veneer board", spec: "2440 × 1220 mm", qty: "6", status: "Picked" },
-		],
-		steps: [
-			step(
-				"done",
-				8,
-				[entry("Babatunde Afolabi", "2026-11-01", 8, [mu("CNC router", 3)])],
-				[mu("CNC router", 3)],
-			),
-			step(
-				"done",
-				14,
-				[entry("Yusuf Garba", "2026-11-03", 15, [mu("Edge bander", 2)])],
-				[mu("Edge bander", 2)],
-			),
-			step("done", 0),
-			step(
-				"done",
-				8,
-				[entry("Samuel Etim", "2026-11-06", 9, [mu("Spray booth", 3)])],
-				[mu("Spray booth", 2)],
-			),
-			step("done", 1, [entry("Tobi Adekunle", "2026-11-07", 1)]),
-			step("done", 2, [entry("Musa Bello", "2026-11-11", 1)]),
-		],
-	},
-];
-
-export async function getJobCards(): Promise<JobCard[]> {
-	return JOB_CARDS;
+/** "3-seater sofa, coffee table", or "Lounge chairs × 12" for one item. */
+export function itemsSummary(items: { name: string; qty: number }[]) {
+	return items
+		.map((item, i) => {
+			const name = i === 0 ? item.name : item.name.toLowerCase();
+			return item.qty > 1 ? `${name} × ${item.qty}` : name;
+		})
+		.join(", ");
 }
-
-/** One job card by its URL id, or null when there isn't one (so the page can 404). */
-export async function getJobCard(id: string): Promise<JobCard | null> {
-	return JOB_CARDS.find((c) => c.id === id) ?? null;
-}
-
-/** Ids with a sample record, so the detail route can be prerendered. */
-export const sampleJobCardIds = JOB_CARDS.map((c) => c.id);

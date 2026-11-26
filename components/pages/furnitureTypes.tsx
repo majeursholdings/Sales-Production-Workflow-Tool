@@ -1,17 +1,10 @@
 import FurnitureTypesView from "@/components/furniture/furnitureTypesView";
 import PageWrapper from "@/components/layout/pageWrapper";
-import type {
-	FurnitureAccess,
-	FurnitureCategory,
-	FurnitureTemplate,
-	FurnitureTypeSummary,
-	InventoryPart,
-} from "@/lib/furnitureTypes";
+import type { FurnitureAccess, FurnitureCatalog, OtherCostOption } from "@/lib/furnitureTypes";
 
 export default function FurnitureTypesPage(props: {
-	groups: { category: FurnitureCategory; types: FurnitureTypeSummary[] }[];
-	templates: Record<string, FurnitureTemplate>;
-	inventory: InventoryPart[];
+	catalog: FurnitureCatalog;
+	otherCosts: OtherCostOption[];
 	access: FurnitureAccess;
 }) {
 	return (

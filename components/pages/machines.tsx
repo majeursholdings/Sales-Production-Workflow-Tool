@@ -13,7 +13,7 @@ export default function MachinesPage({
 }) {
 	return (
 		<PageWrapper>
-			<MachinesPageContent initialMachines={machines} today={today} seesCost={seesCost} />
+			<MachinesPageContent machines={machines} today={today} seesCost={seesCost} />
 		</PageWrapper>
 	);
 }

@@ -8,6 +8,7 @@ import {
 	ExportMenu,
 	IconLink,
 	StatusBadge,
+	TableState,
 	TableToolbar,
 	exportRows,
 	useTableRows,
@@ -147,7 +148,15 @@ const PHASES: { value: JobPhase; label: string }[] = [
 	{ value: "delivered", label: "Delivered" },
 ];
 
-export default function JobCardsTable({ cards, today }: { cards: JobCard[]; today: string }) {
+export default function JobCardsTable({
+	cards,
+	today,
+	canCreate,
+}: {
+	cards: JobCard[];
+	today: string;
+	canCreate: boolean;
+}) {
 	const data = cards.map((c) => toRow(c, today));
 	const { rows, pagination } = useTableRows({
 		tableId: "job-cards",
@@ -183,6 +192,19 @@ export default function JobCardsTable({ cards, today }: { cards: JobCard[]; toda
 			rows={rows}
 			pagination={pagination}
 			emptyMessage="No job cards match your search. Try a different client, item or job card number."
+			emptyState={
+				data.length === 0 ? (
+					<TableState
+						kind="empty"
+						title="No job cards yet"
+						description={
+							canCreate
+								? "Start one with New job card once a quote's deposit is paid."
+								: "Job cards show up here once a quote's deposit is paid and production starts it."
+						}
+					/>
+				) : undefined
+			}
 			toolbar={
 				<TableToolbar
 					search={{ placeholder: "Job card, client or item" }}

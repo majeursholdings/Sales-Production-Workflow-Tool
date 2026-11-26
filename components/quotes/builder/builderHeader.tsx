@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 import PageTitle from "@/components/layout/pageTitle";
 import { cn } from "@/lib/cn";
-import { DRAFT_NUMBER, DRAFT_VALID_UNTIL } from "@/lib/quoteBuilder";
+import type { QuoteHeader } from "@/lib/quoteBuilder";
 
 const STEPS = [
 	{ label: "Client", href: "/quotes/new" },
@@ -15,12 +15,18 @@ const STEPS = [
 export default function BuilderHeader({
 	step,
 	createdBy,
+	header,
+	saved = false,
 	actions,
 	sent = false,
 }: {
 	/** 1, 2 or 3. */
 	step: 1 | 2 | 3;
 	createdBy: string;
+	/** The saved quote's number and dates, or the next free number before the first save. */
+	header: QuoteHeader;
+	/** Whether the quote has been saved (otherwise the number is a preview). */
+	saved?: boolean;
 	actions?: ReactNode;
 	sent?: boolean;
 }) {
@@ -30,7 +36,7 @@ export default function BuilderHeader({
 				breadcrumbs={[{ label: "Quotes", href: "/quotes" }, { label: "New quote" }]}
 				pageTitle="New quote"
 				badge={sent ? { label: "Sent", variant: "info" } : { label: "Draft" }}
-				pageDescription={`${DRAFT_NUMBER} · Created by ${createdBy} · Valid until ${DRAFT_VALID_UNTIL}`}
+				pageDescription={`${saved ? header.number : `Will be ${header.number}`} · Created by ${createdBy} · Valid until ${header.validUntil}`}
 				actions={actions}
 			/>
 			<ol

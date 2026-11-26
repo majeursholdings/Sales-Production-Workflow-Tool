@@ -1,11 +1,13 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, useTransition, type ReactNode } from "react";
 import dayjs from "dayjs";
+import { toast } from "sonner";
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/buttons";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { Avatar, Card } from "@/components/common/card";
+import type { ActionResult } from "@/lib/actionResult";
 import type { SettingsChange } from "@/lib/companySettings";
 import { initials } from "@/lib/costRequests";
 
@@ -64,6 +66,29 @@ export function SaveRow({
 	);
 }
 
+/**
+ * Runs a settings save action: `saving` while it's in flight, then a success
+ * toast (and `after`, e.g. resetting the form to the saved values) or the error.
+ */
+export function useSettingsSave() {
+	const [saving, startTransition] = useTransition();
+	const save = <T,>(
+		action: () => Promise<ActionResult<T>>,
+		success: string,
+		after?: (result: ActionResult<T> & { ok: true }) => void,
+	) =>
+		startTransition(async () => {
+			const res = await action();
+			if (res.ok) {
+				toast.success(success);
+				after?.(res);
+			} else {
+				toast.error(res.message);
+			}
+		});
+	return { saving, save };
+}
+
 /** Who changed which company setting, newest first. */
 export function RecentChanges({ changes, now }: { changes: SettingsChange[]; now: string }) {
 	const when = (iso: string) => {
@@ -74,19 +99,23 @@ export function RecentChanges({ changes, now }: { changes: SettingsChange[]; now
 	};
 	return (
 		<SettingsCard title="Recent changes">
-			<ul className="flex flex-col gap-3">
-				{changes.slice(0, 5).map((c) => (
-					<li key={`${c.at}-${c.what}`} className="flex items-start gap-3 text-body">
-						<Avatar initials={initials(c.by)} />
-						<span className="flex-1">
-							{c.what}
-							<span className="block text-small text-fg-tertiary">
-								{c.by} · {when(c.at)}
+			{changes.length === 0 ? (
+				<p className="text-body text-fg-secondary">No changes yet.</p>
+			) : (
+				<ul className="flex flex-col gap-3">
+					{changes.slice(0, 5).map((c) => (
+						<li key={`${c.at}-${c.what}`} className="flex items-start gap-3 text-body">
+							<Avatar initials={initials(c.by)} />
+							<span className="flex-1">
+								{c.what}
+								<span className="block text-small text-fg-tertiary">
+									{c.by} · {when(c.at)}
+								</span>
 							</span>
-						</span>
-					</li>
-				))}
-			</ul>
+						</li>
+					))}
+				</ul>
+			)}
 		</SettingsCard>
 	);
 }

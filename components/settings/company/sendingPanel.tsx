@@ -2,7 +2,6 @@
 
 import { useForm } from "react-hook-form";
 import type { RegisterOptions } from "react-hook-form";
-import { toast } from "sonner";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
@@ -12,8 +11,8 @@ import {
 	type CompanySettings,
 	type SendingSettings,
 } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
-import { RecentChanges, SaveRow, SettingsCard, lockFields } from "./settingsCard";
+import { saveSendingAction } from "@/app/(dashboard)/(settings)/settings/actions";
+import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
 const placeholderList = MESSAGE_PLACEHOLDERS.map((p) => `{${p}}`).join(", ");
 
@@ -67,19 +66,17 @@ const fields: FormFieldConfig[] = [
 
 /** Email & WhatsApp: who quotes and invoices come from, and the messages sent with them. */
 export default function SendingPanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const { saving, save } = useSettingsSave();
 	const form = useForm<SendingSettings>({ mode: "onTouched", defaultValues: settings.sending });
 
 	return (
@@ -92,23 +89,20 @@ export default function SendingPanel({
 					hideRequiredMarks
 					requireValidToSubmit={false}
 					onSubmit={(v) => {
-						saveCompanySettings(
-							{
-								sending: {
-									...v,
-									fromEmail: v.fromEmail.trim(),
-									senderName: v.senderName.trim(),
-									quoteEmail: v.quoteEmail.trim(),
-									whatsappMessage: v.whatsappMessage.trim(),
-								},
-							},
-							{ by: userName, what: "Updated the quote email and WhatsApp messages" },
-						);
-						toast.success(
+						const next: SendingSettings = {
+							fromEmail: v.fromEmail.trim(),
+							senderName: v.senderName.trim(),
+							quoteEmail: v.quoteEmail.trim(),
+							whatsappMessage: v.whatsappMessage.trim(),
+							ccAccountingOnInvoices: v.ccAccountingOnInvoices,
+						};
+						save(
+							() => saveSendingAction(next),
 							"Saved. Quotes and invoices sent from now use these messages.",
+							() => form.reset(next),
 						);
 					}}
-					renderFooter={() => (readOnly ? null : <SaveRow />)}
+					renderFooter={() => (readOnly ? null : <SaveRow saving={saving} />)}
 				/>
 			</SettingsCard>
 

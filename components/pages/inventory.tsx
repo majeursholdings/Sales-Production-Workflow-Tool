@@ -10,12 +10,14 @@ export default function InventoryPage({
 	catalog,
 	today,
 	userName,
+	approvalLimit,
 }: {
 	inventory: Inventory;
 	orders: PurchaseOrder[];
 	catalog: SupplierCatalog;
 	today: string;
 	userName: string;
+	approvalLimit: number;
 }) {
 	return (
 		<PageWrapper>
@@ -25,6 +27,7 @@ export default function InventoryPage({
 				catalog={catalog}
 				today={today}
 				userName={userName}
+				approvalLimit={approvalLimit}
 			/>
 		</PageWrapper>
 	);

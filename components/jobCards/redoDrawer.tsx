@@ -51,7 +51,7 @@ export default function RedoDrawer({
 	current: number | null;
 	userName: string;
 	today: string;
-	onSave: (draft: RedoDraft) => void;
+	onSave: (draft: RedoDraft) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const methods = useForm<Values>({ mode: "onTouched" });
@@ -151,13 +151,13 @@ export default function RedoDrawer({
 						date: dayjs(v.date).format("YYYY-MM-DD"),
 					})
 				}
-				renderFooter={() => (
+				renderFooter={({ isLoading }) => (
 					<div className="flex flex-wrap items-center gap-3">
 						<span className="min-w-0 flex-1 text-small text-fg-tertiary">
 							Photo upload isn&apos;t connected yet.
 						</span>
 						<Button onClick={onClose}>Cancel</Button>
-						<Button type="submit" variant="primary">
+						<Button type="submit" variant="primary" disabled={isLoading}>
 							Record redo
 						</Button>
 					</div>

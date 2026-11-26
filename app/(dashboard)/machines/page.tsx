@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import MachinesPageView from "@/components/pages/machines";
-import { getMachines } from "@/lib/machines";
+import { getMachines } from "@/lib/data/machines";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function MachinesPage() {

@@ -42,7 +42,7 @@ export default function StepDrawer({
 	step: number;
 	canEdit: boolean;
 	onLog: () => void;
-	onSendBack: (draft: SendBackDraft) => void;
+	onSendBack: (draft: SendBackDraft) => void | Promise<void>;
 	onClose: () => void;
 }) {
 	const [sendingBack, setSendingBack] = useState(false);
@@ -185,7 +185,7 @@ export default function StepDrawer({
 					<ul className="flex flex-col">
 						{f.machineUses.map((m) => (
 							<li
-								key={m.machine}
+								key={m.machineId}
 								className="flex items-center gap-3 border-t border-line py-3 first:border-t-0"
 							>
 								<span className="min-w-0 flex-1 font-bold text-fg">
@@ -222,10 +222,10 @@ export default function StepDrawer({
 								hours: parseHours(v.hours),
 							})
 						}
-						renderFooter={() => (
+						renderFooter={({ isLoading }) => (
 							<div className="flex flex-wrap justify-end gap-3">
 								<Button onClick={() => setSendingBack(false)}>Cancel</Button>
-								<Button type="submit" variant="primary">
+								<Button type="submit" variant="primary" disabled={isLoading}>
 									Confirm send back
 								</Button>
 							</div>

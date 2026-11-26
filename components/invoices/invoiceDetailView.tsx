@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { Download, Send } from "lucide-react";
@@ -11,14 +10,17 @@ import { Button } from "@/components/common/buttons";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { formatNaira } from "@/lib/currency";
+import { recordInvoicePaymentAction } from "@/app/(dashboard)/invoices/actions";
 import {
 	INVOICE_STATUS,
+	balanceOf,
 	issuedLabel,
+	statusOf,
 	type InvoiceDetail,
-	type InvoicePayment,
 } from "@/lib/invoices";
+import type { BankDetails } from "@/lib/companySettings";
 import InvoiceDocument from "./invoiceDocument";
-import RecordPaymentForm from "./recordPaymentForm";
+import RecordPaymentForm, { type PaymentInput } from "./recordPaymentForm";
 
 const initialsOf = (name: string) =>
 	name
@@ -32,38 +34,34 @@ export default function InvoiceDetailView({
 	detail,
 	others,
 	canRecordPayment,
-	recordedBy,
+	today,
+	bank,
+	footer,
 }: {
 	detail: InvoiceDetail;
 	/** The other invoices, for the "Other invoices" list. */
 	others: { id: string; client: string; status: "part" | "paid" }[];
 	canRecordPayment: boolean;
-	/** Name shown against a payment recorded in this session. */
-	recordedBy: string;
+	/** YYYY-MM-DD, the latest date a payment can be recorded for. */
+	today: string;
+	bank: BankDetails;
+	footer: string;
 }) {
 	const { invoice, billTo } = detail;
-	// TODO: record through the backend once it exists; for now it only changes this page.
-	const [recorded, setRecorded] = useState<InvoicePayment[]>([]);
-	const payments = [...invoice.payments, ...recorded];
-	const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-	const balance = Math.max(0, invoice.total - paid);
-	const status = INVOICE_STATUS[balance === 0 ? "paid" : "part"];
+	const { payments } = invoice;
+	const balance = balanceOf(invoice);
+	const status = INVOICE_STATUS[statusOf(invoice)];
 
-	const recordPayment = ({ amount, reference }: { amount: number; reference: string }) => {
-		const settles = amount >= balance;
-		setRecorded((list) => [
-			...list,
-			{
-				label: settles ? "Balance" : "Part payment",
-				date: dayjs().format("YYYY-MM-DD"),
-				recordedBy,
-				amount,
-			},
-		]);
+	const recordPayment = async (values: PaymentInput) => {
+		const result = await recordInvoicePaymentAction(invoice.id, values);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
 		toast.success(
-			settles
-				? `Balance recorded (ref ${reference}). Paid in full.`
-				: `${formatNaira(amount)} recorded (ref ${reference}).`,
+			result.data.balance === 0
+				? `Balance recorded (ref ${values.reference}). Paid in full.`
+				: `${formatNaira(values.amount)} recorded (ref ${values.reference}).`,
 		);
 	};
 
@@ -77,7 +75,6 @@ export default function InvoiceDetailView({
 					invoice.id,
 					`Created by ${invoice.createdBy} (${invoice.createdByRole}), ${issuedLabel(invoice)}`,
 					`From quote ${invoice.quoteNumber} v${invoice.quoteVersion}`,
-					detail.jobCard && `Job card ${detail.jobCard}`,
 				]
 					.filter(Boolean)
 					.join(" · ")}
@@ -104,7 +101,12 @@ export default function InvoiceDetailView({
 
 			<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
 				<div className="min-w-0">
-					<InvoiceDocument detail={detail} payments={payments} balance={balance} />
+					<InvoiceDocument
+						detail={detail}
+						balance={balance}
+						bank={bank}
+						footer={footer}
+					/>
 				</div>
 
 				<aside aria-label="Invoice summary" className="flex min-w-0 flex-col gap-6">
@@ -130,9 +132,6 @@ export default function InvoiceDetailView({
 							{detail.quotePreparedBy && (
 								<Detail label="Quote prepared by">{detail.quotePreparedBy}</Detail>
 							)}
-							{detail.lastSentLabel && (
-								<Detail label="Last sent to client">{detail.lastSentLabel}</Detail>
-							)}
 						</dl>
 					</Card>
 
@@ -141,13 +140,14 @@ export default function InvoiceDetailView({
 						<ul className="flex flex-col">
 							{payments.map((p) => (
 								<li
-									key={`${p.label}-${p.date}-${p.amount}`}
+									key={p.id}
 									className="flex items-start justify-between gap-3 border-t border-line py-3 first:border-t-0 first:pt-0"
 								>
 									<span className="flex flex-col">
 										<strong className="text-fg">{p.label}</strong>
 										<span className="text-small text-fg-tertiary">
-											{dayjs(p.date).format("D MMM YYYY")} · recorded by{" "}
+											{dayjs(p.date).format("D MMM YYYY")}
+											{p.reference && ` · ref ${p.reference}`} · recorded by{" "}
 											{p.recordedBy}
 										</span>
 									</span>
@@ -166,6 +166,10 @@ export default function InvoiceDetailView({
 										// a fresh form, with the new balance, after each payment
 										key={balance}
 										balance={balance}
+										today={today}
+										earliest={
+											payments[0]?.date ?? invoice.issuedAt.slice(0, 10)
+										}
 										onRecord={recordPayment}
 									/>
 								</>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useForm, useWatch } from "react-hook-form";
-import { toast } from "sonner";
 import { FormField } from "@/components/forms";
 import {
 	NUMBERED_DOCUMENTS,
@@ -9,24 +8,22 @@ import {
 	type CompanySettings,
 	type Numbering,
 } from "@/lib/companySettings";
-import { saveCompanySettings, useCompanySettings } from "@/lib/companySettingsStore";
-import { RecentChanges, SaveRow, SettingsCard } from "./settingsCard";
+import { saveNumberingAction } from "@/app/(dashboard)/(settings)/settings/actions";
+import { RecentChanges, SaveRow, SettingsCard, useSettingsSave } from "./settingsCard";
 
 /** Document numbering: each document's prefix, with what the next number will look like. */
 export default function NumberingPanel({
-	initial,
-	userName,
+	settings,
 	now,
 	canEdit,
 }: {
-	initial: CompanySettings;
-	userName: string;
+	settings: CompanySettings;
 	now: string;
 	/** MD or GM. Accounting sees the settings read-only. */
 	canEdit: boolean;
 }) {
-	const settings = useCompanySettings(initial);
 	const readOnly = !canEdit;
+	const { saving, save: run } = useSettingsSave();
 	const form = useForm<Numbering>({ mode: "onTouched", defaultValues: settings.numbering });
 	const { control, register, getValues, setValue, handleSubmit, formState } = form;
 	const prefixes = useWatch({ control }) as Numbering;
@@ -35,19 +32,11 @@ export default function NumberingPanel({
 		const next = Object.fromEntries(
 			Object.entries(v).map(([k, p]) => [k, p.trim().toUpperCase()]),
 		) as Numbering;
-		const changed = NUMBERED_DOCUMENTS.filter(
-			(d) => next[d.key] !== settings.numbering[d.key],
-		).map((d) => d.label.toLowerCase());
-		saveCompanySettings(
-			{ numbering: next },
-			{
-				by: userName,
-				what: changed.length
-					? `Changed the ${changed.join(", ")} prefix${changed.length > 1 ? "es" : ""}`
-					: "Saved document numbering",
-			},
+		run(
+			() => saveNumberingAction(next),
+			"Numbering saved. Documents that already exist keep their numbers.",
+			() => form.reset(next),
 		);
-		toast.success("Numbering saved. Documents that already exist keep their numbers.");
 	};
 
 	return (
@@ -112,7 +101,7 @@ export default function NumberingPanel({
 							</div>
 						</div>
 					))}
-					{!readOnly && <SaveRow />}
+					{!readOnly && <SaveRow saving={saving} />}
 				</form>
 			</SettingsCard>
 

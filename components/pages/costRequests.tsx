@@ -9,22 +9,19 @@ export default function CostRequestsPage({
 	inventory,
 	catalog,
 	now,
-	userName,
 }: {
 	requests: CostRequest[];
 	inventory: Inventory;
 	catalog: SupplierCatalog;
 	now: string;
-	userName: string;
 }) {
 	return (
 		<PageWrapper>
 			<CostRequestsPageContent
-				initialRequests={requests}
+				requests={requests}
 				inventory={inventory}
 				catalog={catalog}
 				now={now}
-				userName={userName}
 			/>
 		</PageWrapper>
 	);

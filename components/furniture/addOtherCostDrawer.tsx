@@ -6,50 +6,74 @@ import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { formatNaira } from "@/lib/currency";
-import { OTHER_COST_OPTIONS, type ExtraCost } from "@/lib/furnitureTypes";
+import type { ExtraCost, OtherCostOption } from "@/lib/furnitureTypes";
 
-type Values = { name: string; type: ExtraCost["type"]; amount: string };
+type Values = { pick: string; name: string; type: ExtraCost["type"]; amount: string };
 
-/** Add a one-off cost to each piece, such as wrapping, crating or installation. */
+const CUSTOM = "__custom";
+
+/** Add a cost to each piece, such as wrapping, crating or installation. */
 export default function AddOtherCostDrawer({
 	typeName,
+	options: allOptions,
 	existing,
 	onAdd,
 	onClose,
 }: {
 	typeName: string;
+	/** Standard costs from Cost rates. */
+	options: OtherCostOption[];
 	existing: ExtraCost[];
 	onAdd: (cost: ExtraCost) => void;
 	onClose: () => void;
 }) {
-	const options = OTHER_COST_OPTIONS.filter((o) => !existing.some((e) => e.name === o.name));
+	const options = allOptions.filter((o) => !existing.some((e) => e.name === o.name));
 	const first = options[0];
 
 	const methods = useForm<Values>({
 		mode: "onTouched",
 		defaultValues: {
-			name: first?.name ?? "",
+			pick: first?.id ?? CUSTOM,
+			name: "",
 			type: first?.type ?? "Direct",
 			amount: first?.amount ? String(first.amount) : "",
 		},
 	});
-	const name = useWatch({ control: methods.control, name: "name" });
-	const picked = options.find((o) => o.name === name);
+	const pick = useWatch({ control: methods.control, name: "pick" });
+	const picked = options.find((o) => o.id === pick);
+	const custom = pick === CUSTOM;
 
 	const fields: FormFieldConfig[] = [
 		{
-			name: "name",
+			name: "pick",
 			type: "select",
 			label: "Cost",
-			defaultValue: first?.name ?? "",
-			description: picked?.note,
-			options: options.map((o) => ({
-				value: o.name,
-				label: o.amount
-					? `${o.name} · ${formatNaira(o.amount).replace(".00", "")}`
-					: o.name,
-			})),
+			defaultValue: first?.id ?? CUSTOM,
+			description: picked?.note || (custom ? "Not in Cost rates; name it below." : undefined),
+			options: [
+				...options.map((o) => ({
+					value: o.id,
+					label: o.amount
+						? `${o.name} · ${formatNaira(o.amount).replace(".00", "")}`
+						: o.name,
+				})),
+				{ value: CUSTOM, label: "Another cost" },
+			],
 		},
+		...(custom
+			? [
+					{
+						name: "name",
+						type: "text",
+						label: "Name",
+						placeholder: "e.g. Glass top",
+						validation: {
+							validate: (value: string) =>
+								value.trim().length > 0 || "Give the cost a name.",
+						},
+					} satisfies FormFieldConfig,
+				]
+			: []),
 		{
 			name: "amount",
 			type: "amount",
@@ -75,37 +99,33 @@ export default function AddOtherCostDrawer({
 	return (
 		<Drawer
 			title={`Add other cost to ${typeName.toLowerCase()}`}
-			description="A cost charged on every piece of this type, on top of parts, labour and machines."
+			description="A cost charged on every piece of this type, on top of parts, labour and machines. Standard costs come from Cost rates."
 			onClose={onClose}
 		>
-			{options.length === 0 ? (
-				<>
-					<p className="text-body text-fg-secondary">
-						Every standard cost is already on this type.
-					</p>
-					<Button className="self-start" onClick={onClose}>
-						Close
-					</Button>
-				</>
-			) : (
-				<MainForm<Values>
-					methods={methods}
-					fields={fields}
-					hideRequiredMarks
-					requireValidToSubmit={false}
-					onSubmit={(v) =>
-						onAdd({ name: v.name, type: v.type, amount: Number(v.amount) })
-					}
-					renderFooter={() => (
-						<div className="flex flex-wrap justify-end gap-3">
-							<Button onClick={onClose}>Cancel</Button>
-							<Button type="submit" variant="primary">
-								Add cost
-							</Button>
-						</div>
-					)}
-				/>
-			)}
+			<MainForm<Values>
+				methods={methods}
+				fields={fields}
+				hideRequiredMarks
+				requireValidToSubmit={false}
+				onSubmit={(v) => {
+					const name = custom ? v.name.trim() : (picked?.name ?? "");
+					if (existing.some((e) => e.name === name)) return;
+					onAdd({
+						name,
+						type: v.type,
+						amount: Number(v.amount),
+						costItemId: custom ? null : (picked?.id ?? null),
+					});
+				}}
+				renderFooter={() => (
+					<div className="flex flex-wrap justify-end gap-3">
+						<Button onClick={onClose}>Cancel</Button>
+						<Button type="submit" variant="primary">
+							Add cost
+						</Button>
+					</div>
+				)}
+			/>
 		</Drawer>
 	);
 }
