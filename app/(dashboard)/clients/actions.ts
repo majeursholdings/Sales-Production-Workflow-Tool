@@ -106,9 +106,19 @@ export async function deleteClientAction(clientId: string): Promise<ActionResult
 	}
 
 	const supabase = await createClient();
-	const { error } = await supabase.from("clients").delete().eq("id", parsed.data);
+	const { data: deleted, error } = await supabase
+		.from("clients")
+		.delete()
+		.eq("id", parsed.data)
+		.select("id");
 	if (error) {
 		return { ok: false, message: error.message };
+	}
+	if (!deleted?.length) {
+		return {
+			ok: false,
+			message: "Client not found or you don't have permission to delete it.",
+		};
 	}
 
 	await supabase.from("audit_logs").insert({

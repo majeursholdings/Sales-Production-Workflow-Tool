@@ -12,6 +12,7 @@ export default function SecurityPanel({
 	factors,
 	emailOn,
 	lockoutReview,
+	requireTwoStep,
 }: {
 	email: string;
 	factors: EnrolledFactor[];
@@ -19,6 +20,8 @@ export default function SecurityPanel({
 	emailOn: boolean;
 	/** Just unlocked after a lockout; the person hasn't said whether it was them. */
 	lockoutReview: boolean;
+	/** Company policy requires at least one two-step method to stay enabled. */
+	requireTwoStep: boolean;
 }) {
 	const [notMe, setNotMe] = useState(false);
 	const mustChange = lockoutReview && notMe;
@@ -27,7 +30,12 @@ export default function SecurityPanel({
 		<>
 			{lockoutReview && <LockoutReviewCard onNotMe={() => setNotMe(true)} />}
 			{mustChange && <PasswordCard mustChange />}
-			<TwoStepCard factors={factors} email={email} emailOn={emailOn} />
+			<TwoStepCard
+				factors={factors}
+				email={email}
+				emailOn={emailOn}
+				requireTwoStep={requireTwoStep}
+			/>
 			{!mustChange && <PasswordCard />}
 			<SessionsCard />
 		</>

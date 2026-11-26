@@ -34,12 +34,15 @@ export default function TwoStepCard({
 	factors,
 	email,
 	emailOn,
+	requireTwoStep = false,
 }: {
 	factors: EnrolledFactor[];
 	/** Work email the codes go to. */
 	email: string;
 	/** Email codes are turned on. */
 	emailOn: boolean;
+	/** Company policy requires at least one method to stay enabled. */
+	requireTwoStep?: boolean;
 }) {
 	const router = useRouter();
 	const [pending, setPending] = useState<PendingEnrollment | null>(null);
@@ -51,6 +54,8 @@ export default function TwoStepCard({
 	const appOn = factors.length > 0;
 	const enabled = appOn || emailOn;
 	const settingUp = !!pending || emailSetup;
+	const onlyMethodCount = factors.length + (emailOn ? 1 : 0);
+	const lockedByPolicy = requireTwoStep && onlyMethodCount <= 1;
 
 	// ── Authenticator app ────────────────────────────────────────────────────
 	const startEnroll = async () => {
@@ -177,6 +182,8 @@ export default function TwoStepCard({
 			<p className="text-body text-fg-secondary">
 				After your password, you&apos;ll enter a 6-digit code from an authenticator app or
 				your email. It stops someone with your password from signing in.
+				{requireTwoStep &&
+					" Required by company sign-in policy — keep at least one method active."}
 			</p>
 
 			{factors.map((factor) => (
@@ -188,7 +195,7 @@ export default function TwoStepCard({
 					badge={<Badge variant="success">Main method</Badge>}
 					onRemove={() => setRemoving({ kind: "app", factor })}
 					removeLabel="Remove authenticator app"
-					busy={busy}
+					busy={busy || lockedByPolicy}
 				/>
 			))}
 
@@ -204,7 +211,7 @@ export default function TwoStepCard({
 					}
 					onRemove={() => setRemoving({ kind: "email" })}
 					removeLabel="Remove email codes"
-					busy={busy}
+					busy={busy || lockedByPolicy}
 				/>
 			)}
 

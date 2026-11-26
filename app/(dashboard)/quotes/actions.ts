@@ -129,13 +129,17 @@ export async function cancelQuoteAction(
 		return { ok: false, message: "Quote not found." };
 	}
 
-	const { error: updateError } = await supabase
+	const { data: updated, error: updateError } = await supabase
 		.from("quotes")
 		.update({ status: "cancelled", cancel_reason: reason })
-		.eq("id", quote.id);
+		.eq("id", quote.id)
+		.select("id");
 
 	if (updateError) {
 		return { ok: false, message: updateError.message };
+	}
+	if (!updated?.length) {
+		return { ok: false, message: "You don't have permission to cancel this quote." };
 	}
 
 	await Promise.all([
@@ -188,6 +192,39 @@ export async function logQuoteFollowUpAction(quoteNumber: string): Promise<Actio
 	}
 
 	revalidatePath(`/quotes/${quoteNumber}`);
+	return { ok: true };
+}
+
+/** Deletes an unsent draft quote (owners or the creator, enforced by RLS). */
+export async function deleteDraftQuoteAction(quoteNumber: string): Promise<ActionResult> {
+	const actor = (await userWith("quotes.create")) ?? (await userWith("users.manage"));
+	if (!actor) return fail("You don't have permission to delete draft quotes.");
+	const parsed = z.string().trim().min(1).safeParse(quoteNumber);
+	if (!parsed.success) return fail("Invalid quote number.");
+
+	const supabase = await createClient();
+	const { data: deleted, error } = await supabase
+		.from("quotes")
+		.delete()
+		.eq("quote_number", parsed.data)
+		.eq("status", "draft")
+		.select("id, client_name");
+
+	if (error) return fail(error.message);
+	if (!deleted?.length) {
+		return fail("Only your unsent draft quotes can be deleted.");
+	}
+
+	await supabase.from("audit_logs").insert({
+		actor_id: actor.id,
+		action: "quote.draft_deleted",
+		entity_type: "quote",
+		entity_id: parsed.data,
+		old_values: { client_name: deleted[0].client_name, status: "draft" },
+	});
+
+	revalidatePath("/quotes");
+	revalidatePath("/");
 	return { ok: true };
 }
 

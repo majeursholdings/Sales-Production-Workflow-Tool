@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { currentSession } from "@/lib/currentSession";
+import { getSignInPolicy } from "@/lib/data/companySettings";
 import { clearWrongPasswords, lockMessage, recordWrongPassword } from "@/lib/loginLock";
 import { passwordProblem } from "@/lib/passwordRules";
 import { forgetTrustedDevices } from "@/lib/trustedDevices";
@@ -165,8 +166,14 @@ export async function startTotpEnroll(): Promise<
 export async function cancelTotpEnroll(factorId: string): Promise<SecurityResult> {
 	const id = factorIdSchema.safeParse(factorId);
 	if (!id.success) return { ok: false, message: "Invalid request." };
-	const session = await currentSession();
-	if (!session) return { ok: false, message: EXPIRED };
+	const result = await settledSession();
+	if (!result.ok) return result;
+	const { session } = result;
+
+	const factor = session.user.factors?.find((f) => f.id === id.data);
+	if (!factor || factor.status === "verified") {
+		return { ok: false, message: "No unfinished authenticator setup matches that request." };
+	}
 
 	const { error } = await session.supabase.auth.mfa.unenroll({ factorId: id.data });
 	if (error) return { ok: false, message: error.message };
@@ -212,6 +219,23 @@ export async function removeTotpFactor(factorId: string): Promise<SecurityResult
 
 	const owns = session.user.factors?.some((factor) => factor.id === id.data);
 	if (!owns) return { ok: false, message: "That authenticator app isn't on your account." };
+
+	const { requireTwoStep } = await getSignInPolicy();
+	if (requireTwoStep) {
+		const otherVerifiedApp = session.user.factors?.some(
+			(factor) =>
+				factor.id !== id.data &&
+				factor.factor_type === "totp" &&
+				factor.status === "verified",
+		);
+		if (!otherVerifiedApp && !session.hasEmail) {
+			return {
+				ok: false,
+				message:
+					"Company policy requires two-step verification. Turn on email codes or add another authenticator app before removing this one.",
+			};
+		}
+	}
 
 	const { error } = await createAdminClient().auth.admin.mfa.deleteFactor({
 		id: id.data,

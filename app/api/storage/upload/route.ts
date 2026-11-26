@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: "Your session is not active." }, { status: 401 });
 	}
 
-	if (!isAppRole(claims.user_role)) {
+	const liveRole = state.hasProfileFields ? state.role : claims.user_role;
+	if (!isAppRole(liveRole)) {
 		return NextResponse.json({ error: "No role assigned to this account." }, { status: 403 });
 	}
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: "Invalid storage folder." }, { status: 400 });
 	}
 
-	if (!canUploadToFolder(claims.user_role, folder)) {
+	if (!canUploadToFolder(liveRole, folder)) {
 		return NextResponse.json(
 			{ error: "You don't have permission to upload files here." },
 			{ status: 403 },

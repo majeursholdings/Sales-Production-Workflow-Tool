@@ -56,23 +56,20 @@ export function clientIp(headers: Headers): string | null {
  */
 export function authFetch(ip: string | null): typeof fetch {
 	const secret = secretKey();
-	const publishable = publishableKey();
 	const authBase = `${supabaseUrl()}/auth/v1/`;
 
 	return (input, init) => {
 		const url =
 			typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-		if (!secret || !url.startsWith(authBase)) return fetch(input, init);
+		if (!secret || !ip || !url.startsWith(authBase)) return fetch(input, init);
 
 		const headers = new Headers(
 			init?.headers ?? (input instanceof Request ? input.headers : undefined),
 		);
+		// Supabase honours `Sb-Forwarded-For` when `apikey` is the secret key.
+		// Never elevate `Authorization` to the secret key on a user-scoped client.
 		headers.set("apikey", secret);
-		// No session: the client sends its key as the bearer; swap that too.
-		if (headers.get("authorization") === `Bearer ${publishable}`) {
-			headers.set("authorization", `Bearer ${secret}`);
-		}
-		if (ip) headers.set("sb-forwarded-for", ip);
+		headers.set("sb-forwarded-for", ip);
 		return fetch(input, { ...init, headers });
 	};
 }

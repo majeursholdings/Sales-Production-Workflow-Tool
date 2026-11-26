@@ -180,19 +180,21 @@ export async function updateTeamMemberAction(
 
 	// Never leave the workspace without an active MD or GM.
 	if (previousRole && isOwnerAppRole(previousRole) && !isOwnerAppRole(role)) {
-		const { data: activeOwners } = await supabase
-			.from("user_roles")
-			.select("user_id")
-			.in("role", ["md", "gm"]);
+		const [{ data: owners }, { data: activeProfiles }] = await Promise.all([
+			supabase.from("user_roles").select("user_id").in("role", ["md", "gm"]),
+			supabase.from("profiles").select("id").eq("is_active", true),
+		]);
+		const activeSet = new Set((activeProfiles ?? []).map((p) => p.id as string));
 
-		const otherOwnerIds = (activeOwners ?? [])
-			.map((r) => r.user_id)
-			.filter((id) => id !== userId);
+		const otherActiveOwnerIds = (owners ?? [])
+			.map((r) => r.user_id as string)
+			.filter((id) => id !== userId && activeSet.has(id));
 
-		if (otherOwnerIds.length === 0) {
+		if (otherActiveOwnerIds.length === 0) {
 			return {
 				ok: false,
-				message: "At least one Managing Director or General Manager must remain assigned.",
+				message:
+					"At least one active Managing Director or General Manager must remain assigned.",
 			};
 		}
 	}
@@ -225,6 +227,11 @@ export async function updateTeamMemberAction(
 			user_metadata: { full_name: fullName, phone },
 			app_metadata: { role },
 		});
+		// When changing another user's role, revoke existing sessions so stale JWTs
+		// are cleared immediately (RLS and session_state also enforce the live DB role).
+		if (previousRole !== role && userId !== actor.id) {
+			await admin.rpc("revoke_user_sessions", { p_user_id: userId });
+		}
 	}
 
 	await writeAuditLog({
@@ -273,13 +280,38 @@ export async function setTeamMemberActiveAction(
 	}
 
 	const supabase = await createClient();
-	const { error } = await supabase
+	if (!isActive) {
+		const [{ data: owners }, { data: activeProfiles }] = await Promise.all([
+			supabase.from("user_roles").select("user_id").in("role", ["md", "gm"]),
+			supabase.from("profiles").select("id").eq("is_active", true),
+		]);
+		const isTargetOwner = (owners ?? []).some((r) => r.user_id === userId);
+		if (isTargetOwner) {
+			const activeSet = new Set((activeProfiles ?? []).map((p) => p.id as string));
+			const otherActiveOwners = (owners ?? [])
+				.map((r) => r.user_id as string)
+				.filter((id) => id !== userId && activeSet.has(id));
+			if (otherActiveOwners.length === 0) {
+				return {
+					ok: false,
+					message:
+						"At least one active Managing Director or General Manager must remain active.",
+				};
+			}
+		}
+	}
+
+	const { data: updatedRows, error } = await supabase
 		.from("profiles")
 		.update({ is_active: isActive })
-		.eq("id", userId);
+		.eq("id", userId)
+		.select("id");
 
 	if (error) {
 		return { ok: false, message: error.message };
+	}
+	if (!updatedRows?.length) {
+		return { ok: false, message: "Team member not found." };
 	}
 
 	if (hasAdminClient()) {

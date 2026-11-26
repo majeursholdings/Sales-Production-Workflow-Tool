@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/sidebar";
 import { getCurrentUser } from "@/lib/session";
 
 async function DashboardNavigation() {
-	const user = await getCurrentUser();
+	const user = await getCurrentUser({ allowLockoutReview: true });
 	const nav = {
 		userName: user.name,
 		userRole: user.role,

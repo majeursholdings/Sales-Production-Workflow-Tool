@@ -192,17 +192,19 @@ export async function updateSession(request: NextRequest) {
 		return redirectWithCookies(targetUrl, supabaseResponse);
 	}
 
-	// Fast role guard using the verified JWT custom claim (also re-verified in Server Components).
-	if (
-		!isPublic &&
-		!isVerify &&
-		isAppRole(claims.user_role) &&
-		!canAccessRoute(claims.user_role, pathname)
-	) {
-		const deniedUrl = request.nextUrl.clone();
-		deniedUrl.pathname = "/unauthorized";
-		deniedUrl.search = "";
-		return redirectWithCookies(deniedUrl, supabaseResponse);
+	// Fast role guard using the live role from session_state (falls back to JWT claim
+	// only before the consolidated session_state migration is applied).
+	const liveRole = state.hasProfileFields ? state.role : claims.user_role;
+	if (!isPublic && !isVerify) {
+		if (state.hasProfileFields && !isAppRole(liveRole)) {
+			return endSession("no_role");
+		}
+		if (isAppRole(liveRole) && !canAccessRoute(liveRole, pathname)) {
+			const deniedUrl = request.nextUrl.clone();
+			deniedUrl.pathname = "/unauthorized";
+			deniedUrl.search = "";
+			return redirectWithCookies(deniedUrl, supabaseResponse);
+		}
 	}
 
 	return supabaseResponse;

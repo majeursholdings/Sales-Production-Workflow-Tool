@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { currentSession } from "@/lib/currentSession";
+import { getSignInPolicy } from "@/lib/data/companySettings";
 import { sendSignInCode } from "@/lib/email/authEmails";
 import {
 	TRUSTED_DEVICE_COOKIE,
@@ -160,6 +161,15 @@ export async function disableEmailTwoStep(): Promise<TwoStepResult> {
 	if (!session) return { ok: false, message: "Your session expired. Sign in again." };
 	if (session.owed) {
 		return { ok: false, message: "Finish signing in with your current method first." };
+	}
+
+	const { requireTwoStep } = await getSignInPolicy();
+	if (requireTwoStep && !session.hasApp) {
+		return {
+			ok: false,
+			message:
+				"Company policy requires two-step verification. Set up an authenticator app before turning off email codes.",
+		};
 	}
 
 	const admin = createAdminClient();

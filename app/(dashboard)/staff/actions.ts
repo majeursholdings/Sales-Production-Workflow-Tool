@@ -128,13 +128,18 @@ export async function removeStaffMemberAction(id: string): Promise<ActionResult>
 	}
 
 	const supabase = await createClient();
-	const { error } = await supabase
+	const { data: updated, error } = await supabase
 		.from("staff_members")
 		.update({ is_active: false })
-		.eq("id", parsed.data);
+		.eq("id", parsed.data)
+		.eq("is_active", true)
+		.select("id");
 
 	if (error) {
 		return { ok: false, message: error.message };
+	}
+	if (!updated?.length) {
+		return { ok: false, message: "Staff member not found or already removed." };
 	}
 
 	await supabase.from("audit_logs").insert({

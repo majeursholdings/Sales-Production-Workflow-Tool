@@ -98,7 +98,7 @@ async function readCachedCompanySettingsRow(): Promise<CompanySettingsRow> {
 /** Shared singleton pricing_rules row (identical for all active authenticated staff). */
 async function readCachedPricingRulesRow(): Promise<PricingRulesRow> {
 	"use cache";
-	cacheLife("hours");
+	cacheLife("minutes");
 	cacheTag(CACHE_TAGS.pricingRules);
 
 	const supabase = createAdminClient();
@@ -110,6 +110,26 @@ async function readCachedPricingRulesRow(): Promise<PricingRulesRow> {
 	if (error) throw new Error(`Failed to load pricing rules: ${error.message}`);
 	return data as unknown as PricingRulesRow;
 }
+
+/**
+ * Company-wide sign-in rules (`require_two_step` and `idle_hours`).
+ * Safe to call during sign-in, link verification, and lockout review without
+ * requiring a settled dashboard session.
+ */
+export const getSignInPolicy = cache(
+	async (): Promise<{ requireTwoStep: boolean; idleHours: number }> => {
+		try {
+			const row = await loadCompanySettingsRow();
+			const hours = Number(row.idle_hours);
+			return {
+				requireTwoStep: Boolean(row.require_two_step),
+				idleHours: Number.isFinite(hours) && hours > 0 ? hours : 12,
+			};
+		} catch {
+			return { requireTwoStep: false, idleHours: 12 };
+		}
+	},
+);
 
 async function loadCompanySettingsRow(): Promise<CompanySettingsRow> {
 	if (hasAdminClient()) return readCachedCompanySettingsRow();

@@ -125,7 +125,7 @@ export async function sendPurchaseOrderAction(
 	);
 	const poApprovalLimit = (await getCompanyConfig()).tax.poApprovalLimit;
 	const status: POStatus = needsApproval(total, poApprovalLimit) ? "approval" : "sent";
-	const { error } = await supabase
+	const { data: updated, error } = await supabase
 		.from("purchase_orders")
 		.update(
 			status === "approval"
@@ -133,8 +133,10 @@ export async function sendPurchaseOrderAction(
 				: { status, expected },
 		)
 		.eq("number", number)
-		.eq("status", "draft");
+		.eq("status", "draft")
+		.select("number");
 	if (error) return fail(error.message);
+	if (!updated?.length) return fail("Only draft purchase orders can be sent.");
 
 	revalidateOrders();
 	return { ok: true, data: { status } };
@@ -151,12 +153,14 @@ export async function approvePurchaseOrderAction(
 	}
 
 	const supabase = await createClient();
-	const { error } = await supabase
+	const { data: updated, error } = await supabase
 		.from("purchase_orders")
 		.update({ status: "sent", expected, approved_by: actor.id })
 		.eq("number", number)
-		.eq("status", "approval");
+		.eq("status", "approval")
+		.select("number");
 	if (error) return fail(error.message);
+	if (!updated?.length) return fail("That purchase order is no longer waiting for approval.");
 
 	await supabase.from("audit_logs").insert({
 		actor_id: actor.id,

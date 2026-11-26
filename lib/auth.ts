@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { currentSession } from "@/lib/currentSession";
+import { getSignInPolicy } from "@/lib/data/companySettings";
 import { sendEmailCode, verifyAppCode, verifyEmailCode } from "@/lib/emailTwoStepActions";
 import { sendPasswordReset } from "@/lib/email/authEmails";
 import { finishInvite } from "@/lib/invites";
@@ -112,10 +113,11 @@ export async function signIn(input: {
 	// Lifetime: cookies follow the choice; Supabase Auth ends the session at not_after.
 	cookieStore.set(REMEMBER_COOKIE, remember ? "1" : "0", rememberCookieOptions(remember, secure));
 	if (sessionId) {
+		const { idleHours } = await getSignInPolicy();
 		const { error: expiryError } = await admin.rpc("set_session_expiry", {
 			p_session_id: sessionId,
 			p_user_id: data.user.id,
-			p_seconds: sessionLifetimeSeconds(remember),
+			p_seconds: sessionLifetimeSeconds(remember, idleHours),
 		});
 		// Not fatal: without it the proxy still ends the session after the short lifetime.
 		if (expiryError) console.error("set_session_expiry failed", expiryError.message);

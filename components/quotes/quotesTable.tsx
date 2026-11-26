@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { deleteDraftQuoteAction } from "@/app/(dashboard)/quotes/actions";
 import { ConfirmDialog } from "@/components/common/modal";
 import {
 	DataTable,
@@ -76,9 +78,10 @@ export const quoteColumns: ColumnDef<Quote>[] = [
 const STATUS_ORDER: QuoteStatus[] = ["draft", "sent", "expiring", "paid", "expired", "cancelled"];
 
 export default function QuotesTable({ initialQuotes }: { initialQuotes: Quote[] }) {
-	// TODO: delete through the backend once it exists; for now it only changes this page's list.
-	const [quotes, setQuotes] = useState(initialQuotes);
+	const router = useRouter();
 	const [deleting, setDeleting] = useState<Quote | null>(null);
+	const [busy, startTransition] = useTransition();
+	const quotes = initialQuotes;
 
 	const { rows, pagination } = useTableRows({
 		tableId: "quotes",
@@ -149,12 +152,20 @@ export default function QuotesTable({ initialQuotes }: { initialQuotes: Quote[] 
 			{deleting && (
 				<ConfirmDialog
 					title={`Delete draft ${deleting.id}?`}
-					confirmLabel="Delete draft"
-					onCancel={() => setDeleting(null)}
+					confirmLabel={busy ? "Deleting…" : "Delete draft"}
+					onCancel={() => !busy && setDeleting(null)}
 					onConfirm={() => {
-						setQuotes((list) => list.filter((r) => r.id !== deleting.id));
-						toast.success(`Draft ${deleting.id} deleted.`);
-						setDeleting(null);
+						const target = deleting;
+						startTransition(async () => {
+							const res = await deleteDraftQuoteAction(target.id);
+							if (!res.ok) {
+								toast.error(res.message);
+								return;
+							}
+							toast.success(`Draft ${target.id} deleted.`);
+							setDeleting(null);
+							router.refresh();
+						});
 					}}
 				>
 					The draft for {deleting.client} and its items will be removed. It was never

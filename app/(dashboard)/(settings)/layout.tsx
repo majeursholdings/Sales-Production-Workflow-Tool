@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import PageWrapper from "@/components/layout/pageWrapper";
 
 async function SettingsShell({ children }: { children: ReactNode }) {
-	const user = await getCurrentUser();
+	const user = await getCurrentUser({ allowLockoutReview: true });
 	const seesCompany = canAccessRoute(user.roleKey, "/settings/company");
 	const groups = SETTINGS_GROUPS.filter((g) => !g.companyOnly || seesCompany);
 

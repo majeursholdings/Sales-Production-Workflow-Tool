@@ -24,6 +24,8 @@ export type SessionUser = {
 	/** Human-readable role label (drives nav & dashboard helpers). */
 	role: string;
 	isActive: boolean;
+	/** Unlocked after a 5-failure lockout; user must complete review on /settings/security. */
+	lockoutReview: boolean;
 	unreadNotificationsCount: number;
 };
 
@@ -68,6 +70,9 @@ export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 	}
 	if (state.owed) {
 		redirect("/verify");
+	}
+	if (state.needsPassword) {
+		redirect("/welcome");
 	}
 
 	let profileName = state.profile.fullName;
@@ -124,18 +129,26 @@ export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 		roleKey: rawRole,
 		role: ROLE_LABELS[rawRole],
 		isActive: state.active,
+		lockoutReview: state.lockoutReview,
 		unreadNotificationsCount: 0,
 	};
 });
 
 /**
  * Require a signed-in, active user with an assigned role.
- * Redirects to /login if unauthenticated.
+ * Redirects to /login if unauthenticated, /welcome if invite password setup is pending,
+ * and /settings/security if a post-lockout security review is pending (unless opted out
+ * by the security settings layout/page itself).
  */
-export async function getCurrentUser(): Promise<SessionUser> {
+export async function getCurrentUser(options?: {
+	allowLockoutReview?: boolean;
+}): Promise<SessionUser> {
 	const user = await getOptionalUser();
 	if (!user) {
 		redirect("/login");
+	}
+	if (!options?.allowLockoutReview && user.lockoutReview) {
+		redirect("/settings/security");
 	}
 	return user;
 }

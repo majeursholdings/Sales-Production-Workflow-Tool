@@ -24,8 +24,12 @@ export const REMEMBER_SECONDS = 30 * 24 * 60 * 60;
 export const TRUSTED_DEVICE_SECONDS = 30 * 24 * 60 * 60;
 export const SHORT_SESSION_SECONDS = 12 * 60 * 60;
 
-export function sessionLifetimeSeconds(remember: boolean): number {
-	return remember ? REMEMBER_SECONDS : SHORT_SESSION_SECONDS;
+export function sessionLifetimeSeconds(remember: boolean, idleHours?: number): number {
+	if (remember) return REMEMBER_SECONDS;
+	if (typeof idleHours === "number" && Number.isFinite(idleHours) && idleHours > 0) {
+		return Math.round(idleHours * 60 * 60);
+	}
+	return SHORT_SESSION_SECONDS;
 }
 
 export function isRemembered(value: string | undefined | null): boolean {

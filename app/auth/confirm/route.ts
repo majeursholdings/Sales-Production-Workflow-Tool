@@ -12,11 +12,23 @@ const ALLOWED_OTP_TYPES = new Set<EmailOtpType>([
 	"email",
 ]);
 
-function safeNextPath(next: string | null, fallback: string): string {
-	if (!next || !next.startsWith("/") || next.startsWith("//")) {
+function safeNextPath(next: string | null, fallback: string, origin: string): string {
+	if (
+		!next ||
+		!next.startsWith("/") ||
+		next.startsWith("//") ||
+		next.includes("\\") ||
+		/[\u0000-\u001f\u007f]/.test(next)
+	) {
 		return fallback;
 	}
-	return next;
+	try {
+		const resolved = new URL(next, origin);
+		if (resolved.origin !== origin) return fallback;
+		return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+	} catch {
+		return fallback;
+	}
 }
 
 export async function GET(request: NextRequest) {
@@ -27,7 +39,7 @@ export async function GET(request: NextRequest) {
 
 	const defaultNext =
 		type === "recovery" || type === "invite" ? "/forgot-password?mode=reset" : "/";
-	const next = safeNextPath(searchParams.get("next"), defaultNext);
+	const next = safeNextPath(searchParams.get("next"), defaultNext, origin);
 
 	const supabase = await createClient();
 
@@ -43,6 +55,7 @@ export async function GET(request: NextRequest) {
 	} else if (code) {
 		const { error } = await supabase.auth.exchangeCodeForSession(code);
 		if (!error) {
+			await afterLinkSignIn(supabase, false);
 			return NextResponse.redirect(`${origin}${next}`);
 		}
 	}

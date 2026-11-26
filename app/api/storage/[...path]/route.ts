@@ -12,10 +12,7 @@ import { canReadFromFolder } from "@/lib/storageServer";
 import { sessionState } from "@/lib/twoStep";
 import { createClient } from "@/utils/supabase/server";
 
-export async function GET(
-	request: NextRequest,
-	context: { params: Promise<{ path: string[] }> },
-) {
+export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
 	const { path } = await context.params;
 	if (!Array.isArray(path) || path.length !== 2) {
 		return new NextResponse("Not found", { status: 404 });
@@ -55,7 +52,8 @@ export async function GET(
 		return new NextResponse("Unauthorized", { status: 401 });
 	}
 
-	if (!isAppRole(claims.user_role) || !canReadFromFolder(claims.user_role, folder)) {
+	const liveRole = state.hasProfileFields ? state.role : claims.user_role;
+	if (!isAppRole(liveRole) || !canReadFromFolder(liveRole, folder)) {
 		return new NextResponse("Forbidden", { status: 403 });
 	}
 
