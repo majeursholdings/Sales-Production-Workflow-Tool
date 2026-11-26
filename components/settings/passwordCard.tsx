@@ -1,21 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import { Card } from "@/components/common/card";
 import MainForm from "@/components/forms";
+import PasswordChecklist from "@/components/forms/passwordChecklist";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { createClient } from "@/utils/supabase/client";
+import { passwordProblem } from "@/lib/passwordRules";
+import { changePassword } from "@/lib/securityActions";
 
 type PasswordValues = {
 	current: string;
 	password: string;
 	confirm: string;
 };
-
-const MIN_PASSWORD_LENGTH = 12;
 
 const fields: FormFieldConfig[] = [
 	{
@@ -30,15 +30,11 @@ const fields: FormFieldConfig[] = [
 		type: "password",
 		label: "New password",
 		autoComplete: "new-password",
-		description: `At least ${MIN_PASSWORD_LENGTH} characters.`,
 		validation: {
 			required: "New password is required",
-			minLength: {
-				value: MIN_PASSWORD_LENGTH,
-				message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-			},
 			validate: (value: string, values: Record<string, unknown>) =>
-				value !== values.current || "Choose a password you haven't used here",
+				passwordProblem(value) ??
+				(value !== values.current || "Choose a password you haven't used here"),
 		},
 	},
 	{
@@ -54,15 +50,20 @@ const fields: FormFieldConfig[] = [
 	},
 ];
 
-/** Change password: closed by default, opens into the form. */
-export default function PasswordCard({ email }: { email: string }) {
-	const [open, setOpen] = useState(false);
+/**
+ * Change password: closed by default, opens into the form. `mustChange` opens it
+ * with a warning (after a lockout the person says wasn't them).
+ */
+export default function PasswordCard({ mustChange = false }: { mustChange?: boolean }) {
+	const [opened, setOpen] = useState(false);
+	const open = opened || mustChange;
 	const [saving, setSaving] = useState(false);
 	const [serverError, setServerError] = useState<string | null>(null);
 	const methods = useForm<PasswordValues>({
 		mode: "onTouched",
 		defaultValues: { current: "", password: "", confirm: "" },
 	});
+	const newPassword = useWatch({ control: methods.control, name: "password" });
 
 	const close = () => {
 		setOpen(false);
@@ -73,27 +74,13 @@ export default function PasswordCard({ email }: { email: string }) {
 	const onSubmit = async ({ current, password }: PasswordValues) => {
 		setServerError(null);
 		setSaving(true);
-		const supabase = createClient();
-
-		// Supabase doesn't check the old password on update, so prove it first
-		const { error: verifyError } = await supabase.auth.signInWithPassword({
-			email,
-			password: current,
-		});
-		if (verifyError) {
+		// The server checks the current password, then signs out other devices
+		const result = await changePassword({ current, password });
+		if (!result.ok) {
 			setSaving(false);
-			setServerError("Your current password isn't right.");
+			setServerError(result.message);
 			return;
 		}
-
-		const { error } = await supabase.auth.updateUser({ password });
-		if (error) {
-			setSaving(false);
-			setServerError(error.message);
-			return;
-		}
-
-		await supabase.auth.signOut({ scope: "others" });
 		setSaving(false);
 		close();
 		toast.success("Password updated. Other devices will need to sign in again.");
@@ -114,6 +101,15 @@ export default function PasswordCard({ email }: { email: string }) {
 
 			{open && (
 				<>
+					{mustChange && (
+						<div
+							role="alert"
+							className="rounded-md border border-danger-line bg-danger-subtle px-3.5 py-2.5 text-small text-danger-fg"
+						>
+							Someone else may know your password. Choose a new, stronger one now.
+							Every other device will be signed out.
+						</div>
+					)}
 					{serverError && (
 						<div
 							role="alert"
@@ -129,17 +125,22 @@ export default function PasswordCard({ email }: { email: string }) {
 						hideRequiredMarks
 						onSubmit={onSubmit}
 						renderFooter={({ canSubmit }) => (
-							<div className="flex flex-wrap gap-3">
-								<Button
-									type="submit"
-									variant="primary"
-									disabled={!canSubmit || saving}
-								>
-									{saving ? "Updating…" : "Update password"}
-								</Button>
-								<Button onClick={close} disabled={saving}>
-									Cancel
-								</Button>
+							<div className="flex flex-col gap-4">
+								<PasswordChecklist password={newPassword ?? ""} />
+								<div className="flex flex-wrap gap-3">
+									<Button
+										type="submit"
+										variant="primary"
+										disabled={!canSubmit || saving}
+									>
+										{saving ? "Updating…" : "Update password"}
+									</Button>
+									{!mustChange && (
+										<Button onClick={close} disabled={saving}>
+											Cancel
+										</Button>
+									)}
+								</div>
 							</div>
 						)}
 					/>

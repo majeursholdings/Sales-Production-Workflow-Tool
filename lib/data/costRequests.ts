@@ -165,9 +165,7 @@ const toCostRequest = (row: RequestRow): CostRequest => {
 		markupPercent: Number(row.markup_percent),
 		markupCategory: row.markup_category,
 		notes: row.notes,
-		images: [...row.cost_request_images]
-			.sort(byPosition)
-			.map(({ src, alt }) => ({ src, alt })),
+		images: [...row.cost_request_images].sort(byPosition).map(({ src, alt }) => ({ src, alt })),
 		parts: parts.map(toPart),
 		status: row.status,
 		resolutions,

@@ -1,5 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { afterLinkSignIn } from "@/lib/linkSignIn";
 import { createClient } from "@/utils/supabase/server";
 
 const ALLOWED_OTP_TYPES = new Set<EmailOtpType>([
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
 			token_hash: tokenHash,
 		});
 		if (!error) {
+			await afterLinkSignIn(supabase, type === "email" || type === "magiclink");
 			return NextResponse.redirect(`${origin}${next}`);
 		}
 	} else if (code) {

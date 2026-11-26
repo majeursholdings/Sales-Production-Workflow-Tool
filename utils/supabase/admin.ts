@@ -1,11 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-
-function getSecretKey(): string | undefined {
-	return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-}
+import { secretKey, supabaseUrl } from "@/utils/supabase/env";
 
 export function hasAdminClient(): boolean {
-	return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && getSecretKey());
+	return Boolean(secretKey());
 }
 
 /**
@@ -18,16 +15,16 @@ export function createAdminClient() {
 		throw new Error("createAdminClient must only be called on the server.");
 	}
 
-	const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const secretKey = getSecretKey();
+	const url = supabaseUrl();
+	const key = secretKey();
 
-	if (!url || !secretKey) {
+	if (!key) {
 		throw new Error(
 			"Missing SUPABASE_SECRET_KEY in server environment. Add your Supabase secret key to .env.local to manage team accounts.",
 		);
 	}
 
-	return createClient(url, secretKey, {
+	return createClient(url, key, {
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false,

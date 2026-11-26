@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
+import { sendPasswordReset, sendUnlockLink } from "@/lib/email/authEmails";
+import { hasPendingInvite, sendInvite } from "@/lib/invites";
+import { isAccountLocked } from "@/lib/loginLock";
 import { APP_ROLES, isOwnerAppRole, type AppRole } from "@/lib/roles";
 import { requireOwner } from "@/lib/session";
 import type { TeamMember } from "@/lib/team";
@@ -14,24 +16,12 @@ export type TeamActionResult<T = undefined> =
 
 const roleSchema = z.enum(APP_ROLES);
 
-const createMemberSchema = z
-	.object({
-		fullName: z.string().trim().min(2, "Full name is required"),
-		email: z.string().trim().email("Enter a valid work email"),
-		phone: z.string().trim().optional().default(""),
-		role: roleSchema,
-		mode: z.enum(["password", "invite"]),
-		password: z.string().optional(),
-	})
-	.superRefine((data, ctx) => {
-		if (data.mode === "password" && (!data.password || data.password.length < 12)) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["password"],
-				message: "Password must be at least 12 characters",
-			});
-		}
-	});
+const createMemberSchema = z.object({
+	fullName: z.string().trim().min(2, "Full name is required"),
+	email: z.string().trim().toLowerCase().email("Enter a valid work email"),
+	phone: z.string().trim().optional().default(""),
+	role: roleSchema,
+});
 
 const updateMemberSchema = z.object({
 	userId: z.string().uuid("Invalid user ID"),
@@ -44,13 +34,6 @@ const toggleActiveSchema = z.object({
 	userId: z.string().uuid("Invalid user ID"),
 	isActive: z.boolean(),
 });
-
-async function getOrigin(): Promise<string> {
-	const h = await headers();
-	const host = h.get("x-forwarded-host") || h.get("host");
-	const proto = h.get("x-forwarded-proto") || "http";
-	return host ? `${proto}://${host}` : "";
-}
 
 async function writeAuditLog(params: {
 	actorId: string;
@@ -91,43 +74,21 @@ export async function createTeamMemberAction(
 		};
 	}
 
-	const { fullName, email, phone, role, mode, password } = parsed.data;
+	const { fullName, email, phone, role } = parsed.data;
 	const admin = createAdminClient();
-	const origin = await getOrigin();
 
-	let userId: string;
-	let createdAt = new Date().toISOString();
-
-	if (mode === "invite") {
-		const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-			data: { full_name: fullName, phone },
-			redirectTo: origin
-				? `${origin}/auth/confirm?next=${encodeURIComponent("/forgot-password?mode=reset")}`
-				: undefined,
-		});
-		if (error || !data.user) {
-			return { ok: false, message: error?.message ?? "Could not send invite email." };
-		}
-		userId = data.user.id;
-		createdAt = data.user.created_at ?? createdAt;
-
-		await admin.auth.admin.updateUserById(userId, {
-			app_metadata: { role },
-		});
-	} else {
-		const { data, error } = await admin.auth.admin.createUser({
-			email,
-			password: password!,
-			email_confirm: true,
-			user_metadata: { full_name: fullName, phone },
-			app_metadata: { role },
-		});
-		if (error || !data.user) {
-			return { ok: false, message: error?.message ?? "Could not create user account." };
-		}
-		userId = data.user.id;
-		createdAt = data.user.created_at ?? createdAt;
+	// No password: they set their own from the invite link (lib/invites.ts)
+	const { data, error } = await admin.auth.admin.createUser({
+		email,
+		email_confirm: true,
+		user_metadata: { full_name: fullName, phone },
+		app_metadata: { role },
+	});
+	if (error || !data.user) {
+		return { ok: false, message: error?.message ?? "Could not create the account." };
 	}
+	const userId = data.user.id;
+	const createdAt = data.user.created_at ?? new Date().toISOString();
 
 	const { error: profileError } = await admin.from("profiles").upsert(
 		{
@@ -136,6 +97,8 @@ export async function createTeamMemberAction(
 			email,
 			phone,
 			is_active: true,
+			// Email codes are everyone's default two-step
+			two_step_email: true,
 		},
 		{ onConflict: "id" },
 	);
@@ -159,10 +122,14 @@ export async function createTeamMemberAction(
 		actorId: actor.id,
 		action: "user.created",
 		entityId: userId,
-		newValues: { full_name: fullName, email, role, mode },
+		newValues: { full_name: fullName, email, role },
 	});
 
+	const sent = await sendInvite(userId, email, fullName);
 	revalidatePath("/team");
+	if (!sent.ok) {
+		return { ok: false, message: `${fullName} was added, but ${sent.message}` };
+	}
 
 	return {
 		ok: true,
@@ -173,6 +140,8 @@ export async function createTeamMemberAction(
 			phone,
 			role,
 			isActive: true,
+			locked: false,
+			invitePending: true,
 			createdAt,
 		},
 	};
@@ -281,6 +250,8 @@ export async function updateTeamMemberAction(
 			phone,
 			role,
 			isActive: existingProfile.is_active,
+			locked: hasAdminClient() ? await isAccountLocked(existingProfile.email) : false,
+			invitePending: hasAdminClient() ? await hasPendingInvite(existingProfile.id) : false,
 			createdAt: existingProfile.created_at,
 		},
 	};
@@ -316,6 +287,8 @@ export async function setTeamMemberActiveAction(
 		await admin.auth.admin.updateUserById(userId, {
 			ban_duration: isActive ? "none" : "876000h",
 		});
+		// Sign them out everywhere now (the proxy also refuses inactive accounts on every request)
+		if (!isActive) await admin.rpc("revoke_user_sessions", { p_user_id: userId });
 	}
 
 	await writeAuditLog({
@@ -337,17 +310,8 @@ export async function sendTeamPasswordResetAction(email: string): Promise<TeamAc
 		return { ok: false, message: "Invalid email address." };
 	}
 
-	const supabase = await createClient();
-	const origin = await getOrigin();
-	const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
-		redirectTo: origin
-			? `${origin}/auth/confirm?next=${encodeURIComponent("/forgot-password?mode=reset")}`
-			: undefined,
-	});
-
-	if (error) {
-		return { ok: false, message: error.message };
-	}
+	const sent = await sendPasswordReset(parsed.data.toLowerCase());
+	if (!sent.ok) return sent;
 
 	await writeAuditLog({
 		actorId: actor.id,
@@ -356,5 +320,88 @@ export async function sendTeamPasswordResetAction(email: string): Promise<TeamAc
 		newValues: { email: parsed.data },
 	});
 
+	return { ok: true };
+}
+
+/**
+ * Unlocks an account locked after 5 wrong passwords and emails the person a
+ * one-time sign-in link. It lands on Security settings, which asks whether the
+ * lockout was them; if not, they must set a new, stronger password. The link
+ * counts as their email code; an authenticator app is still asked for.
+ */
+export async function unlockTeamMemberAction(userId: string): Promise<TeamActionResult> {
+	const actor = await requireOwner();
+	const parsed = z.string().uuid().safeParse(userId);
+	if (!parsed.success) return { ok: false, message: "Invalid request." };
+	if (!hasAdminClient()) {
+		return { ok: false, message: "Add SUPABASE_SECRET_KEY to unlock accounts." };
+	}
+
+	const admin = createAdminClient();
+	const { data: profile } = await admin
+		.from("profiles")
+		.select("email, is_active")
+		.eq("id", parsed.data)
+		.maybeSingle();
+	if (!profile?.email) return { ok: false, message: "That person no longer exists." };
+	if (!profile.is_active) {
+		return { ok: false, message: "Restore their access first, then unlock the account." };
+	}
+	const email = profile.email.toLowerCase();
+
+	await Promise.all([
+		admin.from("login_attempts").delete().eq("email", email),
+		// Once in, they're asked whether the lockout was them (Security settings)
+		admin.from("lockout_reviews").upsert({ user_id: parsed.data }),
+	]);
+
+	const sent = await sendUnlockLink(email);
+
+	await writeAuditLog({
+		actorId: actor.id,
+		action: "user.unlocked",
+		entityId: parsed.data,
+		newValues: { email, link_sent: sent.ok },
+	});
+	revalidatePath("/team");
+
+	if (!sent.ok) {
+		return {
+			ok: false,
+			message: `Unlocked, but the sign-in link couldn't be sent (${sent.message}). They can sign in with their password, or send them a password reset.`,
+		};
+	}
+	return { ok: true };
+}
+
+/** Sends a fresh invite link (48 hours) to someone who hasn't set a password yet. */
+export async function resendInviteAction(userId: string): Promise<TeamActionResult> {
+	const actor = await requireOwner();
+	const parsed = z.string().uuid().safeParse(userId);
+	if (!parsed.success) return { ok: false, message: "Invalid request." };
+	if (!hasAdminClient())
+		return { ok: false, message: "Add SUPABASE_SECRET_KEY to send invites." };
+
+	const admin = createAdminClient();
+	const { data } = await admin.auth.admin.getUserById(parsed.data);
+	const user = data.user;
+	if (!user?.email) return { ok: false, message: "That person no longer exists." };
+	if (!(await hasPendingInvite(user.id))) {
+		return { ok: false, message: "They've already set up their account." };
+	}
+
+	const { data: profile } = await admin
+		.from("profiles")
+		.select("full_name")
+		.eq("id", user.id)
+		.maybeSingle();
+	const sent = await sendInvite(user.id, user.email, profile?.full_name ?? "");
+	if (!sent.ok) return sent;
+	await writeAuditLog({
+		actorId: actor.id,
+		action: "user.invite_resent",
+		entityId: user.id,
+		newValues: { email: user.email },
+	});
 	return { ok: true };
 }

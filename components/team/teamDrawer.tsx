@@ -9,24 +9,23 @@ import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { APP_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type AppRole } from "@/lib/roles";
 import type { TeamMember } from "@/lib/team";
-import { createTeamMemberAction, updateTeamMemberAction } from "@/app/(dashboard)/team/actions";
+import { updateTeamMemberAction } from "@/app/(dashboard)/team/actions";
 
 type Values = {
 	fullName: string;
 	email: string;
 	phone: string;
 	role: AppRole;
-	mode: "password" | "invite";
-	password: string;
 };
 
+/** Edit a person's name, phone and role. (New people are added with an invite: addPersonCard.) */
 export default function TeamDrawer({
 	member,
 	onSaved,
 	onClose,
 }: {
-	member?: TeamMember;
-	onSaved: (saved: TeamMember, isNew: boolean) => void;
+	member: TeamMember;
+	onSaved: (saved: TeamMember) => void;
 	onClose: () => void;
 }) {
 	const [serverError, setServerError] = useState<string | null>(null);
@@ -39,13 +38,10 @@ export default function TeamDrawer({
 			email: member?.email ?? "",
 			phone: member?.phone ?? "",
 			role: member?.role ?? "sales",
-			mode: "password",
-			password: "",
 		},
 	});
 
 	const selectedRole = useWatch({ control: methods.control, name: "role" }) ?? "sales";
-	const selectedMode = useWatch({ control: methods.control, name: "mode" }) ?? "password";
 
 	const fields = useMemo<FormFieldConfig[]>(() => {
 		const base: FormFieldConfig[] = [
@@ -89,66 +85,19 @@ export default function TeamDrawer({
 			},
 		];
 
-		if (!member) {
-			base.push({
-				name: "mode",
-				type: "radio",
-				label: "How should they set their password?",
-				defaultValue: "password",
-				options: [
-					{
-						label: "Set an initial password now (ready to sign in immediately)",
-						value: "password",
-					},
-					{
-						label: "Send an email invite link (requires SMTP configured in Supabase)",
-						value: "invite",
-					},
-				],
-			});
-
-			if (selectedMode === "password") {
-				base.push({
-					name: "password",
-					type: "password",
-					label: "Initial password",
-					placeholder: "At least 12 characters",
-					description:
-						"Share securely; they can change it in Settings -> Security & sign-in.",
-					autoComplete: "new-password",
-					validation: {
-						required: "Initial password is required",
-						minLength: {
-							value: 12,
-							message: "Password must be at least 12 characters",
-						},
-					},
-				});
-			}
-		}
-
 		return base;
-	}, [member, selectedRole, selectedMode]);
+	}, [member, selectedRole]);
 
 	const handleSubmit = async (values: Values) => {
 		setServerError(null);
 		setSubmitting(true);
 
-		const result = member
-			? await updateTeamMemberAction({
-					userId: member.id,
-					fullName: values.fullName,
-					phone: values.phone,
-					role: values.role,
-				})
-			: await createTeamMemberAction({
-					fullName: values.fullName,
-					email: values.email,
-					phone: values.phone,
-					role: values.role,
-					mode: values.mode,
-					password: values.password,
-				});
+		const result = await updateTeamMemberAction({
+			userId: member.id,
+			fullName: values.fullName,
+			phone: values.phone,
+			role: values.role,
+		});
 
 		setSubmitting(false);
 
@@ -157,7 +106,7 @@ export default function TeamDrawer({
 			return;
 		}
 
-		onSaved(result.data, !member);
+		onSaved(result.data);
 	};
 
 	return (
@@ -191,13 +140,7 @@ export default function TeamDrawer({
 							Cancel
 						</Button>
 						<Button type="submit" variant="primary" disabled={!canSubmit || submitting}>
-							{submitting
-								? "Saving…"
-								: member
-									? "Save changes"
-									: selectedMode === "invite"
-										? "Send invite"
-										: "Create account"}
+							{submitting ? "Saving…" : "Save changes"}
 						</Button>
 					</div>
 				)}

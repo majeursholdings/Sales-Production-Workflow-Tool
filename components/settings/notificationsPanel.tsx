@@ -7,18 +7,12 @@ import { Button } from "@/components/common/buttons";
 import { Card, CardHeader, CardTitle } from "@/components/common/card";
 import { Table } from "@/components/tables";
 import { NOTIFICATION_EVENTS, type NotificationPrefs } from "@/lib/notificationPrefs";
-import { createClient } from "@/utils/supabase/client";
+import { updateNotificationPrefs } from "@/lib/profileActions";
 
 const checkboxClass = "size-4.5 cursor-pointer accent-accent";
 
 /** Notifications settings: which events reach you in the app and by email. */
-export default function NotificationsPanel({
-	userId,
-	initialPrefs,
-}: {
-	userId: string;
-	initialPrefs: NotificationPrefs;
-}) {
+export default function NotificationsPanel({ initialPrefs }: { initialPrefs: NotificationPrefs }) {
 	const [saving, setSaving] = useState(false);
 	const { register, handleSubmit, reset } = useForm<NotificationPrefs>({
 		defaultValues: initialPrefs,
@@ -26,15 +20,11 @@ export default function NotificationsPanel({
 
 	const onSubmit = async (values: NotificationPrefs) => {
 		setSaving(true);
-		const supabase = createClient();
-		const { error } = await supabase
-			.from("profiles")
-			.update({ notification_prefs: values })
-			.eq("id", userId);
+		const result = await updateNotificationPrefs(values);
 		setSaving(false);
 
-		if (error) {
-			toast.error(error.message);
+		if (!result.ok) {
+			toast.error(result.message);
 			return;
 		}
 

@@ -1,11 +1,19 @@
 "use server";
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { secondStepOwed } from "@/lib/twoStep";
+import { currentSession } from "@/lib/currentSession";
+import { sendSignInCode } from "@/lib/email/authEmails";
+import {
+	TRUSTED_DEVICE_COOKIE,
+	TRUSTED_DEVICE_SECONDS,
+	trustedDeviceCookieOptions,
+} from "@/lib/sessionPolicy";
+import { tokenHash } from "@/lib/trustedDevices";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { createClient } from "@/utils/supabase/server";
+import { createThrowawayClient, requestInfo } from "@/utils/supabase/server";
 
 export type TwoStepResult = { ok: true } | { ok: false; message: string };
 
@@ -14,45 +22,9 @@ const codeSchema = z
 	.trim()
 	.regex(/^\d{6}$/, "Enter the 6-digit code.");
 
-/**
- * A client that isn't tied to the person's cookies: sending and checking an
- * email code through it never replaces the session they're signed in with.
- */
-function throwawayClient() {
-	return createSupabaseClient(
-		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-		{ auth: { persistSession: false, autoRefreshToken: false } },
-	);
-}
-
-/** The signed-in person, their current session, and whether they still owe a second step. */
-async function currentSession() {
-	const supabase = await createClient();
-	const [{ data: userData }, { data: claimsData }] = await Promise.all([
-		supabase.auth.getUser(),
-		supabase.auth.getClaims(),
-	]);
-	const user = userData.user;
-	const claims = claimsData?.claims;
-	if (!user?.email || !claims) return null;
-
-	const hasApp = Boolean(
-		user.factors?.some((f) => f.factor_type === "totp" && f.status === "verified"),
-	);
-	const sessionId = typeof claims.session_id === "string" ? claims.session_id : undefined;
-	const state = await secondStepOwed(supabase, {
-		userId: user.id,
-		sessionId,
-		aal: typeof claims.aal === "string" ? claims.aal : undefined,
-		hasApp,
-	});
-	return { supabase, user, email: user.email, sessionId, ...state };
-}
-
 /** Checks an emailed code, then ends the throwaway session the check created. */
 async function codeIsValid(email: string, code: string) {
-	const client = throwawayClient();
+	const client = await createThrowawayClient();
 	const { data, error } = await client.auth.verifyOtp({ email, token: code, type: "email" });
 	if (error || !data.session) return false;
 	await client.auth.signOut({ scope: "local" });
@@ -73,23 +45,32 @@ export async function sendEmailCode(): Promise<TwoStepResult> {
 	const session = await currentSession();
 	if (!session) return { ok: false, message: "Your session expired. Sign in again." };
 
-	const { error } = await throwawayClient().auth.signInWithOtp({
-		email: session.email,
-		options: { shouldCreateUser: false },
-	});
-	if (error) {
-		return {
-			ok: false,
-			message: /rate|seconds/i.test(error.message)
-				? "A code was sent a moment ago. Wait a minute, then send a new one."
-				: error.message,
-		};
-	}
-	return { ok: true };
+	return sendSignInCode(session.email);
 }
 
-/** Sign-in: passes the second step with an emailed code (when email codes are on). */
-export async function verifyEmailCode(rawCode: string): Promise<TwoStepResult> {
+/** After the second step passes: if asked, trusts this browser for 30 days. */
+async function afterSecondStep(userId: string, trustDevice: boolean) {
+	if (!trustDevice) return;
+	const admin = createAdminClient();
+
+	const token = randomBytes(32).toString("base64url");
+	const expiresAt = new Date(Date.now() + TRUSTED_DEVICE_SECONDS * 1000);
+	const { error } = await admin.from("trusted_devices").insert({
+		token_hash: tokenHash(token),
+		user_id: userId,
+		expires_at: expiresAt.toISOString(),
+	});
+	if (error) return;
+
+	const [cookieStore, { secure }] = await Promise.all([cookies(), requestInfo()]);
+	cookieStore.set(TRUSTED_DEVICE_COOKIE, token, trustedDeviceCookieOptions(secure));
+}
+
+/** Sign-in: passes the second step with an emailed code. */
+export async function verifyEmailCode(
+	rawCode: string,
+	trustDevice = false,
+): Promise<TwoStepResult> {
 	const parsed = codeSchema.safeParse(rawCode);
 	if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
 
@@ -107,6 +88,35 @@ export async function verifyEmailCode(rawCode: string): Promise<TwoStepResult> {
 
 	const error = await recordPass(session.user.id, session.sessionId);
 	if (error) return { ok: false, message: "Couldn't finish signing in. Try again." };
+	await afterSecondStep(session.user.id, trustDevice);
+	return { ok: true };
+}
+
+/** Sign-in: passes the second step with a code from the authenticator app. */
+export async function verifyAppCode(rawCode: string, trustDevice = false): Promise<TwoStepResult> {
+	const parsed = codeSchema.safeParse(rawCode);
+	if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+
+	const session = await currentSession();
+	if (!session) return { ok: false, message: "Your session expired. Sign in again." };
+
+	const { data: factors, error: listError } = await session.supabase.auth.mfa.listFactors();
+	if (listError) return { ok: false, message: listError.message };
+	const totpFactor = factors?.totp.find((factor) => factor.status === "verified");
+	if (!totpFactor) {
+		return { ok: false, message: "No authenticator app is set up for this account." };
+	}
+
+	// Raises this session to AAL2; the new tokens are written to the cookies.
+	const { error } = await session.supabase.auth.mfa.challengeAndVerify({
+		factorId: totpFactor.id,
+		code: parsed.data,
+	});
+	if (error) {
+		return { ok: false, message: "That code didn't work. Check your app and try again." };
+	}
+
+	await afterSecondStep(session.user.id, trustDevice);
 	return { ok: true };
 }
 

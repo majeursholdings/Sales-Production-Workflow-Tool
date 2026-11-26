@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/common/buttons";
 import OtpInput from "@/components/forms/otpInput";
-import { Input } from "@/components/forms/input";
 import {
 	sendVerificationCode,
 	signOut,
@@ -28,14 +27,9 @@ const methods: Record<VerifyMethod, { title: string; text: string; other: string
 		text: "We sent a 6-digit code to your work email. It expires in 10 minutes.",
 		other: "Email me a code instead",
 	},
-	backup: {
-		title: "Use a backup code",
-		text: "Enter one of the 10 codes you saved when you set up two-step verification. Each works once.",
-		other: "Use a backup code",
-	},
 };
 
-/** The second sign-in step. `available` is what the person has set up; it starts on the app if they have one. */
+/** The second sign-in step. `available` is what the person can use; it starts on the app if they have one. */
 export default function VerifyForm({ available }: { available: TwoStepMethods }) {
 	const router = useRouter();
 	const [method, setMethod] = useState<VerifyMethod>(
@@ -47,8 +41,10 @@ export default function VerifyForm({ available }: { available: TwoStepMethods })
 	const [pending, setPending] = useState(false);
 	const [resent, setResent] = useState(false);
 
-	const isBackup = method === "backup";
-	const ready = isBackup ? code.trim().length > 0 : code.length === OTP_LENGTH;
+	const ready = code.length === OTP_LENGTH;
+	const otherMethods = (Object.keys(methods) as VerifyMethod[]).filter(
+		(key) => key !== method && (key === "app" ? available.app : available.email),
+	);
 	const copy = methods[method];
 
 	const switchMethod = async (next: VerifyMethod) => {
@@ -57,13 +53,13 @@ export default function VerifyForm({ available }: { available: TwoStepMethods })
 		setError(null);
 		setResent(false);
 		if (next === "email") {
-			const result = await sendVerificationCode("email");
+			const result = await sendVerificationCode();
 			if (!result.ok) setError(result.message);
 		}
 	};
 
 	const resend = async () => {
-		const result = await sendVerificationCode("email");
+		const result = await sendVerificationCode();
 		if (result.ok) {
 			setResent(true);
 			setError(null);
@@ -99,30 +95,19 @@ export default function VerifyForm({ available }: { available: TwoStepMethods })
 			<AuthHeading title={copy.title}>{copy.text}</AuthHeading>
 			{error && <AuthAlert>{error}</AuthAlert>}
 			<form onSubmit={submit} noValidate className="flex flex-col gap-5">
-				{isBackup ? (
-					<Input
-						label="Backup code"
+				<div className="flex flex-col gap-2">
+					<span className="text-body font-bold">{OTP_LENGTH}-digit code</span>
+					<OtpInput
+						// a fresh set of boxes (and focus) when the method changes
+						key={method}
+						length={OTP_LENGTH}
 						value={code}
-						onChange={(e) => setCode(e.target.value)}
-						autoComplete="one-time-code"
+						onChange={setCode}
+						error={!!error}
+						disabled={pending}
 						autoFocus
-						error={error ? "Check the code and try again." : undefined}
 					/>
-				) : (
-					<div className="flex flex-col gap-2">
-						<span className="text-body font-bold">{OTP_LENGTH}-digit code</span>
-						<OtpInput
-							// a fresh set of boxes (and focus) when the method changes
-							key={method}
-							length={OTP_LENGTH}
-							value={code}
-							onChange={setCode}
-							error={!!error}
-							disabled={pending}
-							autoFocus
-						/>
-					</div>
-				)}
+				</div>
 				<label className="flex items-center gap-2 text-body">
 					<input
 						type="checkbox"
@@ -155,23 +140,19 @@ export default function VerifyForm({ available }: { available: TwoStepMethods })
 					{resent && <span role="status"> New code sent.</span>}
 				</AuthNote>
 			)}
-			<div className="flex flex-col gap-2 text-body">
-				<span className="text-small text-fg-tertiary">Other ways to sign in</span>
-				{(Object.keys(methods) as VerifyMethod[])
-					.filter(
-						(key) =>
-							key !== method &&
-							(key === "backup" || (key === "app" ? available.app : available.email)),
-					)
-					.map((key) => (
+			{otherMethods.length > 0 && (
+				<div className="flex flex-col gap-2 text-body">
+					<span className="text-small text-fg-tertiary">Other ways to sign in</span>
+					{otherMethods.map((key) => (
 						<TextButton key={key} onClick={() => switchMethod(key)}>
 							{methods[key].other}
 						</TextButton>
 					))}
-			</div>
+				</div>
+			)}
 			<AuthNote className="text-center">
-				Lost your phone and backup codes? Ask your MD or GM to reset two-step verification
-				in Team &amp; access.
+				Can&apos;t get a code? Ask your MD or GM to reset two-step verification in Team
+				&amp; access.
 			</AuthNote>
 		</>
 	);

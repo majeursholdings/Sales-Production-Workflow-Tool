@@ -9,7 +9,9 @@ import {
 	type AppPermission,
 	type AppRole,
 } from "@/lib/roles";
-import { secondStepOwed } from "@/lib/twoStep";
+import { cookies } from "next/headers";
+import { TRUSTED_DEVICE_COOKIE } from "@/lib/sessionPolicy";
+import { sessionState } from "@/lib/twoStep";
 import { createClient } from "@/utils/supabase/server";
 
 export type SessionUser = {
@@ -41,18 +43,26 @@ export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 		return null;
 	}
 
-	// Server-side second-step enforcement: authenticator app (AAL2) or, when on, an email code.
-	const { data: claimsData } = await supabase.auth.getClaims();
+	// Server-side checks: live session, active account, second step passed.
+	const [{ data: claimsData }, cookieStore] = await Promise.all([
+		supabase.auth.getClaims(),
+		cookies(),
+	]);
 	const claims = claimsData?.claims;
-	const { owed } = await secondStepOwed(supabase, {
-		userId: user.id,
-		sessionId: typeof claims?.session_id === "string" ? claims.session_id : undefined,
+	const state = await sessionState(supabase, {
 		aal: typeof claims?.aal === "string" ? claims.aal : undefined,
-		hasApp: Boolean(
-			user.factors?.some((f) => f.factor_type === "totp" && f.status === "verified"),
-		),
+		deviceToken: cookieStore.get(TRUSTED_DEVICE_COOKIE)?.value,
 	});
-	if (owed) {
+	if (state.accountLocked) {
+		redirect("/login?error=locked");
+	}
+	if (!state.live) {
+		redirect("/login?error=session_expired");
+	}
+	if (!state.active) {
+		redirect("/login?error=deactivated");
+	}
+	if (state.owed) {
 		redirect("/verify");
 	}
 

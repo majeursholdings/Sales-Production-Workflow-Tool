@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, Mail, Minus } from "lucide-react";
+import { Check, Mail } from "lucide-react";
 import { LinkButton } from "@/components/common/buttons";
 import MainForm from "@/components/forms";
+import PasswordChecklist from "@/components/forms/passwordChecklist";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { requestPasswordReset, resetPassword, signOut } from "@/lib/auth";
-import { cn } from "@/lib/cn";
+import { requestPasswordReset, resetPassword } from "@/lib/auth";
+import { passwordProblem } from "@/lib/passwordRules";
 import { AuthAlert, AuthBadge, AuthHeading, AuthNote, BackLink, TextButton } from "./authParts";
-
-const MIN_PASSWORD_LENGTH = 12;
 
 type RequestValues = { email: string };
 type ResetValues = { password: string; confirm: string };
@@ -36,10 +35,7 @@ const resetFields: FormFieldConfig[] = [
 		autoComplete: "new-password",
 		validation: {
 			required: "Password is required",
-			minLength: {
-				value: MIN_PASSWORD_LENGTH,
-				message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-			},
+			validate: (value: string) => passwordProblem(value) ?? true,
 		},
 	},
 	{
@@ -55,25 +51,6 @@ const resetFields: FormFieldConfig[] = [
 		},
 	},
 ];
-
-function Requirement({ met, children }: { met: boolean; children: string }) {
-	return (
-		<li
-			className={cn(
-				"flex items-center gap-2 text-small",
-				met ? "text-success-fg" : "text-fg-tertiary",
-			)}
-		>
-			{met ? (
-				<Check aria-hidden="true" className="size-4" />
-			) : (
-				<Minus aria-hidden="true" className="size-4" />
-			)}
-			{children}
-			<span className="sr-only">{met ? " (met)" : " (not met yet)"}</span>
-		</li>
-	);
-}
 
 export default function ForgotPasswordFlow() {
 	const searchParams = useSearchParams();
@@ -105,12 +82,12 @@ export default function ForgotPasswordFlow() {
 		if (!isResetMode) return;
 		setError(null);
 		setPending(true);
-		const result = await resetPassword({ token, password });
+		const result = await resetPassword({ password });
 		if (!result.ok) {
 			setPending(false);
 			return setError(result.message);
 		}
-		await signOut();
+		// resetPassword has already signed out every session, this one included
 		setPending(false);
 		setUpdated(true);
 	};
@@ -146,15 +123,7 @@ export default function ForgotPasswordFlow() {
 					submitLabel="Save new password"
 					isLoading={pending}
 					hideRequiredMarks
-					footerSlot={(values) => (
-						<ul aria-label="Password requirements" className="flex flex-col gap-1">
-							<Requirement
-								met={(values.password?.length ?? 0) >= MIN_PASSWORD_LENGTH}
-							>
-								{`At least ${MIN_PASSWORD_LENGTH} characters`}
-							</Requirement>
-						</ul>
-					)}
+					footerSlot={(values) => <PasswordChecklist password={values.password ?? ""} />}
 				/>
 				<AuthNote>You&apos;ll be signed out on other devices.</AuthNote>
 			</>
@@ -171,7 +140,7 @@ export default function ForgotPasswordFlow() {
 				<AuthHeading title="Check your email">
 					<span role="status">
 						If {sentTo} has an account, a reset link is on its way. It works once and
-						expires in 30 minutes.
+						expires in 10 minutes.
 					</span>
 				</AuthHeading>
 				{error && <AuthAlert>{error}</AuthAlert>}

@@ -63,7 +63,7 @@ export default function AddPersonCard({
 	const handleSubmit = async (values: Values) => {
 		setServerError(null);
 		setSubmitting(true);
-		const result = await createTeamMemberAction({ ...values, mode: "invite" });
+		const result = await createTeamMemberAction(values);
 		setSubmitting(false);
 		if (!result.ok) {
 			setServerError(result.message);
@@ -94,8 +94,9 @@ export default function AddPersonCard({
 				onSubmit={handleSubmit}
 				footerSlot={
 					<p className="text-small text-fg-tertiary">
-						They get an email from your majeursholdings.com mailbox with a link to set
-						their password. The link expires in 48 hours.
+						They get an email with a link to set their own password. The link works for
+						48 hours. Sign-in codes go to their email by default; they can add an
+						authenticator app later.
 					</p>
 				}
 				renderFooter={({ canSubmit }) => (

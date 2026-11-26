@@ -6,7 +6,6 @@ export default async function SettingsProfilePage() {
 	const [user, settings] = await Promise.all([getCurrentUser(), getProfileSettings()]);
 	return (
 		<ProfileForm
-			userId={user.id}
 			initialName={user.name}
 			email={user.email}
 			initialPhone={user.phone}

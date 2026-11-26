@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
@@ -16,6 +16,10 @@ const QUERY_ERRORS: Record<string, string> = {
 	no_role:
 		"Your account does not have a role assigned yet. Ask your MD or GM to finish setting up your access in Team & access.",
 	invalid_link: "That sign-in or reset link has expired or already been used. Request a new one.",
+	invite_expired:
+		"That invite link has expired or was already used. Ask your MD or GM to resend your invite.",
+	session_expired: "Your session has ended. Sign in again to continue.",
+	locked: "This account is locked after too many incorrect passwords, and you've been signed out everywhere. Ask your MD or GM to unlock it in Team & access. They'll email you a sign-in link.",
 };
 
 const fields: FormFieldConfig[] = [
@@ -50,7 +54,6 @@ function safeNextPath(next: string | null): string {
 }
 
 export default function LoginForm() {
-	const router = useRouter();
 	const searchParams = useSearchParams();
 	const queryError = searchParams.get("error");
 	const nextPath = safeNextPath(searchParams.get("next"));
@@ -71,11 +74,11 @@ export default function LoginForm() {
 		}
 		// Email codes only: send the code now, so it's waiting when the verify page opens
 		if (result.requiresMfa && !result.methods.app && result.methods.email) {
-			await sendVerificationCode("email");
+			await sendVerificationCode();
 		}
-		// Staying in "pending" through the redirect stops a second submit.
-		router.push(result.requiresMfa ? "/verify" : nextPath);
-		router.refresh();
+		// A full page load (not a client-side push) starts the browser's Supabase
+		// client fresh with the new session. Staying "pending" stops a second submit.
+		window.location.assign(result.requiresMfa ? "/verify" : nextPath);
 	};
 
 	return (

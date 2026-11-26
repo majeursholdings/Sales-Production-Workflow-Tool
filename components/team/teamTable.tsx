@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, Pencil, UserCheck, UserMinus } from "lucide-react";
+import { KeyRound, LockOpen, MailPlus, Pencil, UserCheck, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/common/badge";
 import {
@@ -40,12 +40,14 @@ const GROUP_OF: Record<AppRole, RoleGroup> = {
 };
 
 const ACTIVE = "Active";
+const LOCKED = "Locked";
+const INVITED = "Invited";
 const REMOVED = "Access removed";
 
 export type TeamRow = TeamMember & {
 	roleLabel: string;
 	roleGroup: RoleGroup | "none";
-	status: typeof ACTIVE | typeof REMOVED;
+	status: typeof ACTIVE | typeof LOCKED | typeof INVITED | typeof REMOVED;
 };
 
 type Handlers = {
@@ -53,7 +55,12 @@ type Handlers = {
 	onEdit: (member: TeamMember) => void;
 	onToggleActive: (member: TeamMember) => void;
 	onSendReset: (member: TeamMember) => void;
+	onUnlock: (member: TeamMember) => void;
+	onResendInvite: (member: TeamMember) => void;
 };
+
+const statusOf = (m: TeamMember): TeamRow["status"] =>
+	!m.isActive ? REMOVED : m.locked ? LOCKED : m.invitePending ? INVITED : ACTIVE;
 
 const initialsOf = (name: string) =>
 	name
@@ -65,7 +72,14 @@ const initialsOf = (name: string) =>
 
 /** Columns for the people table. Called with no handlers by the loading skeleton, which only needs the headers. */
 export function teamColumns(handlers?: Handlers): ColumnDef<TeamRow>[] {
-	const { currentUserId = "", onEdit, onToggleActive, onSendReset } = handlers ?? {};
+	const {
+		currentUserId = "",
+		onEdit,
+		onToggleActive,
+		onSendReset,
+		onUnlock,
+		onResendInvite,
+	} = handlers ?? {};
 	return [
 		{
 			key: "person",
@@ -112,25 +126,67 @@ export function teamColumns(handlers?: Handlers): ColumnDef<TeamRow>[] {
 		{
 			key: "status",
 			header: "Status",
-			cell: (m) => (
-				<Badge variant={m.isActive ? "success" : "neutral"}>
-					{m.isActive ? ACTIVE : REMOVED}
-				</Badge>
-			),
+			cell: (m) => {
+				const status = statusOf(m);
+				return (
+					<span className="flex flex-col items-start gap-0.5">
+						<Badge
+							variant={
+								status === ACTIVE
+									? "success"
+									: status === LOCKED
+										? "danger"
+										: "neutral"
+							}
+						>
+							{status}
+						</Badge>
+						{status === LOCKED && (
+							<span className="text-small text-fg-tertiary">
+								Too many incorrect passwords
+							</span>
+						)}
+						{status === INVITED && (
+							<span className="text-small text-fg-tertiary">
+								Hasn&apos;t set a password yet
+							</span>
+						)}
+					</span>
+				);
+			},
 		},
 		{
 			key: "actions",
 			header: <span className="sr-only">Actions</span>,
-			className: "w-32 text-end",
+			className: "w-40 text-end",
 			cell: (m) => (
 				<span className="inline-flex items-center justify-end gap-1">
-					<IconButton
-						aria-label={`Send password reset to ${m.fullName}`}
-						title="Send password reset email"
-						onClick={() => onSendReset?.(m)}
-					>
-						<KeyRound aria-hidden="true" />
-					</IconButton>
+					{m.locked && m.isActive && (
+						<IconButton
+							aria-label={`Unlock ${m.fullName}'s account and email a sign-in link`}
+							title="Unlock and email a sign-in link"
+							onClick={() => onUnlock?.(m)}
+						>
+							<LockOpen aria-hidden="true" />
+						</IconButton>
+					)}
+					{m.invitePending ? (
+						<IconButton
+							aria-label={`Resend ${m.fullName}'s invite`}
+							title="Resend invite (new 48-hour link)"
+							onClick={() => onResendInvite?.(m)}
+						>
+							<MailPlus aria-hidden="true" />
+						</IconButton>
+					) : (
+						<IconButton
+							aria-label={`Send password reset to ${m.fullName}`}
+							title="Send password reset email"
+							onClick={() => onSendReset?.(m)}
+						>
+							<KeyRound aria-hidden="true" />
+						</IconButton>
+					)}
 					<IconButton
 						aria-label={`Edit ${m.fullName}'s role`}
 						title="Edit"
@@ -178,6 +234,8 @@ export default function TeamTable({
 	onEdit,
 	onToggleActive,
 	onSendReset,
+	onUnlock,
+	onResendInvite,
 }: {
 	members: TeamMember[];
 } & Handlers) {
@@ -185,7 +243,7 @@ export default function TeamTable({
 		...m,
 		roleLabel: m.role ? ROLE_LABELS[m.role] : "Unassigned",
 		roleGroup: m.role ? GROUP_OF[m.role] : "none",
-		status: m.isActive ? ACTIVE : REMOVED,
+		status: statusOf(m),
 	}));
 
 	const { rows, pagination } = useTableRows({
@@ -211,7 +269,14 @@ export default function TeamTable({
 	return (
 		<DataTable
 			tableId="team"
-			columns={teamColumns({ currentUserId, onEdit, onToggleActive, onSendReset })}
+			columns={teamColumns({
+				currentUserId,
+				onEdit,
+				onToggleActive,
+				onSendReset,
+				onUnlock,
+				onResendInvite,
+			})}
 			rows={rows}
 			pagination={pagination}
 			emptyMessage="No one matches your search. Try a different name or email."
@@ -241,6 +306,8 @@ export default function TeamTable({
 								paramKey: "status",
 								items: [
 									{ label: ACTIVE, value: ACTIVE },
+									{ label: INVITED, value: INVITED },
+									{ label: LOCKED, value: LOCKED },
 									{ label: REMOVED, value: REMOVED },
 								],
 							},

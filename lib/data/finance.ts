@@ -132,9 +132,7 @@ export async function getFinanceData(): Promise<FinanceData> {
 
 	return {
 		today: dayjs().format("YYYY-MM-DD"),
-		entries: [...income, ...running, ...materials].sort((a, b) =>
-			b.date.localeCompare(a.date),
-		),
+		entries: [...income, ...running, ...materials].sort((a, b) => b.date.localeCompare(a.date)),
 		owed: {
 			toMajeurs: {
 				amount: partPaid.reduce((total, i) => total + balanceOf(i), 0),

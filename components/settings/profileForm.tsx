@@ -7,7 +7,7 @@ import { Card } from "@/components/common/card";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
-import { createClient } from "@/utils/supabase/client";
+import { updateProfile } from "@/lib/profileActions";
 
 type ProfileValues = {
 	fullName: string;
@@ -26,14 +26,12 @@ const initialsOf = (name: string) =>
 		.toUpperCase();
 
 export default function ProfileForm({
-	userId,
 	initialName,
 	email,
 	initialPhone,
 	roleLabel,
 	initialSignature,
 }: {
-	userId: string;
 	initialName: string;
 	email: string;
 	initialPhone: string;
@@ -88,20 +86,16 @@ export default function ProfileForm({
 
 	const onSubmit = async (values: ProfileValues) => {
 		setSaving(true);
-		const supabase = createClient();
-		const { error } = await supabase
-			.from("profiles")
-			.update({
-				full_name: values.fullName.trim(),
-				phone: values.phone.trim(),
-				email_signature: values.emailSignature.trim(),
-			})
-			.eq("id", userId);
+		const result = await updateProfile({
+			fullName: values.fullName,
+			phone: values.phone,
+			emailSignature: values.emailSignature,
+		});
 
 		setSaving(false);
 
-		if (error) {
-			toast.error(error.message);
+		if (!result.ok) {
+			toast.error(result.message);
 			return;
 		}
 

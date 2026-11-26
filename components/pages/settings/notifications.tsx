@@ -1,8 +1,8 @@
 import NotificationsPanel from "@/components/settings/notificationsPanel";
 import { getProfileSettings } from "@/lib/profileSettings";
-import { getCurrentUser } from "@/lib/session";
 
 export default async function SettingsNotificationsPage() {
-	const [user, settings] = await Promise.all([getCurrentUser(), getProfileSettings()]);
-	return <NotificationsPanel userId={user.id} initialPrefs={settings.notifications} />;
+	// getProfileSettings requires a signed-in user
+	const settings = await getProfileSettings();
+	return <NotificationsPanel initialPrefs={settings.notifications} />;
 }

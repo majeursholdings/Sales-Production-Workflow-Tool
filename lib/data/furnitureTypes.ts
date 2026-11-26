@@ -46,7 +46,12 @@ type TypeRow = {
 	status: FurnitureTypeStatus;
 	photo_urls: string[] | null;
 	furniture_type_parts: { sku: string; qty: Num; sort_order: Num }[];
-	furniture_type_hours: { kind: "labour" | "machine"; name: string; hours: Num; sort_order: Num }[];
+	furniture_type_hours: {
+		kind: "labour" | "machine";
+		name: string;
+		hours: Num;
+		sort_order: Num;
+	}[];
 	furniture_type_extras: {
 		name: string;
 		cost_type: ExtraCost["type"];
@@ -125,9 +130,9 @@ const toTemplate = (row: TypeRow, rates: CostingRates): FurnitureTemplate => {
  * Every furniture type the viewer can see (drafts only for template editors, via RLS),
  * with its template costed at today's rates. `publishedOnly` is for the quote builder.
  */
-export async function getFurnitureCatalog(
-	{ publishedOnly = false }: { publishedOnly?: boolean } = {},
-): Promise<FurnitureCatalog> {
+export async function getFurnitureCatalog({
+	publishedOnly = false,
+}: { publishedOnly?: boolean } = {}): Promise<FurnitureCatalog> {
 	const supabase = await createClient();
 	let query = supabase.from("furniture_types").select(TYPE_COLUMNS).order("name");
 	if (publishedOnly) query = query.eq("status", "published");

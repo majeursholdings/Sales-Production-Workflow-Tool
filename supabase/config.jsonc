@@ -123,8 +123,8 @@
     "enabled": true,
     // Port to use for the email testing server web interface.
     "port": 54324,
-    // Uncomment to expose additional ports for testing user applications that send emails.
-    // "smtp_port": 54325,
+    // SMTP port the app's own mailer (nodemailer) sends to in local development.
+    "smtp_port": 54325,
     // "pop3_port": 54326,
     // "admin_email": "admin@email.com",
     // "sender_name": "Admin",
@@ -236,9 +236,12 @@
       // Number of sessions that can be refreshed in a 5 minute interval per IP address.
       "token_refresh": 150,
       // Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-      "sign_in_sign_ups": 30,
+      // High on purpose: a whole office can share one IP. Wrong passwords are limited per
+      // email by the app (5-minute pause at 3, account lock at 5), which only affects the
+      // account being guessed. Set the same values in the hosted dashboard.
+      "sign_in_sign_ups": 300,
       // Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
-      "token_verifications": 30,
+      "token_verifications": 300,
       // Number of Web3 logins that can be made in a 5 minute interval per IP address.
       "web3": 30
     },
@@ -269,7 +272,8 @@
       // Number of characters used in the email OTP.
       "otp_length": 6,
       // Number of seconds before the email OTP expires (defaults to 1 hour).
-      "otp_expiry": 3600,
+      // 10 minutes, matching what the sign-in screens tell people.
+      "otp_expiry": 600,
 
       // Use a production-ready SMTP server
       // "smtp": {
@@ -282,13 +286,8 @@
       //   "sender_name": "Admin"
       // },
 
-      // Uncomment to customize email template
-      // "template": {
-      //   "invite": {
-      //     "subject": "You have been invited",
-      //     "content_path": "./supabase/templates/invite.html"
-      //   }
-      // },
+      // Supabase sends no email: the app generates codes/links through the admin
+      // API and sends them itself with nodemailer (lib/email). No templates here.
 
       // Uncomment to customize notification email template
       // "notification": {
@@ -335,7 +334,6 @@
     //   "inactivity_timeout": "8h"
     // },
 
-    // This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
     // This hook runs before a token is issued and adds the `user_role` claim (mirrors production).
     "hook": {
       "custom_access_token": {
@@ -350,9 +348,10 @@
       "max_enrolled_factors": 10,
 
       // Control MFA via App Authenticator (TOTP)
+      // On: Settings -> Security offers an authenticator app (on by default in hosted projects).
       "totp": {
-        "enroll_enabled": false,
-        "verify_enabled": false
+        "enroll_enabled": true,
+        "verify_enabled": true
       },
 
       // Configure MFA via Phone Messaging

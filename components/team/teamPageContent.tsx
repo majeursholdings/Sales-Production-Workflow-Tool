@@ -11,7 +11,9 @@ import { ROLE_LABELS } from "@/lib/roles";
 import type { TeamMember } from "@/lib/team";
 import {
 	sendTeamPasswordResetAction,
+	resendInviteAction,
 	setTeamMemberActiveAction,
+	unlockTeamMemberAction,
 } from "@/app/(dashboard)/team/actions";
 import AddPersonCard from "./addPersonCard";
 import RolePermissionsCard from "./rolePermissionsCard";
@@ -72,6 +74,36 @@ export default function TeamPageContent({
 			return;
 		}
 		toast.success(`Password reset link sent to ${member.email}.`);
+	};
+
+	const [unlocking, setUnlocking] = useState<TeamMember | null>(null);
+
+	const handleUnlock = async () => {
+		if (!unlocking || busy) return;
+		setBusy(true);
+		const result = await unlockTeamMemberAction(unlocking.id);
+		setBusy(false);
+		// The lock is cleared even if the email couldn't go out
+		setMembers((prev) =>
+			prev.map((m) => (m.id === unlocking.id ? { ...m, locked: false } : m)),
+		);
+		if (!result.ok) {
+			toast.error(result.message);
+		} else {
+			toast.success(
+				`${unlocking.fullName} is unlocked. A sign-in link is on its way to ${unlocking.email}.`,
+			);
+		}
+		setUnlocking(null);
+	};
+
+	const handleResendInvite = async (member: TeamMember) => {
+		const result = await resendInviteAction(member.id);
+		if (!result.ok) {
+			toast.error(result.message);
+			return;
+		}
+		toast.success(`New invite sent to ${member.email}. The link works for 48 hours.`);
 	};
 
 	const firstName = toggling?.fullName.split(" ")[0] ?? "";
@@ -141,6 +173,8 @@ export default function TeamPageContent({
 					onEdit={setEditing}
 					onToggleActive={setToggling}
 					onSendReset={handleSendReset}
+					onUnlock={setUnlocking}
+					onResendInvite={handleResendInvite}
 				/>
 			</Suspense>
 
@@ -157,6 +191,17 @@ export default function TeamPageContent({
 						toast.success(`${saved.fullName} updated.`);
 					}}
 				/>
+			)}
+
+			{unlocking && (
+				<ConfirmDialog
+					title={`Unlock ${unlocking.fullName}'s account?`}
+					confirmLabel="Unlock and send link"
+					onCancel={() => setUnlocking(null)}
+					onConfirm={handleUnlock}
+				>
+					{`Their account was locked after 5 incorrect passwords and signed out everywhere. We'll email ${unlocking.email} a one-time sign-in link (valid for 10 minutes). Once in, they'll be asked whether it was them, and if not, to set a stronger password.`}
+				</ConfirmDialog>
 			)}
 
 			{toggling && (

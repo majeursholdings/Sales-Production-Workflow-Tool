@@ -12,7 +12,12 @@ import { ConfirmDialog } from "@/components/common/modal";
 import OtpInput from "@/components/forms/otpInput";
 import { IconButton } from "@/components/tables";
 import { disableEmailTwoStep, enableEmailTwoStep, sendEmailCode } from "@/lib/emailTwoStepActions";
-import { createClient } from "@/utils/supabase/client";
+import {
+	cancelTotpEnroll,
+	confirmTotpEnroll,
+	removeTotpFactor,
+	startTotpEnroll,
+} from "@/lib/securityActions";
 
 export type EnrolledFactor = {
 	id: string;
@@ -50,18 +55,14 @@ export default function TwoStepCard({
 	// ── Authenticator app ────────────────────────────────────────────────────
 	const startEnroll = async () => {
 		setBusy(true);
-		const supabase = createClient();
-		const { data, error } = await supabase.auth.mfa.enroll({
-			factorType: "totp",
-			friendlyName: `Authenticator app ${dayjs().format("D MMM YYYY HH:mm")}`,
-		});
+		const result = await startTotpEnroll();
 		setBusy(false);
 
-		if (error || !data) {
-			toast.error(error?.message ?? "Could not start two-step verification setup.");
+		if (!result.ok) {
+			toast.error(result.message);
 			return;
 		}
-		setPending({ factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret });
+		setPending(result.enrollment);
 		setCode("");
 	};
 
@@ -69,7 +70,7 @@ export default function TwoStepCard({
 	const cancelEnroll = async () => {
 		if (!pending) return;
 		setBusy(true);
-		await createClient().auth.mfa.unenroll({ factorId: pending.factorId });
+		await cancelTotpEnroll(pending.factorId);
 		setBusy(false);
 		setPending(null);
 		setCode("");
@@ -78,16 +79,11 @@ export default function TwoStepCard({
 	const confirmEnroll = async () => {
 		if (!pending || code.length !== 6) return;
 		setBusy(true);
-		const { error } = await createClient().auth.mfa.challengeAndVerify({
-			factorId: pending.factorId,
-			code,
-		});
+		const result = await confirmTotpEnroll(pending.factorId, code);
 		setBusy(false);
 
-		if (error) {
-			toast.error(
-				"That code didn't work. Codes change every 30 seconds, so use the newest one.",
-			);
+		if (!result.ok) {
+			toast.error(result.message);
 			setCode("");
 			return;
 		}
@@ -144,10 +140,8 @@ export default function TwoStepCard({
 		setBusy(true);
 		let message: string | null = null;
 		if (removing.kind === "app") {
-			const { error } = await createClient().auth.mfa.unenroll({
-				factorId: removing.factor.id,
-			});
-			message = error?.message ?? null;
+			const result = await removeTotpFactor(removing.factor.id);
+			message = result.ok ? null : result.message;
 		} else {
 			const result = await disableEmailTwoStep();
 			message = result.ok ? null : result.message;

@@ -1,27 +1,18 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import VerifyForm from "@/components/auth/verifyForm";
-import { createClient } from "@/utils/supabase/server";
+import { currentSession } from "@/lib/currentSession";
 
 export const metadata: Metadata = { title: "Enter your sign-in code" };
 
-/** Reads which second-step methods the person has set up, then shows the form for them. */
+/** Reads which second-step methods the person can use, then shows the form for them. */
 async function VerifyForSignedIn() {
-	const supabase = await createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	const { data: profile } = user
-		? await supabase.from("profiles").select("two_step_email").eq("id", user.id).maybeSingle()
-		: { data: null };
-
-	const available = {
-		app: Boolean(
-			user?.factors?.some((f) => f.factor_type === "totp" && f.status === "verified"),
-		),
-		email: Boolean(profile?.two_step_email),
-	};
-	return <VerifyForm available={available} />;
+	const session = await currentSession();
+	return (
+		<VerifyForm
+			available={{ app: session?.hasApp ?? false, email: session?.hasEmail ?? false }}
+		/>
+	);
 }
 
 export default function VerifyPage() {
