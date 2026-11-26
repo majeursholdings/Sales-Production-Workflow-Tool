@@ -373,4 +373,3 @@ $$;
 
 grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
 revoke execute on function public.custom_access_token_hook(jsonb) from public, anon, authenticated;
-grant select on auth.sessions to supabase_auth_admin;
