@@ -74,6 +74,19 @@ export async function getInvoices(): Promise<Invoice[]> {
 	return ((data ?? []) as InvoiceRowDb[]).map(toInvoice);
 }
 
+/** Most recent invoices other than `excludeNumber`, bounded so detail pages don't scan the whole ledger. */
+export async function getRecentOtherInvoices(excludeNumber: string, limit = 8): Promise<Invoice[]> {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("invoices")
+		.select(INVOICE_COLUMNS)
+		.neq("number", excludeNumber)
+		.order("issued_at", { ascending: false })
+		.limit(limit);
+	if (error) throw new Error(`Failed to load recent invoices: ${error.message}`);
+	return ((data ?? []) as InvoiceRowDb[]).map(toInvoice);
+}
+
 export async function getInvoiceDetail(number: string): Promise<InvoiceDetail | null> {
 	const supabase = await createClient();
 	const { data, error } = await supabase

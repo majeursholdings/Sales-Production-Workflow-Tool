@@ -1,3 +1,4 @@
+import { cache } from "react";
 import dayjs from "dayjs";
 import type { OverviewItem } from "@/components/common/overViewCard";
 import { formatNaira } from "@/lib/currency";
@@ -13,6 +14,38 @@ import {
 import { createClient } from "@/utils/supabase/server";
 
 const NO_CONTACT: QuoteContact = { email: "", whatsapp: "", phone: "", phoneLabel: "" };
+
+type QuoteListRow = {
+	quote_number: string;
+	client_name: string;
+	items_summary: string | null;
+	total_ngn: number | string;
+	deposit_rate: number | string | null;
+	status: QuoteStatus;
+	created_by_name: string | null;
+	valid_until: string;
+	current_version: number | null;
+};
+
+/**
+ * Single memoized read of the quotes list so callers needing both the table
+ * rows and overview KPIs share one database round-trip per request.
+ */
+const fetchQuoteListRows = cache(async (): Promise<QuoteListRow[]> => {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("quotes")
+		.select(
+			"quote_number, client_name, items_summary, total_ngn, deposit_rate, status, created_by_name, valid_until, current_version",
+		)
+		.order("created_at", { ascending: false });
+
+	if (error) {
+		throw new Error(`Failed to load quotes: ${error.message}`);
+	}
+
+	return (data ?? []) as QuoteListRow[];
+});
 
 function formatVersionLabel(currentVersion: number): string {
 	if (currentVersion <= 1) return "v1";
@@ -40,19 +73,9 @@ function buildContact(
 }
 
 export async function getQuotes(): Promise<Quote[]> {
-	const supabase = await createClient();
-	const { data, error } = await supabase
-		.from("quotes")
-		.select(
-			"quote_number, client_name, items_summary, total_ngn, status, created_by_name, valid_until, current_version",
-		)
-		.order("created_at", { ascending: false });
+	const rows = await fetchQuoteListRows();
 
-	if (error) {
-		throw new Error(`Failed to load quotes: ${error.message}`);
-	}
-
-	return (data ?? []).map((row) => ({
+	return rows.map((row) => ({
 		id: row.quote_number,
 		client: row.client_name,
 		items: row.items_summary ?? "",
@@ -66,14 +89,7 @@ export async function getQuotes(): Promise<Quote[]> {
 }
 
 export async function getQuotesOverview(): Promise<OverviewItem[]> {
-	const supabase = await createClient();
-	const { data, error } = await supabase.from("quotes").select("status, total_ngn, deposit_rate");
-
-	if (error) {
-		throw new Error(`Failed to load quotes overview: ${error.message}`);
-	}
-
-	const rows = data ?? [];
+	const rows = await fetchQuoteListRows();
 	const openQuotes = rows.filter(
 		(r) => r.status === "draft" || r.status === "sent" || r.status === "expiring",
 	);

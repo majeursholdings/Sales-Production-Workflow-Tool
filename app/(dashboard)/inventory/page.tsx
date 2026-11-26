@@ -1,17 +1,18 @@
 import dayjs from "dayjs";
 import InventoryPageView from "@/components/pages/inventory";
 import { getInventory, getPurchaseOrders, getSupplierCatalog } from "@/lib/data/procurement";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function InventoryPage() {
 	const user = await requireRouteAccess("/inventory");
-	const [inventory, orders, catalog] = await Promise.all([
+	const [inventory, orders, catalog, settings] = await Promise.all([
 		getInventory(),
 		getPurchaseOrders(),
 		getSupplierCatalog(),
+		getCompanyConfig(),
 	]);
-	const poApprovalLimit = (await getCompanySettings()).tax.poApprovalLimit;
+	const poApprovalLimit = settings.tax.poApprovalLimit;
 	return (
 		<InventoryPageView
 			inventory={inventory}

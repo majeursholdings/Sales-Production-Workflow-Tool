@@ -1,10 +1,11 @@
 "use server";
 
 import dayjs from "dayjs";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { NIGERIAN_PHONE_MESSAGE, isPhoneNumber } from "@/components/forms/form.validators";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
+import { CACHE_TAGS } from "@/lib/cacheTags";
 import {
 	DISCOUNT_WHO,
 	IDLE_OPTIONS,
@@ -39,8 +40,13 @@ const pct = (n: number) => `${n}%`;
 const rateOf = (percent: number) => Number((percent / 100).toFixed(4));
 
 function revalidateSettings(pricingToo = false) {
+	updateTag(CACHE_TAGS.companySettings);
 	revalidatePath("/settings", "layout");
-	if (pricingToo) revalidatePath("/pricing");
+	if (pricingToo) {
+		updateTag(CACHE_TAGS.pricingRules);
+		revalidatePath("/pricing");
+		revalidatePath("/quotes/new", "layout");
+	}
 }
 
 /** Who changed what: settings history, the audit log and, for pricing values, the Pricing page history. */

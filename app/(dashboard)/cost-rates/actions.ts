@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
+import { CACHE_TAGS } from "@/lib/cacheTags";
 import type { CostItem } from "@/lib/costRates";
 import { requirePermission } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
@@ -67,6 +68,7 @@ export async function saveOverheadsAction(
 		new_values: parsed.data,
 	});
 
+	updateTag(CACHE_TAGS.overheadSettings);
 	revalidatePath("/cost-rates");
 	return { ok: true };
 }
@@ -110,6 +112,7 @@ export async function saveCostItemAction(
 			new_values: payload,
 		});
 
+		updateTag(CACHE_TAGS.costItems);
 		revalidatePath("/cost-rates/other");
 		return {
 			ok: true,
@@ -142,6 +145,7 @@ export async function saveCostItemAction(
 		new_values: payload,
 	});
 
+	updateTag(CACHE_TAGS.costItems);
 	revalidatePath("/cost-rates/other");
 	return {
 		ok: true,
@@ -187,6 +191,7 @@ export async function saveContingencyAction(
 		new_values: { contingency_percent: parsed.data.percent },
 	});
 
+	updateTag(CACHE_TAGS.overheadSettings);
 	revalidatePath("/cost-rates/other");
 	return { ok: true };
 }

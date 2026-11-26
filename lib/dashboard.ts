@@ -2,15 +2,13 @@ import dayjs from "dayjs";
 import type { BadgeVariant } from "@/components/common/badge";
 import type { OverviewItem } from "@/components/common/overViewCard";
 import { formatNaira } from "@/lib/currency";
-import { getCostRequests } from "@/lib/data/costRequests";
 import { getInvoices } from "@/lib/data/invoices";
-import { getJobCards } from "@/lib/data/jobCards";
 import { getInventory, getPurchaseOrders } from "@/lib/data/procurement";
 import { ageLabel } from "@/lib/costRequests";
-import { balanceOf, statusOf as invoiceStatusOf } from "@/lib/invoices";
-import { cardFigures, dueNote, stepLabel } from "@/lib/jobCards";
-import { shortfallsOf, stockFlag } from "@/lib/inventory";
-import { poTotal } from "@/lib/purchaseOrders";
+import { balanceOf, statusOf as invoiceStatusOf, type Invoice } from "@/lib/invoices";
+import { STEP_NAMES, type StepStatus } from "@/lib/jobCards";
+import { shortfallsOf, stockFlag, type Inventory } from "@/lib/inventory";
+import { poTotal, type PurchaseOrder } from "@/lib/purchaseOrders";
 import { QUOTE_STATUS, type QuoteStatus } from "@/lib/quotes";
 import type { AppRole } from "@/lib/roles";
 import { createClient } from "@/utils/supabase/server";
@@ -99,14 +97,16 @@ type DashQuote = {
 	phoneKey: string;
 };
 
-async function getDashQuotes(): Promise<DashQuote[]> {
+async function getDashQuotes(createdBy?: string): Promise<DashQuote[]> {
 	const supabase = await createClient();
-	const { data, error } = await supabase
+	let query = supabase
 		.from("quotes")
 		.select(
 			"quote_number, client_name, items_summary, total_ngn, deposit_rate, status, created_by, created_by_name, created_at, valid_until, clients(email, phone, phone_key)",
 		)
 		.order("created_at", { ascending: false });
+	if (createdBy) query = query.eq("created_by", createdBy);
+	const { data, error } = await query;
 	if (error) throw new Error(`Failed to load quotes: ${error.message}`);
 
 	return (data ?? []).map((row) => {
@@ -131,6 +131,94 @@ async function getDashQuotes(): Promise<DashQuote[]> {
 			phoneKey: client?.phone_key ?? "",
 		};
 	});
+}
+
+type DashActiveJobCard = {
+	id: string;
+	client: string;
+	items: string;
+	due: string;
+	steps: { status: StepStatus }[];
+};
+
+/** Only open job cards and their step statuses (avoids loading closed cards, time logs, parts and redos). */
+async function getDashActiveJobCards(): Promise<DashActiveJobCard[]> {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("job_cards")
+		.select("number, client_name, items_summary, due, job_card_steps(step_index, status)")
+		.eq("closed", false)
+		.order("due", { ascending: true });
+	if (error) throw new Error(`Failed to load active job cards: ${error.message}`);
+
+	return (
+		(data ?? []) as unknown as {
+			number: string;
+			client_name: string;
+			items_summary: string;
+			due: string;
+			job_card_steps: { step_index: number; status: StepStatus }[] | null;
+		}[]
+	).map((row) => {
+		const rawSteps = row.job_card_steps ?? [];
+		return {
+			id: row.number,
+			client: row.client_name,
+			items: row.items_summary,
+			due: row.due,
+			steps: STEP_NAMES.map((_, index) => ({
+				status: rawSteps.find((s) => s.step_index === index)?.status ?? "todo",
+			})),
+		};
+	});
+}
+
+type DashOpenCostRequest = {
+	id: string;
+	client: string;
+	requestedBy: string;
+	requestedAt: string;
+};
+
+/** Only open cost requests (avoids loading images, parts, substitutes and messages for closed requests). */
+async function getDashOpenCostRequests(): Promise<DashOpenCostRequest[]> {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("cost_requests")
+		.select("id, client_name, requested_by_name, requested_at")
+		.eq("status", "open")
+		.order("requested_at", { ascending: true });
+	if (error) throw new Error(`Failed to load open cost requests: ${error.message}`);
+
+	return (data ?? []).map((row) => ({
+		id: row.id as string,
+		client: (row.client_name as string) ?? "",
+		requestedBy: (row.requested_by_name as string) ?? "",
+		requestedAt: row.requested_at as string,
+	}));
+}
+
+function dashCurrentStep(card: DashActiveJobCard): number | null {
+	const open = card.steps.findIndex((s) => ["active", "redo", "blocked"].includes(s.status));
+	if (open >= 0) return open;
+	const todo = card.steps.findIndex((s) => s.status === "todo");
+	return todo >= 0 ? todo : null;
+}
+
+function dashStageOf(card: DashActiveJobCard): { label: string; tone: BadgeVariant } {
+	const current = dashCurrentStep(card);
+	if (current === null) return { label: "Ready", tone: "success" };
+	const step = card.steps[current];
+	if (step.status === "blocked") return { label: "Waiting on parts", tone: "warning" };
+	if (step.status === "redo") return { label: `Redo: ${STEP_NAMES[current]}`, tone: "warning" };
+	return { label: STEP_NAMES[current], tone: "info" };
+}
+
+function dashDueNote(due: string, today: dayjs.Dayjs): { text: string; urgent: boolean } {
+	const days = dayjs(due).diff(today, "day");
+	if (days < 0) return { text: `${-days} ${days === -1 ? "day" : "days"} overdue`, urgent: true };
+	if (days === 0) return { text: "Due today", urgent: true };
+	return { text: `${days} ${days === 1 ? "day" : "days"} left`, urgent: days <= 5 };
 }
 
 async function getFeed(): Promise<FeedItem[]> {
@@ -206,43 +294,48 @@ function followUpItem(q: DashQuote, today: dayjs.Dayjs): AttentionItem {
 export async function getDashboard(user: { id: string; roleKey: AppRole }): Promise<DashboardData> {
 	const view = VIEW_OF[user.roleKey];
 	const today = dayjs().startOf("day");
-	const iso = today.format("YYYY-MM-DD");
-	const [quotes, inventory, orders, feed, jobCards, invoices, requests] = await Promise.all([
-		getDashQuotes(),
-		getInventory(),
-		getPurchaseOrders(),
-		getFeed(),
-		getJobCards(),
-		getInvoices(),
-		getCostRequests(),
-	]);
+	const mine = view === "sales" || view === "care";
 
-	// Workshop
-	const activeCards = jobCards
-		.filter((c) => !c.closed)
-		.sort((a, b) => a.due.localeCompare(b.due));
-	const stageOf = (c: (typeof jobCards)[number]) => stepLabel(c, cardFigures(c).current);
+	// Fetch only the domains this role's dashboard actually renders.
+	const needsQuotes = view === "md" || view === "care" || view === "sales" || view === "acct";
+	const needsInventory = view === "md" || view === "proc" || view === "prod";
+	const needsOrders = view === "md" || view === "acct" || view === "proc" || view === "prod";
+	const needsJobCards = view === "md" || view === "acct" || view === "proc" || view === "prod";
+	const needsInvoices = view === "md" || view === "acct";
+	const needsRequests = view === "md" || view === "proc";
+
+	const emptyInventory: Inventory = { parts: [], demand: [] };
+	const [quotes, inventory, orders, feed, activeCards, invoices, openRequests] =
+		await Promise.all([
+			needsQuotes
+				? getDashQuotes(mine ? user.id : undefined)
+				: Promise.resolve<DashQuote[]>([]),
+			needsInventory ? getInventory() : Promise.resolve<Inventory>(emptyInventory),
+			needsOrders ? getPurchaseOrders() : Promise.resolve<PurchaseOrder[]>([]),
+			getFeed(),
+			needsJobCards ? getDashActiveJobCards() : Promise.resolve<DashActiveJobCard[]>([]),
+			needsInvoices ? getInvoices() : Promise.resolve<Invoice[]>([]),
+			needsRequests ? getDashOpenCostRequests() : Promise.resolve<DashOpenCostRequest[]>([]),
+		]);
+
+	// Workshop (already filtered to open cards and ordered by due date in SQL)
 	const waitingOnParts = activeCards.filter((c) => c.steps.some((st) => st.status === "blocked"));
 	const dueThisWeek = activeCards.filter((c) => dayjs(c.due).diff(today, "day") <= 7);
-	const readyCards = activeCards.filter((c) => cardFigures(c).current === null);
+	const readyCards = activeCards.filter((c) => dashCurrentStep(c) === null);
 	const production: ProductionRow[] = activeCards.slice(0, 8).map((c) => ({
 		id: c.id,
 		href: `/work-orders/${c.id}`,
 		client: c.client,
 		items: c.items,
-		stage: stageOf(c),
-		due: dueNote(c, iso).text,
+		stage: dashStageOf(c),
+		due: dashDueNote(c.due, today).text,
 	}));
 
 	// Money owed and requests waiting
 	const partPaid = invoices.filter((inv) => invoiceStatusOf(inv) === "part");
-	const openRequests = requests
-		.filter((r) => r.status === "open")
-		.sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
 
-	// Quotes: sales and customer care see their own, everyone else sees all
-	const mine = view === "sales" || view === "care";
-	const scoped = mine ? quotes.filter((q) => q.createdBy === user.id) : quotes;
+	// Quotes: sales and customer care already filtered to their own in SQL
+	const scoped = quotes;
 	const last30 = scoped.filter((q) => dayjs(q.createdAt).isAfter(today.subtract(30, "day")));
 	const open = scoped.filter(isOpen);
 	const drafts = scoped.filter((q) => q.status === "draft");
@@ -466,13 +559,14 @@ export async function getDashboard(user: { id: string; roleKey: AppRole }): Prom
 		}
 	}
 	if (view === "md" || view === "prod") {
-		for (const c of activeCards.filter((c) => dueNote(c, iso).urgent).slice(0, 3)) {
+		for (const c of activeCards.filter((c) => dashDueNote(c.due, today).urgent).slice(0, 3)) {
+			const stage = dashStageOf(c);
 			attention.push({
 				id: `due-${c.id}`,
-				tag: stageOf(c).label === "Waiting on parts" ? "Blocked" : "Due",
+				tag: stage.label === "Waiting on parts" ? "Blocked" : "Due",
 				tone: dayjs(c.due).isBefore(today) ? "danger" : "warning",
-				title: `${c.id} (${c.client}): ${dueNote(c, iso).text.toLowerCase()}`,
-				detail: `${c.items} · ${stageOf(c).label}`,
+				title: `${c.id} (${c.client}): ${dashDueNote(c.due, today).text.toLowerCase()}`,
+				detail: `${c.items} · ${stage.label}`,
 				cta: "Open job card",
 				href: `/work-orders/${c.id}`,
 			});

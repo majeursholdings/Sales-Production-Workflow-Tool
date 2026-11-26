@@ -1,3 +1,4 @@
+import { cache } from "react";
 import dayjs from "dayjs";
 import type { Inventory, Part, PartCategory } from "@/lib/inventory";
 import type { DeliveryQuality, POStatus, PurchaseOrder } from "@/lib/purchaseOrders";
@@ -106,7 +107,8 @@ const toPurchaseOrder = (row: PORow): PurchaseOrder => ({
 	note: row.note,
 });
 
-async function fetchPurchaseOrders(): Promise<PurchaseOrder[]> {
+/** Memoized per request so pages loading orders + supplier catalog query purchase_orders once. */
+const fetchPurchaseOrders = cache(async (): Promise<PurchaseOrder[]> => {
 	const supabase = await createClient();
 	const { data, error } = await supabase
 		.from("purchase_orders")
@@ -116,27 +118,33 @@ async function fetchPurchaseOrders(): Promise<PurchaseOrder[]> {
 
 	if (error) throw new Error(`Failed to load purchase orders: ${error.message}`);
 	return ((data ?? []) as unknown as PORow[]).map(toPurchaseOrder);
-}
+});
+
+/** Memoized per request so pages loading inventory + supplier catalog query parts once. */
+const fetchActiveParts = cache(async (): Promise<Part[]> => {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("parts")
+		.select(PART_COLUMNS)
+		.eq("is_archived", false)
+		.order("name", { ascending: true });
+
+	if (error) throw new Error(`Failed to load inventory: ${error.message}`);
+	return ((data ?? []) as PartRow[]).map(toPart);
+});
 
 export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
 	return fetchPurchaseOrders();
 }
 
 export async function getInventory(): Promise<Inventory> {
-	const supabase = await createClient();
-	const [{ data, error }, demand] = await Promise.all([
-		supabase
-			.from("parts")
-			.select(PART_COLUMNS)
-			.eq("is_archived", false)
-			.order("name", { ascending: true }),
+	const [parts, demand] = await Promise.all([
+		fetchActiveParts(),
 		// What open job cards still need beyond what's reserved for them
 		getPartDemand(),
 	]);
 
-	if (error) throw new Error(`Failed to load inventory: ${error.message}`);
-
-	return { parts: ((data ?? []) as PartRow[]).map(toPart), demand };
+	return { parts, demand };
 }
 
 const lineTotal = (po: PurchaseOrder) =>
@@ -164,7 +172,7 @@ function toSupplierOrder(po: PurchaseOrder): SupplierPurchaseOrder {
 
 export async function getSupplierCatalog(): Promise<SupplierCatalog> {
 	const supabase = await createClient();
-	const [suppliersRes, materialsRes, partsRes, orders] = await Promise.all([
+	const [suppliersRes, materialsRes, parts, orders] = await Promise.all([
 		supabase
 			.from("suppliers")
 			.select(
@@ -177,19 +185,15 @@ export async function getSupplierCatalog(): Promise<SupplierCatalog> {
 			.select(
 				"supplier_id, sku, price, lead_days, min_order, quality, reliability, availability, rated_on, rated_by, rating_note, is_preferred",
 			),
-		supabase
-			.from("parts")
-			.select("sku, name, unit")
-			.eq("is_archived", false)
-			.order("name", { ascending: true }),
+		fetchActiveParts(),
 		fetchPurchaseOrders(),
 	]);
 
-	for (const res of [suppliersRes, materialsRes, partsRes]) {
+	for (const res of [suppliersRes, materialsRes]) {
 		if (res.error) throw new Error(`Failed to load suppliers: ${res.error.message}`);
 	}
 
-	const materials: Material[] = (partsRes.data ?? []).map((p) => ({
+	const materials: Material[] = parts.map((p) => ({
 		sku: p.sku,
 		name: p.name,
 		unit: p.unit,

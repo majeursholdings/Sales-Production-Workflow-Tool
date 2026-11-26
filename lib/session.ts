@@ -10,7 +10,7 @@ import {
 	type AppRole,
 } from "@/lib/roles";
 import { cookies } from "next/headers";
-import { TRUSTED_DEVICE_COOKIE } from "@/lib/sessionPolicy";
+import { TRUSTED_DEVICE_COOKIE, sessionExpiresAt } from "@/lib/sessionPolicy";
 import { sessionState } from "@/lib/twoStep";
 import { createClient } from "@/utils/supabase/server";
 
@@ -29,28 +29,32 @@ export type SessionUser = {
 
 /**
  * Loads the server-verified Supabase user, profile, and assigned role.
+ * Verifies the JWT signature via `getClaims()` and checks live session,
+ * active account, MFA, profile, and role in one `session_state` RPC.
  * Memoized per request with React `cache()` so multiple Server Components
  * in the same render pass share one lookup.
  */
 export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 	const supabase = await createClient();
-	const {
-		data: { user },
-		error,
-	} = await supabase.auth.getUser();
-
-	if (error || !user) {
-		return null;
-	}
-
-	// Server-side checks: live session, active account, second step passed.
-	const [{ data: claimsData }, cookieStore] = await Promise.all([
+	const [{ data: claimsData, error }, cookieStore] = await Promise.all([
 		supabase.auth.getClaims(),
 		cookies(),
 	]);
+
 	const claims = claimsData?.claims;
+	const userId = typeof claims?.sub === "string" ? claims.sub : null;
+	if (error || !claims || !userId) {
+		return null;
+	}
+
+	const expiresAt = sessionExpiresAt(claims);
+	if (expiresAt !== null && Date.now() / 1000 >= expiresAt) {
+		redirect("/login?error=session_expired");
+	}
+
+	// Single database round-trip: live session, active account, MFA, profile and role.
 	const state = await sessionState(supabase, {
-		aal: typeof claims?.aal === "string" ? claims.aal : undefined,
+		aal: typeof claims.aal === "string" ? claims.aal : undefined,
 		deviceToken: cookieStore.get(TRUSTED_DEVICE_COOKIE)?.value,
 	});
 	if (state.accountLocked) {
@@ -66,39 +70,60 @@ export const getOptionalUser = cache(async (): Promise<SessionUser | null> => {
 		redirect("/verify");
 	}
 
-	const [{ data: profile }, { data: roleRow }] = await Promise.all([
-		supabase
-			.from("profiles")
-			.select("full_name, email, phone, is_active")
-			.eq("id", user.id)
-			.maybeSingle(),
-		supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle(),
-	]);
+	let profileName = state.profile.fullName;
+	let profileEmail = state.profile.email;
+	let profilePhone = state.profile.phone;
+	let dbRole: unknown = state.role;
 
-	if (profile && !profile.is_active) {
-		redirect("/login?error=deactivated");
+	// Backwards-compatible fallback when running against a database before
+	// the consolidated session_state migration has been applied.
+	if (!state.hasProfileFields) {
+		const [{ data: profile }, { data: roleRow }] = await Promise.all([
+			supabase
+				.from("profiles")
+				.select("full_name, email, phone, is_active")
+				.eq("id", userId)
+				.maybeSingle(),
+			supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+		]);
+		if (profile && !profile.is_active) {
+			redirect("/login?error=deactivated");
+		}
+		profileName = profile?.full_name ?? null;
+		profileEmail = profile?.email ?? null;
+		profilePhone = profile?.phone ?? null;
+		dbRole = roleRow?.role ?? null;
 	}
 
 	// Only trust database user_roles or admin-only app_metadata (never user_metadata).
-	const rawRole = roleRow?.role ?? user.app_metadata?.role;
+	const appMetadata =
+		typeof claims.app_metadata === "object" && claims.app_metadata !== null
+			? (claims.app_metadata as Record<string, unknown>)
+			: undefined;
+	const userMetadata =
+		typeof claims.user_metadata === "object" && claims.user_metadata !== null
+			? (claims.user_metadata as Record<string, unknown>)
+			: undefined;
+	const claimEmail = typeof claims.email === "string" ? claims.email : "";
+
+	const rawRole = dbRole ?? appMetadata?.role;
 	if (!isAppRole(rawRole)) {
 		redirect("/login?error=no_role");
 	}
 
 	const fallbackName =
-		(typeof user.user_metadata?.full_name === "string" &&
-			user.user_metadata.full_name.trim()) ||
-		user.email?.split("@")[0] ||
+		(typeof userMetadata?.full_name === "string" && userMetadata.full_name.trim()) ||
+		claimEmail.split("@")[0] ||
 		"Staff Member";
 
 	return {
-		id: user.id,
-		email: profile?.email || user.email || "",
-		name: profile?.full_name || fallbackName,
-		phone: profile?.phone || "",
+		id: userId,
+		email: profileEmail || claimEmail,
+		name: profileName || fallbackName,
+		phone: profilePhone || "",
 		roleKey: rawRole,
 		role: ROLE_LABELS[rawRole],
-		isActive: profile?.is_active ?? true,
+		isActive: state.active,
 		unreadNotificationsCount: 0,
 	};
 });

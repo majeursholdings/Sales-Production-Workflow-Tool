@@ -1,10 +1,54 @@
 import dayjs from "dayjs";
+import { cacheLife, cacheTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cacheTags";
+import { getPricingRulesRow } from "@/lib/data/companySettings";
 import type { MarkupCategory, PricingChange, PricingRule } from "@/lib/pricing";
 import { DEPOSIT_RATE, MAX_GENERAL_DISCOUNT, USD_RATE, VALID_DAYS } from "@/lib/quoteBuilder";
 import { VAT_RATE } from "@/lib/quotes";
+import { hasPermission } from "@/lib/roles";
+import { getCurrentUser } from "@/lib/session";
+import { createAdminClient, hasAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
+async function readCachedMarkupCategories(): Promise<MarkupCategory[]> {
+	"use cache";
+	cacheLife("hours");
+	cacheTag(CACHE_TAGS.markupCategories);
+
+	const supabase = createAdminClient();
+	const { data, error } = await supabase
+		.from("markup_categories")
+		.select("id, name, furniture_types_count, markup_percent, ceiling_percent, example_cost")
+		.order("sort_order", { ascending: true })
+		.order("name", { ascending: true });
+
+	if (error) {
+		throw new Error(`Failed to load markup categories: ${error.message}`);
+	}
+
+	return (data ?? []).map((row) => ({
+		id: row.id,
+		name: row.name,
+		types: Number(row.furniture_types_count),
+		markup: Number(row.markup_percent),
+		ceiling: Number(row.ceiling_percent),
+		exampleCost: Number(row.example_cost),
+	}));
+}
+
 export async function getMarkupCategories(): Promise<MarkupCategory[]> {
+	const user = await getCurrentUser();
+	if (
+		!hasPermission(user.roleKey, "pricing_rules.edit") &&
+		!hasPermission(user.roleKey, "quotes.view_prices")
+	) {
+		return [];
+	}
+
+	if (hasAdminClient()) {
+		return readCachedMarkupCategories();
+	}
+
 	const supabase = await createClient();
 	const { data, error } = await supabase
 		.from("markup_categories")
@@ -27,25 +71,14 @@ export async function getMarkupCategories(): Promise<MarkupCategory[]> {
 }
 
 export async function getPricingRules(): Promise<PricingRule[]> {
-	const supabase = await createClient();
-	const { data, error } = await supabase
-		.from("pricing_rules")
-		.select(
-			"vat_rate, deposit_rate, quote_validity_days, max_general_discount_percent, trade_tiers_label, usd_exchange_rate",
-		)
-		.eq("id", 1)
-		.maybeSingle();
+	const data = await getPricingRulesRow();
 
-	if (error) {
-		throw new Error(`Failed to load pricing rules: ${error.message}`);
-	}
-
-	const vatRate = Number(data?.vat_rate ?? VAT_RATE);
-	const depositRate = Number(data?.deposit_rate ?? DEPOSIT_RATE);
-	const validDays = Number(data?.quote_validity_days ?? VALID_DAYS);
-	const maxDiscount = Number(data?.max_general_discount_percent ?? MAX_GENERAL_DISCOUNT);
-	const tradeTiers = data?.trade_tiers_label ?? "5 / 10 / 20%";
-	const usdRate = Number(data?.usd_exchange_rate ?? USD_RATE);
+	const vatRate = Number(data.vat_rate ?? VAT_RATE);
+	const depositRate = Number(data.deposit_rate ?? DEPOSIT_RATE);
+	const validDays = Number(data.quote_validity_days ?? VALID_DAYS);
+	const maxDiscount = Number(data.max_general_discount_percent ?? MAX_GENERAL_DISCOUNT);
+	const tradeTiers = data.trade_tiers_label ?? "5 / 10 / 20%";
+	const usdRate = Number(data.usd_exchange_rate ?? USD_RATE);
 
 	return [
 		{ label: "VAT", who: "Set by Accounting", value: `${Number((vatRate * 100).toFixed(2))}%` },

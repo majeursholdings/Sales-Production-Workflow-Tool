@@ -6,7 +6,7 @@ import { z } from "zod";
 import { fail, userWith } from "@/lib/actionResult";
 import type { Client } from "@/lib/clients";
 import { formatNaira } from "@/lib/currency";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
 import { getBuilderCatalog, getNextQuoteNumber } from "@/lib/data/quoteBuilder";
 import { clientLines, priceQuote, quoteDateLabel } from "@/lib/quoteBuilder";
 import { requirePermission, requireRouteAccess } from "@/lib/session";
@@ -41,7 +41,7 @@ export async function recordQuoteDepositAction(
 	if (dayjs(paidOn).isAfter(dayjs(), "day")) {
 		return { ok: false, message: "The deposit date can't be in the future." };
 	}
-	const invoicePrefix = (await getCompanySettings()).numbering.invoice;
+	const invoicePrefix = (await getCompanyConfig()).numbering.invoice;
 	const supabase = await createClient();
 
 	const { data: quote, error: fetchError } = await supabase

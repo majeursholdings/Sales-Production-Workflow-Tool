@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
 import { needsApproval, poNumber, type POStatus } from "@/lib/purchaseOrders";
 import { isOwnerAppRole } from "@/lib/roles";
 import { createClient } from "@/utils/supabase/server";
@@ -58,7 +58,7 @@ export async function createPurchaseOrdersAction(
 	if (readError) return fail(readError.message);
 	const taken = new Set((existing ?? []).map((po) => po.number as string));
 
-	const settings = await getCompanySettings();
+	const settings = await getCompanyConfig();
 	const created: CreatedOrder[] = [];
 	for (const order of parsed.data) {
 		const number = poNumber(taken, undefined, settings.numbering.purchaseOrder);
@@ -123,7 +123,7 @@ export async function sendPurchaseOrderAction(
 	const total = totalOf(
 		(lines ?? []).map((l) => ({ ordered: Number(l.ordered), unitCost: Number(l.unit_cost) })),
 	);
-	const poApprovalLimit = (await getCompanySettings()).tax.poApprovalLimit;
+	const poApprovalLimit = (await getCompanyConfig()).tax.poApprovalLimit;
 	const status: POStatus = needsApproval(total, poApprovalLimit) ? "approval" : "sent";
 	const { error } = await supabase
 		.from("purchase_orders")

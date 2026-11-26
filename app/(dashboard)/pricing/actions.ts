@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
+import { CACHE_TAGS } from "@/lib/cacheTags";
 import { requirePermission } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
 
@@ -85,6 +86,7 @@ export async function saveCategoryMarkupsAction(
 		]);
 	}
 
+	updateTag(CACHE_TAGS.markupCategories);
 	revalidatePath("/pricing");
 	return { ok: true };
 }

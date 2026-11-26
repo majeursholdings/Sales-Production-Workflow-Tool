@@ -16,7 +16,7 @@ import {
 	shortDate,
 	type JobCard,
 } from "@/lib/jobCards";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
 import { isValidStorageUrl } from "@/lib/storage";
 import { createClient } from "@/utils/supabase/server";
 
@@ -116,7 +116,7 @@ export async function createJobCardAction(
 		p_items: quote.items.map((i) => ({ ...i, kind: kindOf(i.name) })),
 		p_parts: d.parts,
 		p_planned_hours: d.plannedHours,
-		p_prefix: (await getCompanySettings()).numbering.jobCard,
+		p_prefix: (await getCompanyConfig()).numbering.jobCard,
 	});
 	if (error) return fail(error.message);
 

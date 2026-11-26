@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
+import { CACHE_TAGS } from "@/lib/cacheTags";
 import { categoryIdFor, type FurnitureCategory } from "@/lib/furnitureTypes";
 import { hasPermission } from "@/lib/roles";
 import { isValidStorageUrl } from "@/lib/storage";
@@ -56,6 +57,7 @@ const typeSchema = z.object({
 export type FurnitureTypeInput = z.input<typeof typeSchema>;
 
 function revalidateCatalog() {
+	updateTag(CACHE_TAGS.markupCategories);
 	revalidatePath("/furniture-types", "layout");
 	revalidatePath("/quotes/new", "layout");
 	revalidatePath("/pricing");

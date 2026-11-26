@@ -18,6 +18,14 @@ export type SessionState = {
 	hasEmail: boolean;
 	/** This browser is trusted to skip the second step. */
 	trustedDevice: boolean;
+	/** True when the database RPC returned consolidated profile & role fields. */
+	hasProfileFields: boolean;
+	profile: {
+		fullName: string | null;
+		email: string | null;
+		phone: string | null;
+	};
+	role: string | null;
 };
 
 type RawState = {
@@ -30,6 +38,10 @@ type RawState = {
 	twoStepEmail?: boolean;
 	emailPassed?: boolean;
 	trustedDevice?: boolean;
+	fullName?: string | null;
+	email?: string | null;
+	phone?: string | null;
+	role?: string | null;
 };
 
 /**
@@ -76,5 +88,12 @@ export async function sessionState(
 		hasApp,
 		hasEmail,
 		trustedDevice,
+		hasProfileFields: "role" in raw,
+		profile: {
+			fullName: typeof raw.fullName === "string" ? raw.fullName : null,
+			email: typeof raw.email === "string" ? raw.email : null,
+			phone: typeof raw.phone === "string" ? raw.phone : null,
+		},
+		role: typeof raw.role === "string" ? raw.role : null,
 	};
 }

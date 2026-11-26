@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import PageWrapper from "@/components/layout/pageWrapper";
 import NewPurchaseOrderContent from "@/components/purchaseOrders/newPurchaseOrderContent";
 import { getInventory, getPurchaseOrders, getSupplierCatalog } from "@/lib/data/procurement";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
 import { requireRouteAccess } from "@/lib/session";
 
 export default async function NewPurchaseOrderPage({
@@ -11,13 +11,14 @@ export default async function NewPurchaseOrderPage({
 	searchParams: Promise<{ supplier?: string }>;
 }) {
 	const user = await requireRouteAccess("/purchase-orders");
-	const [{ supplier }, orders, inventory, catalog] = await Promise.all([
+	const [{ supplier }, orders, inventory, catalog, settings] = await Promise.all([
 		searchParams,
 		getPurchaseOrders(),
 		getInventory(),
 		getSupplierCatalog(),
+		getCompanyConfig(),
 	]);
-	const poApprovalLimit = (await getCompanySettings()).tax.poApprovalLimit;
+	const poApprovalLimit = settings.tax.poApprovalLimit;
 	return (
 		<PageWrapper>
 			<NewPurchaseOrderContent

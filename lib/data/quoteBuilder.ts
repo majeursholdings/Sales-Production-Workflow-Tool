@@ -15,29 +15,21 @@ import {
 	type QuoteHeader,
 } from "@/lib/quoteBuilder";
 import { VAT_RATE } from "@/lib/quotes";
-import { getCompanySettings } from "@/lib/data/companySettings";
+import { getCompanyConfig, getPricingRulesRow } from "@/lib/data/companySettings";
 import { createClient } from "@/utils/supabase/server";
 
 type QuoteRules = Omit<BuilderRates, "contingency" | "overheadPerLabourHour">;
 
-/** VAT, deposit, validity, discount limit and USD rate from `public.pricing_rules`. */
+/** VAT, deposit, validity, discount limit and USD rate from `public.pricing_rules` (cached). */
 export async function getQuoteRules(): Promise<QuoteRules> {
-	const supabase = await createClient();
-	const { data, error } = await supabase
-		.from("pricing_rules")
-		.select(
-			"vat_rate, deposit_rate, quote_validity_days, max_general_discount_percent, usd_exchange_rate",
-		)
-		.eq("id", 1)
-		.maybeSingle();
-	if (error) throw new Error(`Failed to load pricing rules: ${error.message}`);
+	const data = await getPricingRulesRow();
 
 	return {
-		vatRate: Number(data?.vat_rate ?? VAT_RATE),
-		depositRate: Number(data?.deposit_rate ?? DEPOSIT_RATE),
-		validDays: Number(data?.quote_validity_days ?? VALID_DAYS),
-		maxDiscount: Number(data?.max_general_discount_percent ?? MAX_GENERAL_DISCOUNT),
-		usdRate: Number(data?.usd_exchange_rate ?? USD_RATE),
+		vatRate: Number(data.vat_rate ?? VAT_RATE),
+		depositRate: Number(data.deposit_rate ?? DEPOSIT_RATE),
+		validDays: Number(data.quote_validity_days ?? VALID_DAYS),
+		maxDiscount: Number(data.max_general_discount_percent ?? MAX_GENERAL_DISCOUNT),
+		usdRate: Number(data.usd_exchange_rate ?? USD_RATE),
 	};
 }
 
@@ -62,8 +54,8 @@ export async function getBuilderCatalog(): Promise<{
 
 /** The next unused quote number for today, checked against `public.quotes`. */
 export async function getNextQuoteNumber(day = dayjs()): Promise<string> {
-	const supabase = await createClient();
-	const docPrefix = (await getCompanySettings()).numbering.quote;
+	const [supabase, config] = await Promise.all([createClient(), getCompanyConfig()]);
+	const docPrefix = config.numbering.quote;
 	const { data, error } = await supabase
 		.from("quotes")
 		.select("quote_number")
