@@ -161,7 +161,9 @@ export default function StaffPageContent({ initialStaff }: { initialStaff: Staff
 					onSave={async (draft) => {
 						const result = await saveStaffMemberAction({
 							id: editing?.id,
-							name: draft.name,
+							title: draft.title,
+							firstName: draft.firstName,
+							surname: draft.surname,
 							role: draft.role,
 							team: draft.team,
 							phone: draft.phone,

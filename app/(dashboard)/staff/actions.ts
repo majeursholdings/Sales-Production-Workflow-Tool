@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/session";
+import { joinName } from "@/lib/names";
+import { nameSchemaParts } from "@/lib/nameSchema";
 import type { StaffMember } from "@/lib/staff";
 import { createClient } from "@/utils/supabase/server";
 
@@ -11,7 +13,7 @@ export type ActionResult<T = undefined> =
 
 const staffSchema = z.object({
 	id: z.string().uuid().optional(),
-	name: z.string().trim().min(2, "Full name is required"),
+	...nameSchemaParts,
 	role: z.string().trim().min(1, "Role is required"),
 	team: z.enum(["Production", "Non-production"]),
 	phone: z.string().trim().default(""),
@@ -34,7 +36,10 @@ export async function saveStaffMemberAction(
 	const supabase = await createClient();
 
 	const payload = {
-		full_name: input.name,
+		full_name: joinName(input),
+		title: input.title,
+		first_name: input.firstName,
+		surname: input.surname,
 		role: input.role,
 		team: input.team,
 		phone: input.phone,
@@ -49,7 +54,9 @@ export async function saveStaffMemberAction(
 			.from("staff_members")
 			.update(payload)
 			.eq("id", input.id)
-			.select("id, full_name, role, team, phone, email, hourly_rate, hours_per_month, notes")
+			.select(
+				"id, full_name, title, first_name, surname, role, team, phone, email, hourly_rate, hours_per_month, notes",
+			)
 			.single();
 
 		if (error || !data) {
@@ -72,6 +79,9 @@ export async function saveStaffMemberAction(
 			data: {
 				id: data.id,
 				name: data.full_name,
+				title: data.title ?? "",
+				firstName: data.first_name ?? "",
+				surname: data.surname ?? "",
 				role: data.role,
 				team: data.team as StaffMember["team"],
 				phone: data.phone ?? "",
@@ -86,7 +96,9 @@ export async function saveStaffMemberAction(
 	const { data, error } = await supabase
 		.from("staff_members")
 		.insert(payload)
-		.select("id, full_name, role, team, phone, email, hourly_rate, hours_per_month, notes")
+		.select(
+			"id, full_name, title, first_name, surname, role, team, phone, email, hourly_rate, hours_per_month, notes",
+		)
 		.single();
 
 	if (error || !data) {
@@ -109,6 +121,9 @@ export async function saveStaffMemberAction(
 		data: {
 			id: data.id,
 			name: data.full_name,
+			title: data.title ?? "",
+			firstName: data.first_name ?? "",
+			surname: data.surname ?? "",
 			role: data.role,
 			team: data.team as StaffMember["team"],
 			phone: data.phone ?? "",

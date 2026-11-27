@@ -5,7 +5,9 @@ export async function getStaff(): Promise<StaffMember[]> {
 	const supabase = await createClient();
 	const { data, error } = await supabase
 		.from("staff_members")
-		.select("id, full_name, role, team, phone, email, hourly_rate, hours_per_month, notes")
+		.select(
+			"id, full_name, title, first_name, surname, role, team, phone, email, hourly_rate, hours_per_month, notes",
+		)
 		.eq("is_active", true)
 		.order("team", { ascending: false })
 		.order("full_name", { ascending: true });
@@ -17,6 +19,9 @@ export async function getStaff(): Promise<StaffMember[]> {
 	return (data ?? []).map((row) => ({
 		id: row.id,
 		name: row.full_name,
+		title: row.title ?? "",
+		firstName: row.first_name ?? "",
+		surname: row.surname ?? "",
 		role: row.role,
 		team: row.team as StaffTeam,
 		phone: row.phone ?? "",

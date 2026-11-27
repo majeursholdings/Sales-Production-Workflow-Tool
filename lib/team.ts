@@ -5,7 +5,11 @@ import { createClient } from "@/utils/supabase/server";
 
 export type TeamMember = {
 	id: string;
+	/** First name and surname written out. */
 	fullName: string;
+	title: string;
+	firstName: string;
+	surname: string;
 	email: string;
 	phone: string;
 	role: AppRole | null;
@@ -46,7 +50,9 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
 	] = await Promise.all([
 		supabase
 			.from("profiles")
-			.select("id, full_name, email, phone, is_active, created_at")
+			.select(
+				"id, full_name, title, first_name, surname, email, phone, is_active, created_at",
+			)
 			.order("created_at", { ascending: true }),
 		supabase.from("user_roles").select("user_id, role"),
 		lockedEmails(),
@@ -70,6 +76,9 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
 	return (profiles ?? []).map((p) => ({
 		id: p.id,
 		fullName: p.full_name,
+		title: p.title ?? "",
+		firstName: p.first_name ?? "",
+		surname: p.surname ?? "",
 		email: p.email,
 		phone: p.phone ?? "",
 		role: roleByUser.get(p.id) ?? null,

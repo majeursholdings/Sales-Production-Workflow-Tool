@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/common/buttons";
 import PageTitle from "@/components/layout/pageTitle";
 import type { Client } from "@/lib/clients";
+import { splitName } from "@/lib/names";
 import { createClientAction, deleteClientAction } from "@/app/(dashboard)/clients/actions";
 import AddClientDrawer from "./addClientDrawer";
 import ClientsTable from "./clientsTable";
@@ -65,12 +66,15 @@ export default function ClientsPageContent({
 					onAdd={async (draft) => {
 						const phone = draft.contact.split(" · ")[0] ?? "";
 						const result = await createClientAction({
-							name: draft.name,
+							title: draft.title ?? "",
+							firstName: draft.firstName ?? splitName(draft.name).firstName,
+							surname: draft.surname ?? splitName(draft.name).surname,
 							phone: phone === draft.email ? "" : phone,
 							email: draft.email,
 							type: draft.type,
 							company: draft.company,
 							location: draft.location,
+							addressParts: draft.addressParts ?? null,
 							source: draft.source,
 						});
 						if (!result.ok) {

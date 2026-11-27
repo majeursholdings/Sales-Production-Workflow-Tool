@@ -2,17 +2,18 @@
 
 import Image from "next/image";
 import dayjs from "dayjs";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import MainForm from "@/components/forms";
 import type { FileFieldValue } from "@/components/forms/fileInput";
 import { validators } from "@/components/forms/form.validators";
 import type { FormFieldConfig } from "@/components/forms/types";
+import { addressLine } from "@/lib/address";
 import { IDLE_OPTIONS, type CompanySettings } from "@/lib/companySettings";
 import {
 	saveCompanyDetailsAction,
 	saveSignInPolicyAction,
 } from "@/app/(dashboard)/(settings)/settings/actions";
-import DeliveryAddressesPanel from "./deliveryAddressesPanel";
+import AddressesPanel from "./addressesPanel";
 import { optionalPhone } from "./rules";
 import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
@@ -22,7 +23,7 @@ type DetailsValues = {
 	registeredName: string;
 	rcNumber: string;
 	tin: string;
-	address: string;
+	documentAddressId: string;
 	phone: string;
 	whatsapp: string;
 	website: string;
@@ -52,8 +53,14 @@ export default function CompanyDetailsPanel({
 
 	const detailsForm = useForm<DetailsValues>({
 		mode: "onTouched",
-		defaultValues: { ...details, logo: savedLogo(details.logoUrl) },
+		defaultValues: {
+			...details,
+			documentAddressId: settings.documentAddressId,
+			logo: savedLogo(details.logoUrl),
+		},
 	});
+	const printedId = useWatch({ control: detailsForm.control, name: "documentAddressId" });
+	const printed = settings.addresses.find((a) => a.id === printedId);
 	const signInForm = useForm<SignInValues>({
 		defaultValues: {
 			requireTwoStep: signIn.requireTwoStep,
@@ -86,12 +93,17 @@ export default function CompanyDetailsPanel({
 		{ name: "rcNumber", type: "text", label: "RC number", placeholder: "e.g. RC 1234567" },
 		{ name: "tin", type: "text", label: "TIN", placeholder: "e.g. 12345678-0001" },
 		{
-			name: "address",
-			type: "textarea",
-			label: "Showroom and workshop address",
-			placeholder: "Street, area, city",
-			rows: 3,
-			description: "Printed in the footer of every document.",
+			name: "documentAddressId",
+			type: "select",
+			label: "Address printed on documents",
+			placeholder: settings.addresses.length
+				? "Pick an address"
+				: "Add an address below first",
+			clearable: true,
+			options: settings.addresses.map((a) => ({ label: a.name, value: a.id })),
+			description: printed
+				? `${addressLine(printed)}. Printed in the footer of every document.`
+				: "Printed in the footer of every document. Add and edit addresses under Addresses below.",
 		},
 		{
 			name: "phone",
@@ -124,8 +136,10 @@ export default function CompanyDetailsPanel({
 				<span className="flex flex-col">
 					<strong>Require two-step verification for every role</strong>
 					<span className="text-small text-fg-secondary">
-						From {dayjs(signIn.twoStepFrom).format("D MMM YYYY")}. People without it are
-						asked to set it up at their next sign-in.
+						{signIn.requireTwoStep && signIn.twoStepFrom
+							? `Required since ${dayjs(signIn.twoStepFrom).format("D MMM YYYY")}.`
+							: "Starts from the day you turn it on."}{" "}
+						People without it are asked to set it up at their next sign-in.
 					</span>
 				</span>
 			),
@@ -192,7 +206,7 @@ export default function CompanyDetailsPanel({
 							"registeredName",
 							"rcNumber",
 							"tin",
-							"address",
+							"documentAddressId",
 							"phone",
 							"whatsapp",
 							"website",
@@ -231,7 +245,11 @@ export default function CompanyDetailsPanel({
 				/>
 			</SettingsCard>
 
-			<DeliveryAddressesPanel addresses={settings.deliveryAddresses} readOnly={readOnly} />
+			<AddressesPanel
+				addresses={settings.addresses}
+				documentAddressId={settings.documentAddressId}
+				readOnly={readOnly}
+			/>
 
 			<RecentChanges changes={settings.changes} now={now} />
 		</>

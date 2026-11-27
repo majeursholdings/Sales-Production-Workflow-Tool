@@ -5,19 +5,38 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import { PHONE_PLACEHOLDER, validators } from "@/components/forms/form.validators";
+import {
+	addressFieldConfigs,
+	addressFromValues,
+	addressRowPairs,
+	addressValues,
+	useAddressCountry,
+} from "@/components/forms/addressFields";
+import { nameFieldConfigs, nameRow } from "@/components/forms/nameFields";
 import type { FormFieldConfig } from "@/components/forms/types";
+import type { PostalAddress } from "@/lib/address";
 import type { Supplier } from "@/lib/suppliers";
 
 /** What the add / edit form collects. Materials, ratings and orders are managed on the supplier's page. */
 export type SupplierDetails = Pick<
 	Supplier,
-	"business" | "contact" | "address" | "phone" | "email" | "bankDetails" | "notes"
->;
+	| "business"
+	| "contactTitle"
+	| "contactFirstName"
+	| "contactSurname"
+	| "phone"
+	| "email"
+	| "bankDetails"
+	| "notes"
+> & { addressParts: PostalAddress };
 
-type Values = {
-	contact: string;
+const ADDRESS = "address";
+
+type Values = Record<`${typeof ADDRESS}:${string}`, string> & {
+	contactTitle: string;
+	contactFirstName: string;
+	contactSurname: string;
 	business: string;
-	address: string;
 	phone: string;
 	email: string;
 	bank: string;
@@ -37,17 +56,23 @@ export default function SupplierDrawer({
 	onSave: (details: SupplierDetails) => void;
 	onClose: () => void;
 }) {
-	const methods = useForm<Values>({ mode: "onTouched" });
+	const methods = useForm<Values>({
+		mode: "onTouched",
+		defaultValues: addressValues(ADDRESS, supplier?.addressParts, supplier?.address),
+	});
+	const country = useAddressCountry(methods.control, ADDRESS);
 
 	const fields: FormFieldConfig[] = [
-		{
-			name: "contact",
-			type: "text",
-			label: "Contact name",
-			placeholder: "Person you deal with",
-			defaultValue: supplier?.contact ?? "",
-			validation: validators.required("Contact name"),
-		},
+		...nameFieldConfigs({
+			prefix: "contact",
+			who: "Contact",
+			description: "The person you deal with.",
+			defaults: {
+				title: supplier?.contactTitle,
+				firstName: supplier?.contactFirstName,
+				surname: supplier?.contactSurname,
+			},
+		}),
 		{
 			name: "business",
 			type: "text",
@@ -56,15 +81,7 @@ export default function SupplierDrawer({
 			defaultValue: supplier?.business ?? "",
 			validation: validators.required("Business name"),
 		},
-		{
-			name: "address",
-			type: "textarea",
-			label: "Address",
-			placeholder: "Street, area, city, state",
-			defaultValue: supplier?.address ?? "",
-			rows: 2,
-			validation: validators.required("Address"),
-		},
+		...addressFieldConfigs({ prefix: ADDRESS, country, form: methods }),
 		{
 			name: "phone",
 			type: "tel",
@@ -135,15 +152,19 @@ export default function SupplierDrawer({
 				methods={methods}
 				fields={fields}
 				rowPairs={[
+					nameRow("contact"),
+					...addressRowPairs(ADDRESS, country),
 					["phone", "email"],
 					["bank", "accountNumber"],
 				]}
 				hideRequiredMarks
 				onSubmit={(v) =>
 					onSave({
-						contact: v.contact.trim(),
+						contactTitle: v.contactTitle ?? "",
+						contactFirstName: v.contactFirstName.trim(),
+						contactSurname: v.contactSurname.trim(),
 						business: v.business.trim(),
-						address: v.address.trim(),
+						addressParts: addressFromValues(ADDRESS, v),
 						phone: v.phone.trim(),
 						email: v.email?.trim() ?? "",
 						bankDetails: {

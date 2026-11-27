@@ -7,12 +7,20 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
+import {
+	addressFieldConfigs,
+	addressFromValues,
+	addressRowPairs,
+	addressValues,
+	useAddressCountry,
+} from "@/components/forms/addressFields";
 import type { FormFieldConfig } from "@/components/forms/types";
 import type { JobCard } from "@/lib/jobCards";
 
-type Values = {
+const ADDRESS = "address";
+
+type Values = Record<`${typeof ADDRESS}:${string}`, string> & {
 	due: string;
-	address: string;
 	note: string;
 	booked: boolean;
 	bookedFor: string;
@@ -32,8 +40,12 @@ export default function EditJobCardDrawer({
 	onSave: (details: JobCardDetails) => void | Promise<void>;
 	onClose: () => void;
 }) {
-	const methods = useForm<Values>({ mode: "onTouched" });
+	const methods = useForm<Values>({
+		mode: "onTouched",
+		defaultValues: addressValues(ADDRESS, card.addressParts, card.address),
+	});
 	const booked = useWatch({ control: methods.control, name: "booked" });
+	const country = useAddressCountry(methods.control, ADDRESS);
 
 	const fields: FormFieldConfig[] = [
 		{
@@ -43,14 +55,12 @@ export default function EditJobCardDrawer({
 			defaultValue: card.due,
 			validation: validators.required("Due date"),
 		},
-		{
-			name: "address",
-			type: "textarea",
-			label: "Delivery address",
-			defaultValue: card.address,
-			rows: 2,
-			validation: validators.required("Delivery address"),
-		},
+		...addressFieldConfigs({
+			prefix: ADDRESS,
+			country,
+			form: methods,
+			title: "Delivery address",
+		}),
 		{
 			name: "note",
 			type: "textarea",
@@ -85,12 +95,13 @@ export default function EditJobCardDrawer({
 			<MainForm<Values>
 				methods={methods}
 				fields={fields}
+				rowPairs={addressRowPairs(ADDRESS, country)}
 				hideRequiredMarks
 				requireValidToSubmit={false}
 				onSubmit={(v) =>
 					onSave({
 						due: isoDay(v.due),
-						address: v.address.trim(),
+						addressParts: addressFromValues(ADDRESS, v),
 						note: v.note?.trim() ?? "",
 						bookedFor: v.booked && v.bookedFor ? isoDay(v.bookedFor) : null,
 					})

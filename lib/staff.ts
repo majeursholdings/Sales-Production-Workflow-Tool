@@ -2,7 +2,11 @@ export type StaffTeam = "Production" | "Non-production";
 
 export type StaffMember = {
 	id: string;
+	/** First name and surname written out. */
 	name: string;
+	title: string;
+	firstName: string;
+	surname: string;
 	/** Their role, e.g. "Carpenter". */
 	role: string;
 	team: StaffTeam;

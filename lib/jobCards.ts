@@ -1,3 +1,4 @@
+import type { PostalAddress } from "@/lib/address";
 import dayjs from "dayjs";
 import type { BadgeVariant } from "@/components/common/badge";
 import type { OverviewItem } from "@/components/common/overViewCard";
@@ -130,7 +131,10 @@ export type JobCard = {
 	icon: FurnitureKind;
 	/** ISO date. */
 	due: string;
+	/** The delivery address written out. */
 	address: string;
+	/** The same address in parts; null for cards saved before addresses were split up. */
+	addressParts: PostalAddress | null;
 	delivery: { state: DeliveryState; note: string; bookedFor?: string };
 	/** From customer care. */
 	note: string;
@@ -469,6 +473,8 @@ export type QuoteOption = {
 	client: string;
 	/** The client's location, as a starting delivery address. */
 	address: string;
+	/** The same, in parts, when the client's address was saved that way. */
+	addressParts: PostalAddress | null;
 	items: { name: string; spec: string; qty: number }[];
 };
 

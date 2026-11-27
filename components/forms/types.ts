@@ -20,8 +20,9 @@ export type FieldType =
 	| "combobox" // a select you can type into to filter its options
 	| "multiselect"
 	| "radio"
-	| "date"
+	| "date" // calendar; shown as "12 Apr 2026", stored as an ISO date-time
 	| "datetime"
+	| "day-month" // calendar without a year, e.g. a birthday; shown as "21 May", stored as "05-21"
 	| "file"
 	| "image"
 	| "range" // a slider between min and max, with the value shown beside it
@@ -108,7 +109,8 @@ export type MainFormProps<T extends FieldValues = FieldValues> = {
 	submitLabel?: string;
 	isLoading?: boolean;
 	className?: string;
-	rowPairs?: [string, string][];
+	/** Fields shown side by side on wider screens: pairs, or longer rows like title + first name + surname. */
+	rowPairs?: [string, ...string[]][];
 	footerSlot?: ReactNode | ((values: DeepPartialSkipArrayKey<T>) => ReactNode);
 	/** Bring your own react-hook-form instance — lets several MainForm/field
 	 * groups (e.g. steps of a wizard) share one form so values and validation

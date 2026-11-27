@@ -6,7 +6,9 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
+import { nameFieldConfigs, nameRow } from "@/components/forms/nameFields";
 import type { FormFieldConfig } from "@/components/forms/types";
+import { joinName } from "@/lib/names";
 import {
 	DEFAULT_HOURS,
 	NON_PRODUCTION_ROLES,
@@ -16,7 +18,9 @@ import {
 } from "@/lib/staff";
 
 type Values = {
-	name: string;
+	title: string;
+	firstName: string;
+	surname: string;
 	phone: string;
 	email: string;
 	team: StaffTeam;
@@ -53,14 +57,10 @@ export default function StaffDrawer({
 	const fields = useMemo<FormFieldConfig[]>(() => {
 		const roles = team === "Production" ? PRODUCTION_ROLES : NON_PRODUCTION_ROLES;
 		return [
-			{
-				name: "name",
-				type: "text",
-				label: "Full name",
-				placeholder: "As on payroll",
-				defaultValue: person?.name ?? "",
-				validation: validators.required("Full name"),
-			},
+			...nameFieldConfigs({
+				defaults: person,
+				description: "As on payroll.",
+			}),
 			{
 				name: "phone",
 				type: "tel",
@@ -148,15 +148,15 @@ export default function StaffDrawer({
 			<MainForm<Values>
 				methods={methods}
 				fields={fields}
-				rowPairs={[
-					["phone", "email"],
-					["rate", "hours"],
-				]}
+				rowPairs={[nameRow(), ["phone", "email"], ["rate", "hours"]]}
 				hideRequiredMarks
 				onSubmit={(v) =>
 					onSave({
 						id: person?.id ?? crypto.randomUUID(),
-						name: v.name.trim(),
+						name: joinName(v),
+						title: v.title ?? "",
+						firstName: v.firstName.trim(),
+						surname: v.surname.trim(),
 						phone: v.phone.trim(),
 						email: v.email.trim(),
 						team: person?.team ?? v.team,

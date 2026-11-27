@@ -11,11 +11,13 @@ import {
 	IDLE_OPTIONS,
 	NUMBERED_DOCUMENTS,
 	ROUNDING_OPTIONS,
+	parseCompanyAddresses,
 	parseTradeTiers,
 	unknownPlaceholders,
 	type NumberedDocument,
 	type SettingsSection,
 } from "@/lib/companySettings";
+import { addressErrors, addressLine, cleanAddress } from "@/lib/address";
 import { formatNaira } from "@/lib/currency";
 import type { SessionUser } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
@@ -161,7 +163,8 @@ const detailsSchema = z.object({
 	registeredName: z.string().trim().min(1, "Registered name is required"),
 	rcNumber: z.string().trim().max(40),
 	tin: z.string().trim().max(40),
-	address: z.string().trim().max(500),
+	/** Id of one of the company's addresses; empty prints none. */
+	documentAddressId: z.string().trim().max(64).default(""),
 	phone: optionalPhone,
 	whatsapp: optionalPhone,
 	website: z.string().trim().max(200),
@@ -189,11 +192,28 @@ export async function saveCompanyDetailsAction(
 		registered_name: v.registeredName,
 		rc_number: v.rcNumber,
 		tin: v.tin,
-		address: v.address,
 		phone: v.phone,
 		whatsapp: v.whatsapp,
 		website: v.website,
 	};
+
+	if (v.documentAddressId) {
+		const { data: row, error: addrError } = await supabase
+			.from("company_settings")
+			.select("addresses")
+			.eq("id", 1)
+			.single();
+		if (addrError) return fail(addrError.message);
+		const picked = parseCompanyAddresses(row?.addresses).find(
+			(a) => a.id === v.documentAddressId,
+		);
+		if (!picked) return fail("That address was removed. Pick another one.");
+		patch.document_address_id = picked.id;
+		patch.address = addressLine(picked);
+	} else {
+		patch.document_address_id = null;
+		patch.address = "";
+	}
 
 	const file = formData.get("logoFile");
 	let uploadedPath: string | null = null;
@@ -625,40 +645,81 @@ export async function saveSendingAction(raw: z.input<typeof sendingSchema>): Pro
 	);
 }
 
-// ─── Delivery addresses ──────────────────────────────────────────────────────
+// ─── Addresses ───────────────────────────────────────────────────────────────
 
-const deliverySchema = z
-	.array(
-		z.object({
-			name: z.string().trim().min(1, "Give every address a name").max(60),
-			address: z.string().trim().max(300).default(""),
-		}),
-	)
+const addressSchema = z.object({
+	id: z.string().trim().min(1).max(64),
+	name: z.string().trim().min(1, "Give every address a name").max(60),
+	country: z.string().trim().length(2),
+	street: z.string().max(300).default(""),
+	area: z.string().max(120).default(""),
+	city: z.string().max(120).default(""),
+	state: z.string().max(120).default(""),
+	postalCode: z.string().max(20).default(""),
+	sortingCode: z.string().max(20).default(""),
+	landmark: z.string().max(200).default(""),
+});
+
+const addressesSchema = z
+	.array(addressSchema)
 	.max(20, "Keep it to 20 addresses or fewer")
-	.refine(
-		(list) => new Set(list.map((a) => a.name.toLowerCase())).size === list.length,
-		"Two addresses have the same name",
-	);
+	.superRefine((list, ctx) => {
+		const names = new Set<string>();
+		for (const a of list) {
+			const name = a.name.toLowerCase();
+			if (names.has(name)) {
+				ctx.addIssue({ code: "custom", message: `Two addresses are called "${a.name}"` });
+			}
+			names.add(name);
+			const problem = Object.values(addressErrors(a))[0];
+			if (problem) ctx.addIssue({ code: "custom", message: `${a.name}: ${problem}` });
+		}
+		if (new Set(list.map((a) => a.id)).size !== list.length) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Two addresses share an id. Reload and try again.",
+			});
+		}
+	});
 
-/** Where purchase orders can be delivered. The first is the default on new orders. */
-export async function saveDeliveryAddressesAction(
-	raw: z.input<typeof deliverySchema>,
+/**
+ * The company's addresses. The first is the default delivery address on new
+ * purchase orders; if the one printed on documents changed, its written-out
+ * copy (`address`) is updated too.
+ */
+export async function saveAddressesAction(
+	raw: z.input<typeof addressesSchema>,
 ): Promise<ActionResult> {
-	const parsed = deliverySchema.safeParse(raw);
+	const parsed = addressesSchema.safeParse(raw);
 	if (!parsed.success) return fail(firstIssue(parsed.error));
 	const actor = await userWith("settings.company");
 	if (!actor) return fail(NO_ACCESS);
+	const list = parsed.data.map((a) => ({ ...a, ...cleanAddress(a), name: a.name.trim() }));
 
 	const supabase = await createClient();
-	const patch = { delivery_addresses: parsed.data };
+	const { data: current, error } = await supabase
+		.from("company_settings")
+		.select("document_address_id")
+		.eq("id", 1)
+		.single();
+	if (error) return fail(error.message);
+	const documentId = current?.document_address_id as string | null;
+	const printed = list.find((a) => a.id === documentId);
+	if (documentId && !printed) {
+		return fail(
+			"That address is printed on documents. Pick another one under Company details first, then remove it.",
+		);
+	}
+
+	const patch: Row = { addresses: list, ...(printed && { address: addressLine(printed) }) };
 	const res = await updateSingleton(supabase, "company_settings", patch, actor);
 	if (!res.ok) return res;
 
 	await logChange(supabase, actor, {
-		section: "delivery",
-		summary: parsed.data.length
-			? `Set delivery addresses: ${parsed.data.map((a) => a.name).join(", ")}`
-			: "Removed all delivery addresses",
+		section: "addresses",
+		summary: list.length
+			? `Set company addresses: ${list.map((a) => a.name).join(", ")}`
+			: "Removed all company addresses",
 		entityType: "company_settings",
 		oldValues: res.before,
 		newValues: patch,

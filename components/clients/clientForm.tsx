@@ -6,14 +6,27 @@ import { Button } from "@/components/common/buttons";
 import { Callout } from "@/components/common/card";
 import MainForm from "@/components/forms";
 import { normalizeNigerianPhone, validators } from "@/components/forms/form.validators";
+import {
+	addressFieldConfigs,
+	addressFromValues,
+	addressRowPairs,
+	addressValues,
+	useAddressCountry,
+} from "@/components/forms/addressFields";
+import { nameFieldConfigs, nameRow } from "@/components/forms/nameFields";
 import type { FormFieldConfig } from "@/components/forms/types";
+import { addressLine, isBlankAddress } from "@/lib/address";
 import { CLIENT_SOURCES, type Client } from "@/lib/clients";
+import { joinName } from "@/lib/names";
 
-type Values = {
-	name: string;
+const ADDRESS = "address";
+
+type Values = Record<`${typeof ADDRESS}:${string}`, string> & {
+	title: string;
+	firstName: string;
+	surname: string;
 	phone: string;
 	email: string;
-	address: string;
 	birthday: string;
 	preferredContact: string;
 	source: string;
@@ -98,23 +111,20 @@ export default function ClientForm({
 }) {
 	const methods = useForm<Values>({
 		mode: "onTouched",
-		defaultValues: { source: "Referral", trade: false, preferredContact: "WhatsApp" },
+		defaultValues: {
+			source: "Referral",
+			trade: false,
+			preferredContact: "WhatsApp",
+			...addressValues(ADDRESS),
+		},
 	});
 	const [source, trade] = useWatch({ control: methods.control, name: ["source", "trade"] });
+	const country = useAddressCountry(methods.control, ADDRESS);
 
 	const fields = useMemo<FormFieldConfig[]>(() => {
 		const detail = sourceDetailField(source);
 		return [
-			{
-				name: "name",
-				type: "text",
-				label: "Full name",
-				placeholder: "As it should appear on quotes",
-				validation: {
-					required: "Full name is required",
-					minLength: { value: 2, message: "Full name must be at least 2 characters" },
-				},
-			},
+			...nameFieldConfigs({ description: "As it should appear on quotes." }),
 			{
 				name: "phone",
 				type: "tel",
@@ -136,17 +146,20 @@ export default function ClientForm({
 					},
 				},
 			},
-			{
-				name: "address",
-				type: "text",
-				label: "Delivery address",
-				placeholder: "Street, area, city",
-			},
+			...addressFieldConfigs({
+				prefix: ADDRESS,
+				country,
+				form: methods,
+				title: "Delivery address",
+				optional: true,
+				description: "House number and street. Leave blank if you don't have it yet.",
+			}),
 			{
 				name: "birthday",
-				type: "text",
+				type: "day-month",
 				label: "Birthday (optional)",
 				placeholder: "Day and month",
+				description: "For birthday reminders. No year needed.",
 			},
 			{
 				name: "preferredContact",
@@ -187,19 +200,25 @@ export default function ClientForm({
 				rows: 3,
 			},
 		];
-	}, [source, trade]);
+	}, [source, trade, country, methods]);
 
 	const submit = (v: Values) => {
+		const address = addressFromValues(ADDRESS, v);
+		const addressParts = isBlankAddress(address) ? null : address;
 		const phoneKey = normalizeNigerianPhone(v.phone);
 		onSubmit({
 			id: crypto.randomUUID(),
-			name: v.name.trim(),
+			name: joinName(v),
+			title: v.title ?? "",
+			firstName: v.firstName.trim(),
+			surname: v.surname.trim(),
 			contact: [v.phone.trim(), v.email?.trim()].filter(Boolean).join(" · "),
 			phoneKey,
 			email: v.email?.trim() ?? "",
 			type: v.trade ? "Trade" : "Individual",
 			company: v.trade ? v.company.trim() : "",
-			location: v.address?.trim() ?? "",
+			location: addressParts ? addressLine(addressParts) : "",
+			addressParts,
 			source: v.source,
 			quotes: 0,
 			spent: 0,
@@ -213,7 +232,9 @@ export default function ClientForm({
 			methods={methods}
 			fields={fields}
 			rowPairs={[
+				nameRow(),
 				["phone", "email"],
+				...addressRowPairs(ADDRESS, country),
 				["birthday", "preferredContact"],
 			]}
 			onSubmit={submit}

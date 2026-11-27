@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import type { BadgeVariant } from "@/components/common/badge";
-import type { DeliveryAddress } from "@/lib/companySettings";
+import { addressLine } from "@/lib/address";
+import type { CompanyAddress } from "@/lib/companySettings";
 import { shortfallsOf, type Inventory, type OrderGroup } from "@/lib/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -74,12 +75,11 @@ export const APPROVERS_BOTH = "the MD and GM";
 /** Stored as the order's "deliver to" when we collect from the supplier ourselves. */
 export const PICKUP = "Pick up from supplier";
 
-/** "Workshop · 14 Oba Akran Ave, Ikeja": how a saved delivery address is written on an order. */
-export const deliveryLabel = (a: DeliveryAddress) =>
-	a.address ? `${a.name} · ${a.address}` : a.name;
+/** "Workshop · 14 Oba Akran Ave, Ikeja, Lagos, Nigeria": how a company address is written on an order. */
+export const deliveryLabel = (a: CompanyAddress) => `${a.name} · ${addressLine(a)}`;
 
 /** The "Deliver to" choices: Settings → Company details addresses, then pickup. */
-export const deliverToOptions = (addresses: DeliveryAddress[]) => [
+export const deliverToOptions = (addresses: CompanyAddress[]) => [
 	...addresses.map(deliveryLabel),
 	PICKUP,
 ];

@@ -1,3 +1,4 @@
+import { parseAddress, type PostalAddress } from "@/lib/address";
 import { qtyLabel, type PartDemand } from "@/lib/inventory";
 import {
 	STEP_NAMES,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/jobCards";
 import { createClient } from "@/utils/supabase/server";
 
-const JOB_CARD_COLUMNS = `number, quote_number, client_name, items_summary, icon, due, address,
+const JOB_CARD_COLUMNS = `number, quote_number, client_name, items_summary, icon, due, address, address_parts,
 	delivery_state, delivery_note, delivery_booked_for, delivery_photo_urls, note, rejected_note, closed,
 	job_card_items(name, kind, spec, qty, sort_order),
 	job_card_parts(sku, qty, reserved, picked, parts(name, spec, unit)),
@@ -36,6 +37,7 @@ type JobCardRow = {
 	icon: FurnitureKind;
 	due: string;
 	address: string;
+	address_parts: unknown;
 	delivery_state: DeliveryState;
 	delivery_note: string;
 	delivery_booked_for: string | null;
@@ -185,6 +187,7 @@ function toJobCard(row: JobCardRow, onOrder: Set<string>): JobCard {
 		icon: row.icon,
 		due: row.due,
 		address: row.address,
+		addressParts: row.address_parts ? parseAddress(row.address_parts) : null,
 		delivery: {
 			state: row.delivery_state,
 			note: row.delivery_note,
@@ -312,10 +315,18 @@ export async function getQuotesWithoutJobCard(): Promise<QuoteOption[]> {
 	const clientIds = [
 		...new Set(quotes.map((q) => q.client_id).filter((id): id is string => !!id)),
 	];
-	const locations = new Map<string, string>();
+	const locations = new Map<string, { text: string; parts: PostalAddress | null }>();
 	if (clientIds.length) {
-		const { data } = await supabase.from("clients").select("id, location").in("id", clientIds);
-		for (const c of data ?? []) locations.set(c.id as string, (c.location as string) ?? "");
+		const { data } = await supabase
+			.from("clients")
+			.select("id, location, address_parts")
+			.in("id", clientIds);
+		for (const c of data ?? []) {
+			locations.set(c.id as string, {
+				text: (c.location as string) ?? "",
+				parts: c.address_parts ? parseAddress(c.address_parts) : null,
+			});
+		}
 	}
 
 	return quotes.map((q) => {
@@ -325,7 +336,8 @@ export async function getQuotesWithoutJobCard(): Promise<QuoteOption[]> {
 			number: q.quote_number,
 			clientId: q.client_id,
 			client: q.client_name,
-			address: q.client_id ? (locations.get(q.client_id) ?? "") : "",
+			address: (q.client_id && locations.get(q.client_id)?.text) || "",
+			addressParts: (q.client_id && locations.get(q.client_id)?.parts) || null,
 			items: [...(version?.quote_lines ?? [])]
 				.sort((a, b) => a.sort_order - b.sort_order)
 				.map((l) => ({

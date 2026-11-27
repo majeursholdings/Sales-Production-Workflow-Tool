@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/common/card";
 import MainForm from "@/components/forms";
-import { validators } from "@/components/forms/form.validators";
+import { nameFieldConfigs, nameRow } from "@/components/forms/nameFields";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { updateProfile } from "@/lib/profileActions";
 
 type ProfileValues = {
-	fullName: string;
+	title: string;
+	firstName: string;
+	surname: string;
 	phone: string;
 	email: string;
 	role: string;
@@ -27,12 +29,19 @@ const initialsOf = (name: string) =>
 
 export default function ProfileForm({
 	initialName,
+	initialTitle,
+	initialFirstName,
+	initialSurname,
 	email,
 	initialPhone,
 	roleLabel,
 	initialSignature,
 }: {
+	/** Written out, for the header. */
 	initialName: string;
+	initialTitle: string;
+	initialFirstName: string;
+	initialSurname: string;
 	email: string;
 	initialPhone: string;
 	roleLabel: string;
@@ -42,14 +51,14 @@ export default function ProfileForm({
 	const [saving, setSaving] = useState(false);
 
 	const fields: FormFieldConfig[] = [
-		{
-			name: "fullName",
-			type: "text",
-			label: "Full name",
-			defaultValue: initialName,
+		...nameFieldConfigs({
+			defaults: {
+				title: initialTitle,
+				firstName: initialFirstName,
+				surname: initialSurname,
+			},
 			description: "Shown on quotes, invoices and notes you create.",
-			validation: validators.required("Full name"),
-		},
+		}),
 		{
 			name: "phone",
 			type: "tel",
@@ -87,7 +96,9 @@ export default function ProfileForm({
 	const onSubmit = async (values: ProfileValues) => {
 		setSaving(true);
 		const result = await updateProfile({
-			fullName: values.fullName,
+			title: values.title ?? "",
+			firstName: values.firstName,
+			surname: values.surname,
 			phone: values.phone,
 			emailSignature: values.emailSignature,
 		});
@@ -124,10 +135,7 @@ export default function ProfileForm({
 
 			<MainForm<ProfileValues>
 				fields={fields}
-				rowPairs={[
-					["fullName", "phone"],
-					["email", "role"],
-				]}
+				rowPairs={[nameRow(), ["phone", "email"]]}
 				onSubmit={onSubmit}
 				submitLabel="Save profile"
 				isLoading={saving}

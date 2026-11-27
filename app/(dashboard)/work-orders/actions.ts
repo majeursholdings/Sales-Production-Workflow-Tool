@@ -3,6 +3,8 @@
 import dayjs from "dayjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { addressLine } from "@/lib/address";
+import { postalAddressSchema } from "@/lib/address/schema";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
 import { getJobCard, getQuotesWithoutJobCard, getWorkshopPeople } from "@/lib/data/jobCards";
 import {
@@ -68,7 +70,7 @@ async function saveStatuses(supabase: Supabase, before: JobCard, after: JobCard)
 const createSchema = z.object({
 	quoteId: z.string().uuid("Pick a quote"),
 	due: isoDate,
-	address: z.string().trim().min(1, "Enter the delivery address"),
+	addressParts: postalAddressSchema,
 	note: z.string().trim().default(""),
 	plannedHours: z.array(z.number().nonnegative().max(10000)).length(STEP_NAMES.length),
 	parts: z
@@ -110,7 +112,7 @@ export async function createJobCardAction(
 			items_summary: itemsSummary(quote.items),
 			icon: kindOf(quote.items[0].name),
 			due: d.due,
-			address: d.address,
+			address: addressLine(d.addressParts),
 			note: d.note,
 		},
 		p_items: quote.items.map((i) => ({ ...i, kind: kindOf(i.name) })),
@@ -119,6 +121,12 @@ export async function createJobCardAction(
 		p_prefix: (await getCompanyConfig()).numbering.jobCard,
 	});
 	if (error) return fail(error.message);
+
+	// create_job_card takes the address written out; its parts go on afterwards.
+	await supabase
+		.from("job_cards")
+		.update({ address_parts: d.addressParts })
+		.eq("number", number as string);
 
 	const { data: firstStep } = await supabase
 		.from("job_card_steps")
@@ -143,7 +151,7 @@ export async function createJobCardAction(
 
 const detailsSchema = z.object({
 	due: isoDate,
-	address: z.string().trim().min(1, "Enter the delivery address"),
+	addressParts: postalAddressSchema,
 	note: z.string().trim().default(""),
 	/** The day delivery is booked for, or null when it isn't booked. */
 	bookedFor: isoDate.nullable(),
@@ -182,7 +190,13 @@ export async function updateJobCardAction(
 	const supabase = await createClient();
 	const { error } = await supabase
 		.from("job_cards")
-		.update({ due: d.due, address: d.address, note: d.note, ...delivery })
+		.update({
+			due: d.due,
+			address: addressLine(d.addressParts),
+			address_parts: d.addressParts,
+			note: d.note,
+			...delivery,
+		})
 		.eq("number", number);
 	if (error) return fail(error.message);
 

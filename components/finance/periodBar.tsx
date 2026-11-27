@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dayjs from "dayjs";
 import { Button } from "@/components/common/buttons";
+import { DatePicker } from "@/components/forms/datePicker";
 import { PERIOD_OPTIONS, describeRange, type DateRange, type Period } from "@/lib/finance";
 
 const controlClass =
@@ -69,30 +70,34 @@ export default function PeriodBar({
 
 			{period === "custom" && (
 				<>
-					<label className="flex items-center gap-2 text-small text-fg-secondary">
+					<span className="flex items-center gap-2 text-small text-fg-secondary">
 						From
-						<input
-							type="date"
-							className={controlClass}
-							value={from}
-							min={earliest}
-							max={today}
-							onChange={(e) => setFrom(e.target.value)}
-							aria-invalid={error ? true : undefined}
-						/>
-					</label>
-					<label className="flex items-center gap-2 text-small text-fg-secondary">
+						<span className="w-40">
+							<DatePicker
+								aria-label="From"
+								compact
+								value={from}
+								min={earliest}
+								max={today}
+								onChange={setFrom}
+								invalid={!!error}
+							/>
+						</span>
+					</span>
+					<span className="flex items-center gap-2 text-small text-fg-secondary">
 						To
-						<input
-							type="date"
-							className={controlClass}
-							value={to}
-							min={earliest}
-							max={today}
-							onChange={(e) => setTo(e.target.value)}
-							aria-invalid={error ? true : undefined}
-						/>
-					</label>
+						<span className="w-40">
+							<DatePicker
+								aria-label="To"
+								compact
+								value={to}
+								min={earliest}
+								max={today}
+								onChange={setTo}
+								invalid={!!error}
+							/>
+						</span>
+					</span>
 					<Button onClick={apply}>Apply</Button>
 				</>
 			)}

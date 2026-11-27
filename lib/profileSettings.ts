@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
 
 export type ProfileSettings = {
+	title: string;
+	firstName: string;
+	surname: string;
 	emailSignature: string;
 	notifications: NotificationPrefs;
 };
@@ -13,7 +16,7 @@ export async function getProfileSettings(): Promise<ProfileSettings> {
 	const supabase = await createClient();
 	const { data, error } = await supabase
 		.from("profiles")
-		.select("email_signature, notification_prefs")
+		.select("title, first_name, surname, email_signature, notification_prefs")
 		.eq("id", user.id)
 		.single();
 
@@ -22,6 +25,9 @@ export async function getProfileSettings(): Promise<ProfileSettings> {
 	}
 
 	return {
+		title: data.title ?? "",
+		firstName: data.first_name ?? "",
+		surname: data.surname ?? "",
 		emailSignature: data.email_signature ?? "",
 		notifications: resolveNotificationPrefs(data.notification_prefs),
 	};

@@ -1,9 +1,14 @@
 "use server";
 
+import dayjs from "dayjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { normalizeNigerianPhone } from "@/components/forms/form.validators";
+import { addressLine, parseAddress } from "@/lib/address";
+import { optionalPostalAddressSchema } from "@/lib/address/schema";
 import type { Client, ClientType } from "@/lib/clients";
+import { joinName } from "@/lib/names";
+import { nameSchemaParts } from "@/lib/nameSchema";
 import { requireOwner, requireRouteAccess } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
 
@@ -11,13 +16,23 @@ export type ActionResult<T = undefined> =
 	(T extends undefined ? { ok: true } : { ok: true; data: T }) | { ok: false; message: string };
 
 const createClientSchema = z.object({
-	name: z.string().trim().min(2, "Full name is required"),
+	...nameSchemaParts,
 	phone: z.string().trim().default(""),
 	email: z.string().trim().default(""),
 	type: z.enum(["Individual", "Trade"]),
 	company: z.string().trim().default(""),
 	location: z.string().trim().default(""),
-	birthday: z.string().trim().default(""),
+	/** When given, `location` is written out from it. */
+	addressParts: optionalPostalAddressSchema,
+	/** "MM-DD" from the day-and-month picker, e.g. "05-21" for 21 May; empty when not given. */
+	birthday: z
+		.string()
+		.trim()
+		.default("")
+		.refine(
+			(v) => !v || (/^\d{2}-\d{2}$/.test(v) && dayjs(`2000-${v}`).format("MM-DD") === v),
+			"Pick the birthday from the calendar",
+		),
 	preferredContact: z.string().trim().default("WhatsApp"),
 	source: z.string().trim().default("Referral"),
 	sourceDetail: z.string().trim().default(""),
@@ -43,13 +58,18 @@ export async function createClientAction(
 	const { data, error } = await supabase
 		.from("clients")
 		.insert({
-			name: input.name,
+			// The trigger keeps `name` in step; set here too so the insert reads clearly.
+			name: joinName(input),
+			title: input.title,
+			first_name: input.firstName,
+			surname: input.surname,
 			phone: input.phone,
 			phone_key: phoneKey,
 			email: input.email,
 			client_type: input.type,
 			company: input.type === "Trade" ? input.company : "",
-			location: input.location,
+			location: input.addressParts ? addressLine(input.addressParts) : input.location,
+			address_parts: input.addressParts,
 			birthday: input.birthday,
 			preferred_contact: input.preferredContact,
 			source: sourceLabel,
@@ -59,7 +79,7 @@ export async function createClientAction(
 			created_by: actor.id,
 		})
 		.select(
-			"id, name, phone, phone_key, email, client_type, company, location, source, quotes_count, total_spent, last_activity_label, trade_tier",
+			"id, name, title, first_name, surname, phone, phone_key, email, client_type, company, location, address_parts, source, quotes_count, total_spent, last_activity_label, trade_tier",
 		)
 		.single();
 
@@ -83,12 +103,16 @@ export async function createClientAction(
 		data: {
 			id: data.id,
 			name: data.name,
+			title: data.title ?? "",
+			firstName: data.first_name ?? "",
+			surname: data.surname ?? "",
 			contact: [data.phone, data.email].filter(Boolean).join(" · "),
 			phoneKey: data.phone_key ?? normalizeNigerianPhone(data.phone ?? ""),
 			email: data.email ?? "",
 			type: data.client_type as ClientType,
 			company: data.company ?? "",
 			location: data.location ?? "",
+			addressParts: data.address_parts ? parseAddress(data.address_parts) : null,
 			source: data.source ?? "",
 			quotes: Number(data.quotes_count ?? 0),
 			spent: Number(data.total_spent ?? 0),

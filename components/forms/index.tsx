@@ -31,6 +31,7 @@ import { controlClass } from "./input";
 import { DEFAULT_CURRENCY_SYMBOL } from "@/lib/currency";
 import { FormFieldConfig, MainFormProps, SelectOption } from "./types";
 import { FileInput } from "./fileInput";
+import { DatePicker } from "./datePicker";
 
 export default function MainForm<T extends FieldValues = FieldValues>({
 	title,
@@ -142,17 +143,19 @@ export default function MainForm<T extends FieldValues = FieldValues>({
 						if (renderedPairs.has(pair[0])) return null;
 						renderedPairs.add(pair[0]);
 
-						const first = fields.find((f) => f.name === pair[0]);
-						const second = fields.find((f) => f.name === pair[1]);
-						if (!first || !second) return null;
+						// Fields in the row that are in this form (e.g. a hidden optional one drops out)
+						const row = pair
+							.map((name) => fields.find((f) => f.name === name))
+							.filter((f): f is NonNullable<typeof f> => !!f);
+						if (row.length === 0) return null;
+						if (row.length === 1) return renderField(row[0]);
 
 						return (
 							<div
 								key={pair.join("-")}
 								className={cn("flex flex-col gap-4 md:flex-row", fieldGapClassName)}
 							>
-								{renderField(first)}
-								{renderField(second)}
+								{row.map(renderField)}
 							</div>
 						);
 					})}
@@ -258,6 +261,8 @@ export const FormField = <T extends FieldValues = FieldValues>({
 			return wrapper(<DateInput field={field} control={control} error={error} />);
 		case "datetime":
 			return wrapper(<DateTimeInput field={field} control={control} error={error} />);
+		case "day-month":
+			return wrapper(<DayMonthInput field={field} control={control} error={error} />);
 		case "select":
 			return wrapper(
 				<SelectInput
@@ -1053,7 +1058,6 @@ export const CheckboxInput = <T extends FieldValues = FieldValues>({
 // Native pickers: the value stays an ISO string, as before.
 
 const DATE_FORMAT = "YYYY-MM-DD";
-const DATETIME_FORMAT = "YYYY-MM-DDTHH:mm";
 
 /** Adds field.isDateDisabled on top of the field's own rules, as a validation. */
 const dateRules = <T extends FieldValues>(field: FormFieldConfig) => {
@@ -1068,15 +1072,16 @@ const dateRules = <T extends FieldValues>(field: FormFieldConfig) => {
 	} as RegisterOptions<T, Path<T>>;
 };
 
-const NativeDate = <T extends FieldValues = FieldValues>({
+/** Optional unless the field says it's required, so the calendar offers "Clear". */
+const isOptional = (field: FormFieldConfig) => !field.validation?.required;
+
+/** A date, picked from a calendar and shown with the month in words ("12 Apr 2026"). Stored as an ISO date-time. */
+export const DateInput = <T extends FieldValues = FieldValues>({
 	field,
 	control,
 	error,
-	kind,
-}: ControllerProps<T> & { kind: "date" | "datetime-local" }) => {
-	const format = kind === "date" ? DATE_FORMAT : DATETIME_FORMAT;
-	const bound = (d?: Date | string) => (d ? dayjs(d).format(format) : undefined);
-
+}: ControllerProps<T>) => {
+	const bound = (d?: Date | string) => (d ? dayjs(d).format(DATE_FORMAT) : undefined);
 	return (
 		<Controller
 			name={field.name as Path<T>}
@@ -1084,39 +1089,105 @@ const NativeDate = <T extends FieldValues = FieldValues>({
 			defaultValue={(field.defaultValue ?? "") as PathValue<T, Path<T>>}
 			rules={dateRules<T>(field)}
 			render={({ field: ctrl }) => (
-				<input
+				<DatePicker
 					id={field.id ?? field.name}
-					ref={ctrl.ref}
-					type={kind}
-					disabled={field.disabled}
-					readOnly={field.readOnly}
+					value={ctrl.value ? dayjs(ctrl.value).format(DATE_FORMAT) : ""}
+					onChange={(v) => ctrl.onChange(v ? dayjs(v).toISOString() : "")}
+					onBlur={ctrl.onBlur}
 					min={bound(field.minDate)}
 					max={bound(field.maxDate)}
-					aria-invalid={!!error || undefined}
+					isDateDisabled={field.isDateDisabled}
+					disabled={field.disabled || field.readOnly}
+					placeholder={field.placeholder}
+					clearable={isOptional(field)}
+					invalid={!!error}
 					aria-describedby={describedBy(field, error)}
-					value={ctrl.value ? dayjs(ctrl.value).format(format) : ""}
-					onChange={(e) =>
-						ctrl.onChange(e.target.value ? dayjs(e.target.value).toISOString() : "")
-					}
-					onBlur={ctrl.onBlur}
-					className={cn(
-						inputClass(error),
-						"cursor-pointer",
-						!ctrl.value && "text-fg-tertiary",
-					)}
 				/>
 			)}
 		/>
 	);
 };
 
-export const DateInput = <T extends FieldValues = FieldValues>(props: ControllerProps<T>) => (
-	<NativeDate {...props} kind="date" />
+/** A day and month with no year, e.g. a birthday: shown as "21 May", stored as "05-21". */
+export const DayMonthInput = <T extends FieldValues = FieldValues>({
+	field,
+	control,
+	error,
+}: ControllerProps<T>) => (
+	<Controller
+		name={field.name as Path<T>}
+		control={control}
+		defaultValue={(field.defaultValue ?? "") as PathValue<T, Path<T>>}
+		rules={field.validation as RegisterOptions<T, Path<T>>}
+		render={({ field: ctrl }) => (
+			<DatePicker
+				id={field.id ?? field.name}
+				mode="day-month"
+				value={String(ctrl.value ?? "")}
+				onChange={ctrl.onChange}
+				onBlur={ctrl.onBlur}
+				disabled={field.disabled || field.readOnly}
+				placeholder={field.placeholder}
+				clearable={isOptional(field)}
+				invalid={!!error}
+				aria-describedby={describedBy(field, error)}
+			/>
+		)}
+	/>
 );
 
-export const DateTimeInput = <T extends FieldValues = FieldValues>(props: ControllerProps<T>) => (
-	<NativeDate {...props} kind="datetime-local" />
-);
+/** A date from the calendar plus a time. Stored as an ISO date-time. */
+export const DateTimeInput = <T extends FieldValues = FieldValues>({
+	field,
+	control,
+	error,
+}: ControllerProps<T>) => {
+	const bound = (d?: Date | string) => (d ? dayjs(d).format(DATE_FORMAT) : undefined);
+	return (
+		<Controller
+			name={field.name as Path<T>}
+			control={control}
+			defaultValue={(field.defaultValue ?? "") as PathValue<T, Path<T>>}
+			rules={dateRules<T>(field)}
+			render={({ field: ctrl }) => {
+				const current = ctrl.value ? dayjs(ctrl.value) : null;
+				const set = (day: string, time: string) =>
+					ctrl.onChange(day ? dayjs(`${day}T${time || "09:00"}`).toISOString() : "");
+				return (
+					<div className="flex gap-2">
+						<div className="min-w-0 flex-1">
+							<DatePicker
+								id={field.id ?? field.name}
+								value={current ? current.format(DATE_FORMAT) : ""}
+								onChange={(day) => set(day, current?.format("HH:mm") ?? "")}
+								onBlur={ctrl.onBlur}
+								min={bound(field.minDate)}
+								max={bound(field.maxDate)}
+								isDateDisabled={field.isDateDisabled}
+								disabled={field.disabled || field.readOnly}
+								placeholder={field.placeholder}
+								clearable={isOptional(field)}
+								invalid={!!error}
+								aria-describedby={describedBy(field, error)}
+							/>
+						</div>
+						<input
+							type="time"
+							aria-label={`${typeof field.label === "string" ? field.label : "Time"}: time`}
+							disabled={field.disabled || field.readOnly || !current}
+							value={current ? current.format("HH:mm") : ""}
+							onChange={(e) =>
+								current && set(current.format(DATE_FORMAT), e.target.value)
+							}
+							onBlur={ctrl.onBlur}
+							className={cn(inputClass(error), "w-32")}
+						/>
+					</div>
+				);
+			}}
+		/>
+	);
+};
 
 // File / Image upload
 export { FileInput, type FileInputProps } from "./fileInput";

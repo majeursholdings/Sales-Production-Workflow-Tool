@@ -12,6 +12,7 @@ import { SegmentedControl } from "@/components/common/segmented-control";
 import PageWrapper from "@/components/layout/pageWrapper";
 import { cn } from "@/lib/cn";
 import type { Client } from "@/lib/clients";
+import { splitName } from "@/lib/names";
 import { ratePercent, type QuoteBuilderSetup } from "@/lib/quoteBuilder";
 import { resetDraft, updateDraft, useQuoteDraft } from "@/lib/quoteDraft";
 import BuilderHeader from "./builderHeader";
@@ -42,12 +43,15 @@ export default function ClientStep({
 		startAdding(async () => {
 			const [first] = client.contact.split(" · ");
 			const result = await createClientAction({
-				name: client.name,
+				title: client.title ?? "",
+				firstName: client.firstName ?? splitName(client.name).firstName,
+				surname: client.surname ?? splitName(client.name).surname,
 				phone: first && first !== client.email ? first : "",
 				email: client.email,
 				type: client.type,
 				company: client.company,
 				location: client.location,
+				addressParts: client.addressParts ?? null,
 				source: client.source,
 			});
 			if (!result.ok) {

@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
+import { addressLine, countryName, type PostalAddress } from "@/lib/address";
+import { postalAddressSchema } from "@/lib/address/schema";
+import { joinName } from "@/lib/names";
+import { nameSchemaParts } from "@/lib/nameSchema";
 import { scoreOf, supplierId as slugFor } from "@/lib/suppliers";
 import { createClient } from "@/utils/supabase/server";
 
@@ -10,8 +14,10 @@ const NO_ACCESS = "You don't have permission to change suppliers.";
 
 const detailsSchema = z.object({
 	business: z.string().trim().min(2, "Business name is required"),
-	contact: z.string().trim().default(""),
-	address: z.string().trim().default(""),
+	contactTitle: nameSchemaParts.title,
+	contactFirstName: nameSchemaParts.firstName,
+	contactSurname: nameSchemaParts.surname,
+	addressParts: postalAddressSchema,
 	phone: z.string().trim().default(""),
 	email: z.string().trim().default(""),
 	bankDetails: z.object({
@@ -36,8 +42,10 @@ const ratingSchema = materialSchema.omit({ sku: true }).extend({
 	preferred: z.boolean(),
 });
 
-/** "KM 12 Abeokuta Expressway, Sango-Ota, Ogun" → "Sango-Ota, Ogun". */
-const areaOf = (address: string) => address.split(",").slice(-2).join(",").trim();
+/** The short area for the suppliers table, e.g. "Sango-Ota, Ogun". */
+const areaOf = (a: PostalAddress) =>
+	[a.area || a.city, a.state || (a.area ? a.city : "")].filter(Boolean).join(", ") ||
+	countryName(a.country);
 
 function revalidateProcurement(id?: string) {
 	revalidatePath("/suppliers");
@@ -48,9 +56,13 @@ function revalidateProcurement(id?: string) {
 
 const detailsColumns = (d: z.output<typeof detailsSchema>) => ({
 	business: d.business,
-	contact: d.contact,
-	address: d.address,
-	area: areaOf(d.address),
+	contact: joinName({ firstName: d.contactFirstName, surname: d.contactSurname }),
+	contact_title: d.contactTitle,
+	contact_first_name: d.contactFirstName,
+	contact_surname: d.contactSurname,
+	address: addressLine(d.addressParts),
+	address_parts: d.addressParts,
+	area: areaOf(d.addressParts),
 	phone: d.phone,
 	email: d.email,
 	bank_name: d.bankDetails.bank,

@@ -22,6 +22,7 @@ import { ConfirmDialog } from "@/components/common/modal";
 import { SegmentedControl } from "@/components/common/segmented-control";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
+import { DateField } from "@/components/forms/datePicker";
 import { Input, Textarea } from "@/components/forms/input";
 import { Menu, MenuItem } from "@/components/tables/menu";
 import { Table } from "@/components/tables";
@@ -359,12 +360,11 @@ export default function QuoteDetailView({
 									defaultValue={formatNaira(deposit)}
 									inputMode="decimal"
 								/>
-								<Input
+								<DateField
 									label="Date received"
-									type="date"
 									max={dayjs().format("YYYY-MM-DD")}
 									value={paidOn}
-									onChange={(e) => setPaidOn(e.target.value)}
+									onChange={setPaidOn}
 								/>
 								<Input
 									label="Transfer reference"

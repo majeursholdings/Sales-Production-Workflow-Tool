@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import type { PostalAddress } from "@/lib/address";
 import type { BadgeVariant } from "@/components/common/badge";
 import type { OverviewItem } from "@/components/common/overViewCard";
 import { wholeNaira } from "@/lib/quoteBuilder";
@@ -53,8 +54,15 @@ export type BankDetails = { bank: string; accountNumber: string; accountName: st
 export type Supplier = {
 	id: string;
 	business: string;
+	/** The person we deal with, written out. */
 	contact: string;
+	contactTitle: string;
+	contactFirstName: string;
+	contactSurname: string;
+	/** Written out, e.g. "KM 12 Abeokuta Expressway, Sango-Ota, Ogun, Nigeria". */
 	address: string;
+	/** The same address in parts; null for suppliers saved before addresses were split up. */
+	addressParts: PostalAddress | null;
 	/** Short area for the table, e.g. "Sango-Ota, Ogun". */
 	area: string;
 	phone: string;

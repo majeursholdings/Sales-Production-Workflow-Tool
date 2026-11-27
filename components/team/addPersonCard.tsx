@@ -6,13 +6,16 @@ import { Button } from "@/components/common/buttons";
 import { Card } from "@/components/common/card";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
+import { nameFieldConfigs, nameRow } from "@/components/forms/nameFields";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { APP_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type AppRole } from "@/lib/roles";
 import type { TeamMember } from "@/lib/team";
 import { createTeamMemberAction } from "@/app/(dashboard)/team/actions";
 
 type Values = {
-	fullName: string;
+	title: string;
+	firstName: string;
+	surname: string;
 	email: string;
 	role: AppRole;
 };
@@ -30,19 +33,13 @@ export default function AddPersonCard({
 
 	const methods = useForm<Values>({
 		mode: "onTouched",
-		defaultValues: { fullName: "", email: "", role: "customer_care" },
+		defaultValues: { title: "", firstName: "", surname: "", email: "", role: "customer_care" },
 	});
 
 	const role = useWatch({ control: methods.control, name: "role" }) ?? "customer_care";
 
 	const fields: FormFieldConfig[] = [
-		{
-			name: "fullName",
-			type: "text",
-			label: "Full name",
-			placeholder: "As it should appear on quotes",
-			validation: validators.required("Full name"),
-		},
+		...nameFieldConfigs({ description: "As it should appear on quotes." }),
 		{
 			name: "email",
 			type: "email",
@@ -88,7 +85,7 @@ export default function AddPersonCard({
 			<MainForm<Values>
 				methods={methods}
 				fields={fields}
-				rowPairs={[["fullName", "email"]]}
+				rowPairs={[nameRow()]}
 				hideRequiredMarks
 				isLoading={submitting}
 				onSubmit={handleSubmit}

@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { parseAddress, type PostalAddress } from "@/lib/address";
 import { CONFIDENCE_THRESHOLD } from "@/lib/costRequests";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,8 +71,12 @@ export type AgentRules = {
 	suggestSubstitutes: boolean;
 };
 
-/** Somewhere purchase orders can be delivered, e.g. "Workshop" at "14 Oba Akran Ave, Ikeja". */
-export type DeliveryAddress = { name: string; address: string };
+/** One of the company's addresses, e.g. "Workshop". Purchase orders can be delivered to any of them. */
+export type CompanyAddress = PostalAddress & {
+	/** Stable id, so documents and orders can point at it after it's renamed. */
+	id: string;
+	name: string;
+};
 
 export type SendingSettings = {
 	fromEmail: string;
@@ -94,7 +99,8 @@ export type SettingsSection =
 	| "discount"
 	| "agent"
 	| "sending"
-	| "delivery";
+	| "delivery"
+	| "addresses";
 
 export type SettingsChange = { by: string; what: string; at: string };
 
@@ -110,8 +116,10 @@ export type CompanySettings = {
 	generalDiscount: GeneralDiscount;
 	agent: AgentRules;
 	sending: SendingSettings;
-	/** Where purchase orders can be delivered; the first is the default. */
-	deliveryAddresses: DeliveryAddress[];
+	/** The company's addresses; the first is the default delivery address on purchase orders. */
+	addresses: CompanyAddress[];
+	/** Which address is printed on documents (details.address holds it written out). */
+	documentAddressId: string;
 	/** Newest first. Empty for people who can't see the history. */
 	changes: SettingsChange[];
 };
@@ -200,13 +208,14 @@ export function parseTradeTiers(raw: unknown): TradeTier[] {
 		.sort((a, b) => a.minSpend - b.minSpend);
 }
 
-/** Delivery addresses from company_settings.delivery_addresses (jsonb), skipping anything malformed. */
-export function parseDeliveryAddresses(raw: unknown): DeliveryAddress[] {
+/** Addresses from company_settings.addresses (jsonb), skipping anything malformed. */
+export function parseCompanyAddresses(raw: unknown): CompanyAddress[] {
 	if (!Array.isArray(raw)) return [];
 	return raw
 		.map((a) => ({
+			...parseAddress(a),
+			id: String(a?.id ?? "").trim(),
 			name: String(a?.name ?? "").trim(),
-			address: String(a?.address ?? "").trim(),
 		}))
-		.filter((a) => a.name);
+		.filter((a) => a.id && a.name);
 }

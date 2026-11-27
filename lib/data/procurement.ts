@@ -1,3 +1,4 @@
+import { parseAddress } from "@/lib/address";
 import { cache } from "react";
 import dayjs from "dayjs";
 import type { Inventory, Part, PartCategory } from "@/lib/inventory";
@@ -176,7 +177,7 @@ export async function getSupplierCatalog(): Promise<SupplierCatalog> {
 		supabase
 			.from("suppliers")
 			.select(
-				"id, business, contact, address, area, phone, email, bank_name, account_number, account_name, notes, since",
+				"id, business, contact, contact_title, contact_first_name, contact_surname, address, address_parts, area, phone, email, bank_name, account_number, account_name, notes, since",
 			)
 			.eq("is_active", true)
 			.order("business", { ascending: true }),
@@ -263,7 +264,11 @@ export async function getSupplierCatalog(): Promise<SupplierCatalog> {
 			id: s.id,
 			business: s.business,
 			contact: s.contact,
+			contactTitle: s.contact_title ?? "",
+			contactFirstName: s.contact_first_name ?? "",
+			contactSurname: s.contact_surname ?? "",
 			address: s.address,
+			addressParts: s.address_parts ? parseAddress(s.address_parts) : null,
 			area: s.area,
 			phone: s.phone,
 			email: s.email,

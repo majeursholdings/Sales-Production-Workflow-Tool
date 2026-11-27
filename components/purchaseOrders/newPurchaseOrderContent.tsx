@@ -37,7 +37,7 @@ import {
 	unitQty,
 	type PurchaseOrder,
 } from "@/lib/purchaseOrders";
-import type { DeliveryAddress } from "@/lib/companySettings";
+import type { CompanyAddress } from "@/lib/companySettings";
 import {
 	formatScore,
 	materialOf,
@@ -76,7 +76,7 @@ export default function NewPurchaseOrderContent({
 	userName,
 	initialSupplierId,
 	approvalLimit,
-	deliveryAddresses,
+	addresses,
 }: {
 	orders: PurchaseOrder[];
 	inventory: Inventory;
@@ -87,7 +87,7 @@ export default function NewPurchaseOrderContent({
 	initialSupplierId?: string;
 	approvalLimit: number;
 	/** Settings → Company details. */
-	deliveryAddresses: DeliveryAddress[];
+	addresses: CompanyAddress[];
 }) {
 	const router = useRouter();
 	const formId = useId();
@@ -95,7 +95,7 @@ export default function NewPurchaseOrderContent({
 	const suggested = suggestOrders(inventory, catalog);
 	const onOrder = skusOnOrder(orders);
 	const jobs = [...new Map(shortfalls.map((s) => [s.jobCard, s.client]))];
-	const deliverTo = deliverToOptions(deliveryAddresses);
+	const deliverTo = deliverToOptions(addresses);
 
 	/** What to order from a supplier by default: their parts that need ordering and aren't on an order yet. */
 	const defaultsFor = (id: string) =>
@@ -526,9 +526,9 @@ export default function NewPurchaseOrderContent({
 								validation: { required: "Pick the payment terms" },
 							})}
 						</div>
-						{deliveryAddresses.length === 0 && (
+						{addresses.length === 0 && (
 							<p className="text-small text-fg-secondary">
-								No delivery addresses saved yet.{" "}
+								No company addresses saved yet.{" "}
 								<Link
 									href="/settings/company"
 									className="font-bold text-accent-fg hover:underline"

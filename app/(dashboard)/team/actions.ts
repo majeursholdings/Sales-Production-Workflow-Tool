@@ -7,6 +7,8 @@ import { hasPendingInvite, sendInvite } from "@/lib/invites";
 import { isAccountLocked } from "@/lib/loginLock";
 import { APP_ROLES, isOwnerAppRole, type AppRole } from "@/lib/roles";
 import { requireOwner } from "@/lib/session";
+import { joinName } from "@/lib/names";
+import { nameSchemaParts } from "@/lib/nameSchema";
 import type { TeamMember } from "@/lib/team";
 import { createAdminClient, hasAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
@@ -17,7 +19,7 @@ export type TeamActionResult<T = undefined> =
 const roleSchema = z.enum(APP_ROLES);
 
 const createMemberSchema = z.object({
-	fullName: z.string().trim().min(2, "Full name is required"),
+	...nameSchemaParts,
 	email: z.string().trim().toLowerCase().email("Enter a valid work email"),
 	phone: z.string().trim().optional().default(""),
 	role: roleSchema,
@@ -25,7 +27,7 @@ const createMemberSchema = z.object({
 
 const updateMemberSchema = z.object({
 	userId: z.string().uuid("Invalid user ID"),
-	fullName: z.string().trim().min(2, "Full name is required"),
+	...nameSchemaParts,
 	phone: z.string().trim().optional().default(""),
 	role: roleSchema,
 });
@@ -74,7 +76,8 @@ export async function createTeamMemberAction(
 		};
 	}
 
-	const { fullName, email, phone, role } = parsed.data;
+	const { title, firstName, surname, email, phone, role } = parsed.data;
+	const fullName = joinName({ firstName, surname });
 	const admin = createAdminClient();
 
 	// No password: they set their own from the invite link (lib/invites.ts)
@@ -94,6 +97,9 @@ export async function createTeamMemberAction(
 		{
 			id: userId,
 			full_name: fullName,
+			title,
+			first_name: firstName,
+			surname,
 			email,
 			phone,
 			is_active: true,
@@ -136,6 +142,9 @@ export async function createTeamMemberAction(
 		data: {
 			id: userId,
 			fullName,
+			title,
+			firstName,
+			surname,
 			email,
 			phone,
 			role,
@@ -160,7 +169,8 @@ export async function updateTeamMemberAction(
 		};
 	}
 
-	const { userId, fullName, phone, role } = parsed.data;
+	const { userId, title, firstName, surname, phone, role } = parsed.data;
+	const fullName = joinName({ firstName, surname });
 	const supabase = await createClient();
 
 	const [{ data: existingProfile }, { data: existingRole }] = await Promise.all([
@@ -201,7 +211,7 @@ export async function updateTeamMemberAction(
 
 	const { error: profileError } = await supabase
 		.from("profiles")
-		.update({ full_name: fullName, phone })
+		.update({ full_name: fullName, title, first_name: firstName, surname, phone })
 		.eq("id", userId);
 
 	if (profileError) {
@@ -253,6 +263,9 @@ export async function updateTeamMemberAction(
 		data: {
 			id: existingProfile.id,
 			fullName,
+			title,
+			firstName,
+			surname,
 			email: existingProfile.email,
 			phone,
 			role,

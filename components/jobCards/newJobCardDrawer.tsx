@@ -7,14 +7,22 @@ import { Button } from "@/components/common/buttons";
 import { Drawer } from "@/components/common/drawer";
 import MainForm from "@/components/forms";
 import { validators } from "@/components/forms/form.validators";
+import {
+	addressFieldConfigs,
+	addressFromValues,
+	addressRowPairs,
+	addressValues,
+	useAddressCountry,
+} from "@/components/forms/addressFields";
 import type { FormFieldConfig } from "@/components/forms/types";
 import { qtyLabel } from "@/lib/inventory";
 import { STEP_NAMES, parseHours, type PartOption, type QuoteOption } from "@/lib/jobCards";
 
-type Values = {
+const ADDRESS = "address";
+
+type Values = Record<`${typeof ADDRESS}:${string}`, string> & {
 	quoteId: string;
 	due: string;
-	address: string;
 	note: string;
 	parts: string[];
 	[stepHours: `sh_${number}`]: string;
@@ -38,8 +46,18 @@ export default function NewJobCardDrawer({
 	onSave: (card: NewJobCard) => void | Promise<void>;
 	onClose: () => void;
 }) {
-	const methods = useForm<Values>({ mode: "onTouched", defaultValues: { parts: [] } });
+	/** The client's address on file, as the starting delivery address. */
+	const startingAddress = (q?: QuoteOption) =>
+		addressValues(ADDRESS, q?.addressParts, q?.address);
+	const methods = useForm<Values>({
+		mode: "onTouched",
+		defaultValues: {
+			parts: [],
+			...startingAddress(quotes.length === 1 ? quotes[0] : undefined),
+		},
+	});
 	const quoteId = useWatch({ control: methods.control, name: "quoteId" });
+	const country = useAddressCountry(methods.control, ADDRESS);
 	const picked = useWatch({ control: methods.control, name: "parts" }) ?? [];
 	const quote = quotes.find((q) => q.id === quoteId);
 	const partOf = (sku: string) => parts.find((p) => p.sku === sku);
@@ -53,6 +71,13 @@ export default function NewJobCardDrawer({
 			emptyMessage: "No quote with a paid deposit matches",
 			defaultValue: quotes.length === 1 ? quotes[0].id : "",
 			options: quotes.map((q) => ({ value: q.id, label: `${q.number} · ${q.client}` })),
+			onValueChange: (id) => {
+				for (const [key, value] of Object.entries(
+					startingAddress(quotes.find((q) => q.id === id)),
+				)) {
+					methods.setValue(key as keyof Values & string, value as never);
+				}
+			},
 			validation: validators.required("Quote"),
 		},
 		{
@@ -63,21 +88,17 @@ export default function NewJobCardDrawer({
 			defaultValue: dayjs(today).add(21, "day").format("YYYY-MM-DD"),
 			validation: validators.required("Due date"),
 		},
-		{
-			name: "address",
-			type: "textarea",
-			label: "Delivery address",
+		...addressFieldConfigs({
+			prefix: ADDRESS,
+			country,
+			form: methods,
+			title: "Delivery address",
 			description: quote?.address
-				? `Leave blank to use the client's location: ${quote.address}`
-				: undefined,
-			placeholder: "e.g. 14 Admiralty Way, Lekki Phase 1, Lagos",
-			defaultValue: "",
-			rows: 2,
-			validation: {
-				validate: (v: string) =>
-					!!(v ?? "").trim() || !!quote?.address || "Enter the delivery address",
-			},
-		},
+				? quote.addressParts
+					? "Filled in from the client's address. Change it if it's going somewhere else."
+					: "The client's address was saved before addresses were split up. Split it into the fields below."
+				: "House number and street.",
+		}),
 		{
 			name: "note",
 			type: "textarea",
@@ -150,6 +171,7 @@ export default function NewJobCardDrawer({
 				methods={methods}
 				fields={fields}
 				rowPairs={[
+					...addressRowPairs(ADDRESS, country),
 					["sh_0", "sh_1"],
 					["sh_2", "sh_3"],
 					["sh_4", "sh_5"],
@@ -160,7 +182,7 @@ export default function NewJobCardDrawer({
 					onSave({
 						quoteId: v.quoteId,
 						due: isoDay(v.due),
-						address: v.address?.trim() || quote?.address || "",
+						addressParts: addressFromValues(ADDRESS, v),
 						note: v.note?.trim() ?? "",
 						plannedHours: STEP_NAMES.map((_, i) => parseHours(v[`sh_${i}`]) || 0),
 						parts: (v.parts ?? []).map((sku, i) => ({

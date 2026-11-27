@@ -7,6 +7,9 @@ export default async function SettingsProfilePage() {
 	return (
 		<ProfileForm
 			initialName={user.name}
+			initialTitle={settings.title}
+			initialFirstName={settings.firstName}
+			initialSurname={settings.surname}
 			email={user.email}
 			initialPhone={user.phone}
 			roleLabel={user.role}

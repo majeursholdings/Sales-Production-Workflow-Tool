@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { joinName } from "@/lib/names";
+import { nameSchemaParts } from "@/lib/nameSchema";
 import { resolveNotificationPrefs, type NotificationPrefs } from "@/lib/notificationPrefs";
 import { getCurrentUser } from "@/lib/session";
 import { createClient } from "@/utils/supabase/server";
@@ -11,7 +13,7 @@ import { createClient } from "@/utils/supabase/server";
 export type ProfileResult = { ok: true } | { ok: false; message: string };
 
 const profileSchema = z.object({
-	fullName: z.string().trim().min(1, "Full name is required").max(120),
+	...nameSchemaParts,
 	phone: z.string().trim().max(40),
 	emailSignature: z.string().trim().max(2000),
 });
@@ -25,7 +27,10 @@ export async function updateProfile(input: z.input<typeof profileSchema>): Promi
 	const { error } = await supabase
 		.from("profiles")
 		.update({
-			full_name: parsed.data.fullName,
+			title: parsed.data.title,
+			first_name: parsed.data.firstName,
+			surname: parsed.data.surname,
+			full_name: joinName(parsed.data),
 			phone: parsed.data.phone,
 			email_signature: parsed.data.emailSignature,
 		})

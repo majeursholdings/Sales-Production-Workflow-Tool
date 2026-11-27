@@ -79,7 +79,7 @@ export async function createPurchaseOrdersAction(
 			approval_requested_at: status === "approval" ? new Date().toISOString() : null,
 			job_card: order.jobCard,
 			client: order.client,
-			deliver_to: order.deliverTo || deliverToOptions(settings.deliveryAddresses)[0],
+			deliver_to: order.deliverTo || deliverToOptions(settings.addresses)[0],
 			payment_terms: order.paymentTerms,
 			note: order.note,
 		});
