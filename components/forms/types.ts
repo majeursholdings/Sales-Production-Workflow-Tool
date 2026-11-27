@@ -32,6 +32,8 @@ export type SelectOption = {
 	value: string;
 	/** For radio options: a line of help under the label. */
 	description?: string;
+	/** For "cards" radio options: a short value at the end of the card, e.g. a price. */
+	aside?: ReactNode;
 };
 
 export type FormFieldConfig = {
@@ -88,6 +90,8 @@ export type FormFieldConfig = {
 	hideLabel?: boolean;
 	/** For range: how the value reads beside the slider and to screen readers, e.g. 85 → "85%". */
 	formatValue?: (value: number) => string;
+	/** For radio: "cards" shows each option as a bordered card that highlights when picked. */
+	appearance?: "list" | "cards";
 	/** For select / combobox / radio: runs after the value changes, e.g. to fill in related fields. */
 	onValueChange?: (value: string) => void;
 	/** For a "file" field: take images as well as documents (e.g. a floor plan as a photo or a PDF). */

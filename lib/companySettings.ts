@@ -70,6 +70,9 @@ export type AgentRules = {
 	suggestSubstitutes: boolean;
 };
 
+/** Somewhere purchase orders can be delivered, e.g. "Workshop" at "14 Oba Akran Ave, Ikeja". */
+export type DeliveryAddress = { name: string; address: string };
+
 export type SendingSettings = {
 	fromEmail: string;
 	senderName: string;
@@ -90,7 +93,8 @@ export type SettingsSection =
 	| "trade"
 	| "discount"
 	| "agent"
-	| "sending";
+	| "sending"
+	| "delivery";
 
 export type SettingsChange = { by: string; what: string; at: string };
 
@@ -106,6 +110,8 @@ export type CompanySettings = {
 	generalDiscount: GeneralDiscount;
 	agent: AgentRules;
 	sending: SendingSettings;
+	/** Where purchase orders can be delivered; the first is the default. */
+	deliveryAddresses: DeliveryAddress[];
 	/** Newest first. Empty for people who can't see the history. */
 	changes: SettingsChange[];
 };
@@ -192,4 +198,15 @@ export function parseTradeTiers(raw: unknown): TradeTier[] {
 		}))
 		.filter((t) => t.name && Number.isFinite(t.minSpend) && Number.isFinite(t.discountPercent))
 		.sort((a, b) => a.minSpend - b.minSpend);
+}
+
+/** Delivery addresses from company_settings.delivery_addresses (jsonb), skipping anything malformed. */
+export function parseDeliveryAddresses(raw: unknown): DeliveryAddress[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.map((a) => ({
+			name: String(a?.name ?? "").trim(),
+			address: String(a?.address ?? "").trim(),
+		}))
+		.filter((a) => a.name);
 }

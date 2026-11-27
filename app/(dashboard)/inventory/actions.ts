@@ -53,7 +53,8 @@ export async function savePartAction(
 	if (readError) return fail(readError.message);
 
 	const costChanged = !before || Number(before.unit_cost) !== p.unitCost;
-	const nextPhotoUrl = p.photoUrl !== undefined ? p.photoUrl || null : (before?.photo_url ?? null);
+	const nextPhotoUrl =
+		p.photoUrl !== undefined ? p.photoUrl || null : (before?.photo_url ?? null);
 	const columns = {
 		name: p.name,
 		category: p.category,
@@ -76,6 +77,19 @@ export async function savePartAction(
 		: await supabase.from("parts").insert({ sku: p.sku, ...columns });
 	if (error) return fail(error.message);
 
+	// The part's supplier sells it: list it in their catalogue so purchase orders
+	// to them offer it. Keeps their own price, lead time and ratings if already listed.
+	if (p.supplierId) {
+		const { error: linkError } = await supabase
+			.from("supplier_materials")
+			.upsert(
+				{ supplier_id: p.supplierId, sku: p.sku, price: p.unitCost },
+				{ onConflict: "supplier_id,sku", ignoreDuplicates: true },
+			);
+		if (linkError)
+			return fail(`Part saved, but linking it to the supplier failed: ${linkError.message}`);
+	}
+
 	if (before?.photo_url && before.photo_url !== nextPhotoUrl) {
 		await removeStorageUrls(supabase, [before.photo_url as string], "parts");
 	}
@@ -96,17 +110,11 @@ export async function savePartAction(
 }
 
 /** Archives a part (hidden from quotes and furniture types), or restores it. */
-export async function setPartArchivedAction(
-	sku: string,
-	archived: boolean,
-): Promise<ActionResult> {
+export async function setPartArchivedAction(sku: string, archived: boolean): Promise<ActionResult> {
 	if (!(await userWith("materials.edit"))) return fail(NO_ACCESS);
 
 	const supabase = await createClient();
-	const { error } = await supabase
-		.from("parts")
-		.update({ is_archived: archived })
-		.eq("sku", sku);
+	const { error } = await supabase.from("parts").update({ is_archived: archived }).eq("sku", sku);
 	if (error) return fail(error.message);
 
 	revalidateInventory();

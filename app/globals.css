@@ -315,6 +315,23 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* Custom design: a band sweeping down the photo while the parts agent reads it. */
+@keyframes photo-scan {
+	from {
+		transform: translateY(-100%);
+	}
+	to {
+		transform: translateY(196%);
+	}
+}
+@utility photo-scan {
+	animation: photo-scan 1.4s ease-in-out infinite alternate;
+	@media (prefers-reduced-motion: reduce) {
+		animation: none;
+		transform: none;
+	}
+}
+
 /* Slim 2px scrollbar for the sidebar nav (open and collapsed). */
 @layer components {
 	.slim-scroll::-webkit-scrollbar {

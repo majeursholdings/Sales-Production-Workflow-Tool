@@ -224,6 +224,25 @@ export async function getSupplierCatalog(): Promise<SupplierCatalog> {
 		bySupplier.set(m.supplier_id, list);
 	}
 
+	// Parts whose preferred supplier (set on the Inventory page) has no catalogue
+	// row yet still show as theirs, at the part's unit cost.
+	for (const part of parts) {
+		if (!part.supplierId) continue;
+		const list = bySupplier.get(part.supplierId) ?? [];
+		if (list.some((m) => m.sku === part.sku)) continue;
+		list.push({
+			sku: part.sku,
+			price: part.unitCost,
+			leadDays: 5,
+			minOrder: "",
+			ratings: null,
+			ratedOn: null,
+			ratedBy: null,
+			ratingNote: "",
+		});
+		bySupplier.set(part.supplierId, list);
+	}
+
 	const sent = orders.filter((po) => po.status !== "draft" && po.status !== "approval");
 	const year = dayjs().year();
 

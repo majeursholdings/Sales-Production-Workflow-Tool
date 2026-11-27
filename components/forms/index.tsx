@@ -947,6 +947,8 @@ export const RadioInput = <T extends FieldValues = FieldValues>({
 						className={cn(
 							"flex gap-2 text-body select-none",
 							opt.description ? "items-start" : "items-center",
+							field.appearance === "cards" &&
+								"min-h-11 gap-3 rounded-md border border-line-control bg-surface px-3.5 py-2.5 transition-colors hover:bg-subtle has-checked:border-accent has-checked:bg-accent-subtle has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
 							field.disabled
 								? "cursor-not-allowed text-fg-tertiary"
 								: "cursor-pointer",
@@ -969,14 +971,17 @@ export const RadioInput = <T extends FieldValues = FieldValues>({
 							)}
 						/>
 						{opt.description ? (
-							<span className="flex flex-col">
-								{opt.label}
+							<span className="flex min-w-0 flex-1 flex-col">
+								{field.appearance === "cards" ? <b>{opt.label}</b> : opt.label}
 								<span className="text-small text-fg-secondary">
 									{opt.description}
 								</span>
 							</span>
 						) : (
 							opt.label
+						)}
+						{opt.aside && (
+							<span className="ms-auto shrink-0 text-end">{opt.aside}</span>
 						)}
 					</label>
 				))}

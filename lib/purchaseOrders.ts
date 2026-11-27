@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import type { BadgeVariant } from "@/components/common/badge";
+import type { DeliveryAddress } from "@/lib/companySettings";
 import { shortfallsOf, type Inventory, type OrderGroup } from "@/lib/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,10 +71,24 @@ export const STATUS_GROUP: Record<POStatus, "draft" | "open" | "received"> = {
 export const APPROVERS = "the MD or GM";
 export const APPROVERS_BOTH = "the MD and GM";
 
-export const DELIVER_TO = ["Workshop, Ikeja", "Showroom"];
+/** Stored as the order's "deliver to" when we collect from the supplier ourselves. */
+export const PICKUP = "Pick up from supplier";
+
+/** "Workshop · 14 Oba Akran Ave, Ikeja": how a saved delivery address is written on an order. */
+export const deliveryLabel = (a: DeliveryAddress) =>
+	a.address ? `${a.name} · ${a.address}` : a.name;
+
+/** The "Deliver to" choices: Settings → Company details addresses, then pickup. */
+export const deliverToOptions = (addresses: DeliveryAddress[]) => [
+	...addresses.map(deliveryLabel),
+	PICKUP,
+];
+
 export const PAYMENT_TERMS = [
 	"50% upfront, 50% on delivery",
+	"100% upfront",
 	"Pay on delivery",
+	"Pay on pickup",
 	"30 days after delivery",
 ];
 
@@ -182,7 +197,8 @@ export function draftsFromGroups(
 			approvalRequested: null,
 			jobCard: jobs.length === 1 ? jobs[0][0] : null,
 			client: jobs.length === 1 ? jobs[0][1] : null,
-			deliverTo: DELIVER_TO[0],
+			// Filled in with the default delivery address when it's saved.
+			deliverTo: "",
 			paymentTerms: PAYMENT_TERMS[0],
 			note: "",
 		};

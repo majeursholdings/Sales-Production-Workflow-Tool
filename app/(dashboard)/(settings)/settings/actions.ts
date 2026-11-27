@@ -624,3 +624,46 @@ export async function saveSendingAction(raw: z.input<typeof sendingSchema>): Pro
 		"Updated the quote email and WhatsApp messages",
 	);
 }
+
+// ─── Delivery addresses ──────────────────────────────────────────────────────
+
+const deliverySchema = z
+	.array(
+		z.object({
+			name: z.string().trim().min(1, "Give every address a name").max(60),
+			address: z.string().trim().max(300).default(""),
+		}),
+	)
+	.max(20, "Keep it to 20 addresses or fewer")
+	.refine(
+		(list) => new Set(list.map((a) => a.name.toLowerCase())).size === list.length,
+		"Two addresses have the same name",
+	);
+
+/** Where purchase orders can be delivered. The first is the default on new orders. */
+export async function saveDeliveryAddressesAction(
+	raw: z.input<typeof deliverySchema>,
+): Promise<ActionResult> {
+	const parsed = deliverySchema.safeParse(raw);
+	if (!parsed.success) return fail(firstIssue(parsed.error));
+	const actor = await userWith("settings.company");
+	if (!actor) return fail(NO_ACCESS);
+
+	const supabase = await createClient();
+	const patch = { delivery_addresses: parsed.data };
+	const res = await updateSingleton(supabase, "company_settings", patch, actor);
+	if (!res.ok) return res;
+
+	await logChange(supabase, actor, {
+		section: "delivery",
+		summary: parsed.data.length
+			? `Set delivery addresses: ${parsed.data.map((a) => a.name).join(", ")}`
+			: "Removed all delivery addresses",
+		entityType: "company_settings",
+		oldValues: res.before,
+		newValues: patch,
+	});
+	revalidateSettings();
+	revalidatePath("/purchase-orders", "layout");
+	return { ok: true };
+}

@@ -28,6 +28,7 @@ export default async function NewPurchaseOrderPage({
 				today={dayjs().format("YYYY-MM-DD")}
 				userName={user.name}
 				approvalLimit={poApprovalLimit}
+				deliveryAddresses={settings.deliveryAddresses}
 				initialSupplierId={supplier}
 			/>
 		</PageWrapper>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { Minus, Plus, Trash2 } from "lucide-react";
@@ -26,8 +27,9 @@ import {
 import { createPurchaseOrdersAction } from "@/app/(dashboard)/purchase-orders/actions";
 import {
 	APPROVERS_BOTH,
-	DELIVER_TO,
 	PAYMENT_TERMS,
+	PICKUP,
+	deliverToOptions,
 	addWorkingDays,
 	money,
 	needsApproval,
@@ -35,6 +37,7 @@ import {
 	unitQty,
 	type PurchaseOrder,
 } from "@/lib/purchaseOrders";
+import type { DeliveryAddress } from "@/lib/companySettings";
 import {
 	formatScore,
 	materialOf,
@@ -73,6 +76,7 @@ export default function NewPurchaseOrderContent({
 	userName,
 	initialSupplierId,
 	approvalLimit,
+	deliveryAddresses,
 }: {
 	orders: PurchaseOrder[];
 	inventory: Inventory;
@@ -82,6 +86,8 @@ export default function NewPurchaseOrderContent({
 	/** From ?supplier=, e.g. when started from a supplier's page. */
 	initialSupplierId?: string;
 	approvalLimit: number;
+	/** Settings → Company details. */
+	deliveryAddresses: DeliveryAddress[];
 }) {
 	const router = useRouter();
 	const formId = useId();
@@ -89,6 +95,7 @@ export default function NewPurchaseOrderContent({
 	const suggested = suggestOrders(inventory, catalog);
 	const onOrder = skusOnOrder(orders);
 	const jobs = [...new Map(shortfalls.map((s) => [s.jobCard, s.client]))];
+	const deliverTo = deliverToOptions(deliveryAddresses);
 
 	/** What to order from a supplier by default: their parts that need ordering and aren't on an order yet. */
 	const defaultsFor = (id: string) =>
@@ -129,7 +136,7 @@ export default function NewPurchaseOrderContent({
 				]),
 			),
 			expected: dayjs(addWorkingDays(today, leadFor(firstSupplier, firstSkus))).toISOString(),
-			deliverTo: DELIVER_TO[0],
+			deliverTo: deliverTo[0],
 			job: jobFor(firstSkus),
 			terms: PAYMENT_TERMS[0],
 			note: "",
@@ -146,6 +153,7 @@ export default function NewPurchaseOrderContent({
 	const rating = supplier ? supplierRating(supplier) : null;
 	const lineSkus = skus[supplierId] ?? [];
 	const lead = leadFor(supplierId, lineSkus);
+	const pickup = values.deliverTo === PICKUP;
 
 	const priceOf = (sku: string) => supplier?.materials.find((m) => m.sku === sku)?.price ?? 0;
 	const qtyOf = (sku: string) => whole(values[qtyKey(supplierId, sku)]);
@@ -485,16 +493,18 @@ export default function NewPurchaseOrderContent({
 							{field({
 								name: "expected",
 								type: "date",
-								label: "Expected delivery",
+								label: pickup ? "Pickup date" : "Expected delivery",
 								minDate: today,
-								description: `Usually delivers in ${plural(lead, "working day")}.`,
+								description: pickup
+									? `Usually ready in ${plural(lead, "working day")}.`
+									: `Usually delivers in ${plural(lead, "working day")}.`,
 								validation: { required: "Pick a date" },
 							})}
 							{field({
 								name: "deliverTo",
 								type: "select",
 								label: "Deliver to",
-								options: DELIVER_TO.map((d) => ({ label: d, value: d })),
+								options: deliverTo.map((d) => ({ label: d, value: d })),
 								validation: { required: "Pick where it goes" },
 							})}
 							{field({
@@ -516,6 +526,18 @@ export default function NewPurchaseOrderContent({
 								validation: { required: "Pick the payment terms" },
 							})}
 						</div>
+						{deliveryAddresses.length === 0 && (
+							<p className="text-small text-fg-secondary">
+								No delivery addresses saved yet.{" "}
+								<Link
+									href="/settings/company"
+									className="font-bold text-accent-fg hover:underline"
+								>
+									Add them in Settings → Company details
+								</Link>
+								.
+							</p>
+						)}
 						{field({
 							name: "note",
 							type: "textarea",
@@ -535,8 +557,10 @@ export default function NewPurchaseOrderContent({
 							<span className="tabular">{money(total)}</span>
 						</div>
 						<div className="flex justify-between text-body">
-							<span className="text-fg-secondary">Delivery</span>
-							<span>Included</span>
+							<span className="text-fg-secondary">
+								{pickup ? "Pickup" : "Delivery"}
+							</span>
+							<span>{pickup ? "We collect" : "Included"}</span>
 						</div>
 						<hr className="border-line" />
 						<div className="flex items-baseline justify-between font-bold">

@@ -5,6 +5,7 @@ import {
 	DEFAULT_AGENT_RULES,
 	DISCOUNT_WHO,
 	ROUNDING_OPTIONS,
+	parseDeliveryAddresses,
 	parseTradeTiers,
 	type CompanySettings,
 	type DollarRate,
@@ -16,7 +17,7 @@ import { createAdminClient, hasAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
 export const COMPANY_SETTINGS_COLUMNS =
-	"logo_url, trading_name, registered_name, rc_number, tin, address, phone, whatsapp, website, require_two_step, two_step_from, idle_hours, ngn_bank, ngn_account_name, ngn_account_number, usd_bank, usd_account_number, swift, quote_terms, invoice_footer, quote_prefix, invoice_prefix, purchase_order_prefix, job_card_prefix, cost_request_prefix, po_approval_limit, agent_threshold, agent_direct_to_quote, agent_low_stock_to_procurement, agent_suggest_substitutes, from_email, sender_name, quote_email_message, whatsapp_message, cc_accounting_on_invoices";
+	"logo_url, trading_name, registered_name, rc_number, tin, address, phone, whatsapp, website, require_two_step, two_step_from, idle_hours, ngn_bank, ngn_account_name, ngn_account_number, usd_bank, usd_account_number, swift, quote_terms, invoice_footer, quote_prefix, invoice_prefix, purchase_order_prefix, job_card_prefix, cost_request_prefix, po_approval_limit, agent_threshold, agent_direct_to_quote, agent_low_stock_to_procurement, agent_suggest_substitutes, from_email, sender_name, quote_email_message, whatsapp_message, cc_accounting_on_invoices, delivery_addresses";
 
 export const PRICING_SETTINGS_COLUMNS =
 	"vat_rate, deposit_rate, quote_validity_days, max_general_discount_percent, trade_tiers_label, usd_exchange_rate, usd_rounding, usd_rate_set_by_label, usd_rate_set_at, trade_tiers, general_discount_who";
@@ -71,6 +72,7 @@ type CompanySettingsRow = {
 	quote_email_message: string;
 	whatsapp_message: string;
 	cc_accounting_on_invoices: boolean;
+	delivery_addresses: unknown;
 };
 
 /** Percent from a stored rate (0.075 → 7.5), without float noise. */
@@ -232,6 +234,7 @@ function buildCompanySettings(
 			whatsappMessage: s.whatsapp_message,
 			ccAccountingOnInvoices: s.cc_accounting_on_invoices,
 		},
+		deliveryAddresses: parseDeliveryAddresses(s.delivery_addresses),
 		changes,
 	};
 }

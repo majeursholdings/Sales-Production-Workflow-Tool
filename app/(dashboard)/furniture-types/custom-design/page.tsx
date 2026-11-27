@@ -1,15 +1,33 @@
 import type { Metadata } from "next";
-import { LinkButton } from "@/components/common/buttons";
-import { Card } from "@/components/common/card";
+import CustomDesignFlow from "@/components/furniture/customDesign/customDesignFlow";
 import PageTitle from "@/components/layout/pageTitle";
 import PageWrapper from "@/components/layout/pageWrapper";
+import { getAgentStatus } from "@/lib/data/aiSettings";
+import { getCompanyConfig } from "@/lib/data/companySettings";
+import { getPublishedTypeNames } from "@/lib/data/furnitureTypes";
+import { hasPermission } from "@/lib/roles";
 import { requireRouteAccess } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Custom design from photo" };
 
-/** TODO: build the custom design flow (upload a photo, get a draft template and price). */
-export default async function CustomDesignPage() {
-	await requireRouteAccess("/furniture-types");
+/** The parts agent reads photos with an AI model, which can take a minute or two. */
+export const maxDuration = 180;
+
+export default async function CustomDesignPage({
+	searchParams,
+}: {
+	/** `for`: furniture type id, to start on "an addition to" that piece. */
+	searchParams: Promise<{ for?: string }>;
+}) {
+	const user = await requireRouteAccess("/furniture-types");
+	const [{ for: forId }, settings, targets, agent] = await Promise.all([
+		searchParams,
+		getCompanyConfig(),
+		getPublishedTypeNames(),
+		getAgentStatus(),
+	]);
+	const initialTarget = targets.some((t) => t.id === forId) ? (forId ?? null) : null;
+
 	return (
 		<PageWrapper>
 			<PageTitle
@@ -18,16 +36,15 @@ export default async function CustomDesignPage() {
 					{ label: "Custom design from photo" },
 				]}
 				pageTitle="Custom design from photo"
-				pageDescription="Start a one-off piece from a client's photo or sketch."
+				pageDescription="Start a one-off piece from a client's photo or sketch. The parts agent picks parts from inventory and flags anything we don't stock."
 			/>
-			<Card className="items-start gap-3">
-				<h2>Coming soon</h2>
-				<p className="text-body text-fg-secondary">
-					This flow isn&apos;t built yet. For now, make a new furniture type or quote an
-					existing one.
-				</p>
-				<LinkButton href="/furniture-types">Back to furniture types</LinkButton>
-			</Card>
+			<CustomDesignFlow
+				rules={settings.agent}
+				targets={targets}
+				initialTarget={initialTarget}
+				agentReady={agent.ready}
+				canBuild={hasPermission(user.roleKey, "quotes.create")}
+			/>
 		</PageWrapper>
 	);
 }

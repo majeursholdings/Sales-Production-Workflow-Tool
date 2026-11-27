@@ -12,6 +12,7 @@ import {
 	saveCompanyDetailsAction,
 	saveSignInPolicyAction,
 } from "@/app/(dashboard)/(settings)/settings/actions";
+import DeliveryAddressesPanel from "./deliveryAddressesPanel";
 import { optionalPhone } from "./rules";
 import { RecentChanges, SaveRow, SettingsCard, lockFields, useSettingsSave } from "./settingsCard";
 
@@ -229,6 +230,8 @@ export default function CompanyDetailsPanel({
 					renderFooter={() => (readOnly ? null : <SaveRow saving={signInSave.saving} />)}
 				/>
 			</SettingsCard>
+
+			<DeliveryAddressesPanel addresses={settings.deliveryAddresses} readOnly={readOnly} />
 
 			<RecentChanges changes={settings.changes} now={now} />
 		</>

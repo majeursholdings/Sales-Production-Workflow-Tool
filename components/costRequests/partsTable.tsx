@@ -24,8 +24,15 @@ export type RenderField = (config: FormFieldConfig) => ReactNode;
 type Row = PartRow & { id: string };
 
 /** How sure the agent is, as a bar with the threshold marked. */
-function Confidence({ value }: { value: number }) {
-	const low = value < CONFIDENCE_THRESHOLD;
+export function Confidence({
+	value,
+	threshold = CONFIDENCE_THRESHOLD,
+}: {
+	value: number;
+	/** The % the agent must reach; below it the bar turns amber. */
+	threshold?: number;
+}) {
+	const low = value < threshold;
 	return (
 		<span className="inline-flex items-center gap-2">
 			<span aria-hidden="true" className="relative h-1.5 w-14 shrink-0 rounded-full bg-line">
@@ -38,7 +45,7 @@ function Confidence({ value }: { value: number }) {
 				/>
 				<span
 					className="absolute -top-0.75 h-3 w-px bg-fg-secondary"
-					style={{ insetInlineStart: `${CONFIDENCE_THRESHOLD}%` }}
+					style={{ insetInlineStart: `${threshold}%` }}
 				/>
 			</span>
 			<span
@@ -47,7 +54,7 @@ function Confidence({ value }: { value: number }) {
 					low ? "font-bold text-warning-fg" : "text-fg-secondary",
 				)}
 			>
-				{value}% sure
+				{value}% sure{low ? `, below ${threshold}%` : ""}
 			</span>
 		</span>
 	);

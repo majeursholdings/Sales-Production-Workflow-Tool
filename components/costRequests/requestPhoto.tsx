@@ -1,8 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import type { PartRow } from "@/lib/costRequests";
+import type { PartRow, RequestPart } from "@/lib/costRequests";
+
+/** What a pin needs: a cost request's PartRow or a custom design's row both fit. */
+type PinRow = Pick<PartRow, "num" | "name" | "tone"> & { part: Pick<RequestPart, "id" | "pin"> };
 
 /** Pin and number colours by how a part stands: matched, unsure, missing, substituted, removed. */
 export const toneClass: Record<PartRow["tone"], string> = {
@@ -19,12 +23,15 @@ export default function RequestPhoto({
 	rows,
 	focus,
 	onFocus,
+	children,
 }: {
 	image: { src: string; alt: string };
-	rows: PartRow[];
+	rows: PinRow[];
 	/** Part id that's highlighted, on the photo and in the table. */
 	focus: string | null;
 	onFocus: (partId: string | null) => void;
+	/** Drawn over the photo, e.g. a scanning overlay while the agent works. */
+	children?: ReactNode;
 }) {
 	return (
 		<div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-line bg-subtle">
@@ -56,6 +63,7 @@ export default function RequestPhoto({
 						</button>
 					);
 				})}
+			{children}
 		</div>
 	);
 }

@@ -436,14 +436,13 @@ export default function ItemsStep({
 													<Plus />
 													Add part
 												</Button>
-												<Button
+												<LinkButton
 													variant="ghost"
 													size="sm"
-													disabled
-													title="Needs the custom design flow, which isn't built yet"
+													href={`/furniture-types/custom-design?for=${item.id}`}
 												>
 													Custom addition from photo
-												</Button>
+												</LinkButton>
 											</div>
 											<div className="ml-auto flex w-full max-w-90 flex-col gap-1 rounded-md bg-page p-3">
 												<BreakdownRow
@@ -582,15 +581,10 @@ export default function ItemsStep({
 								Add furniture item
 							</Button>
 						)}
-						<Button
-							{...{
-								disabled: true,
-								title: "Needs the custom design flow, which isn't built yet",
-							}}
-						>
+						<LinkButton href="/furniture-types/custom-design">
 							<Plus />
 							Custom design from photo
-						</Button>
+						</LinkButton>
 					</div>
 				</div>
 

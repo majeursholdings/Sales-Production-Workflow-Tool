@@ -172,3 +172,15 @@ export async function getOtherCostOptions(): Promise<OtherCostOption[]> {
 	const items = await getCostItems();
 	return items.map((item) => ({ ...item, costItemId: item.id }));
 }
+
+/** Published furniture types by name, for picking which piece a custom addition is for. */
+export async function getPublishedTypeNames(): Promise<{ id: string; name: string }[]> {
+	const supabase = await createClient();
+	const { data, error } = await supabase
+		.from("furniture_types")
+		.select("id, name")
+		.eq("status", "published")
+		.order("name");
+	if (error) throw new Error(`Failed to load furniture types: ${error.message}`);
+	return (data ?? []).map((r) => ({ id: r.id as string, name: r.name as string }));
+}

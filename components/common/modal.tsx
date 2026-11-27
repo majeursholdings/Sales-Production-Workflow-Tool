@@ -66,3 +66,41 @@ export function ConfirmDialog({
 		</div>
 	);
 }
+
+/**
+ * Plain dialog for a short form, e.g. confirming who you are. Escape and the
+ * backdrop close it. Render conditionally: `{open && <Dialog ... />}`.
+ */
+export function Dialog({
+	title,
+	description,
+	children,
+	onClose,
+}: {
+	title: string;
+	description?: ReactNode;
+	children: ReactNode;
+	onClose: () => void;
+}) {
+	return (
+		<div
+			className="fixed inset-0 z-40 grid place-items-center bg-[rgb(33_29_26/0.45)] p-6 print:hidden"
+			onClick={onClose}
+			onKeyDown={(e) => e.key === "Escape" && onClose()}
+		>
+			<div
+				role="dialog"
+				aria-modal="true"
+				aria-label={title}
+				onClick={(e) => e.stopPropagation()}
+				className="flex max-h-[calc(100vh-48px)] w-110 max-w-full flex-col gap-4 overflow-auto rounded-lg border border-line bg-surface p-6 shadow-[0_16px_48px_rgb(33_29_26/0.2)]"
+			>
+				<div className="flex flex-col gap-1">
+					<h2 className="text-lg leading-snug">{title}</h2>
+					{description && <p className="text-body text-fg-secondary">{description}</p>}
+				</div>
+				{children}
+			</div>
+		</div>
+	);
+}

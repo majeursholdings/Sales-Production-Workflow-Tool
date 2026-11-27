@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, userWith, type ActionResult } from "@/lib/actionResult";
 import { getCompanyConfig } from "@/lib/data/companySettings";
-import { needsApproval, poNumber, type POStatus } from "@/lib/purchaseOrders";
+import { deliverToOptions, needsApproval, poNumber, type POStatus } from "@/lib/purchaseOrders";
 import { isOwnerAppRole } from "@/lib/roles";
 import { createClient } from "@/utils/supabase/server";
 
@@ -79,7 +79,7 @@ export async function createPurchaseOrdersAction(
 			approval_requested_at: status === "approval" ? new Date().toISOString() : null,
 			job_card: order.jobCard,
 			client: order.client,
-			deliver_to: order.deliverTo,
+			deliver_to: order.deliverTo || deliverToOptions(settings.deliveryAddresses)[0],
 			payment_terms: order.paymentTerms,
 			note: order.note,
 		});
